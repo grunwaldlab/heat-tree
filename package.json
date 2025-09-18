@@ -1,0 +1,28 @@
+{
+  "name": "heat-tree",
+  "version": "0.1.0",
+  "description": "A self-contained widget for phylogenetic and taxonomic tree visualization with categorical and continuous variables associated with nodes and tips",
+  "keywords": [
+    "phylogeny",
+    "tree",
+    "taxonomy",
+    "taxonomic",
+    "phylogenetic",
+    "plot"
+  ],
+  "homepage": "https://github.com/grunwaldlab/heat-tree#readme",
+  "bugs": {
+    "url": "https://github.com/grunwaldlab/heat-tree/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/grunwaldlab/heat-tree.git"
+  },
+  "license": "MIT",
+  "author": "Zachary Stephen Longiaru Foster",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  }
+}
