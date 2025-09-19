@@ -8,14 +8,17 @@
     <h1>Heat Tree Demo</h1>
     <div id="output"></div>
     <script type="module">
-        import { heatTree } from './src/index.js';
+        import { heatTree, buildPannableTree } from '../dist/heat-tree.es.js';
 
         // Sample Newick string for interactive testing.
         const newickString = "(A,(B,C));";
         const options = { newick: newickString };
 
-        // Call the heatTree function.
-        heatTree(options);
+        console.log('in script')
+
+        buildPannableTree(newickString, "#output");
+        console.log('script done')
+
     </script>
 </body>
 </html>

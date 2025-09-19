@@ -11,4 +11,5 @@
 - D3
 - `vite`: packaging distributions
 - `vitest`: unit testing
+- `http-server`: serving test pages using the widget in `./demo`
 
