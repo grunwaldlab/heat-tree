@@ -10,4 +10,5 @@ export function heatTree(options = {}) {
     const treeData = parseNewick(options.newick);
     console.log("Parsed tree data:", treeData);
   }
+  console.log('hello world')
 }

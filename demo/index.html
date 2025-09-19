@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Heat Tree Demo</title>
+</head>
+<body>
+    <h1>Heat Tree Demo</h1>
+    <div id="output"></div>
+    <script type="module">
+        import { heatTree } from './src/index.js';
+
+        // Sample Newick string for interactive testing.
+        const newickString = "(A,(B,C));";
+        const options = { newick: newickString };
+
+        // Call the heatTree function.
+        heatTree(options);
+    </script>
+</body>
+</html>
