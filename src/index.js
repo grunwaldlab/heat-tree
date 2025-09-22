@@ -1,6 +1,7 @@
 import { parseNewick } from "./parsers.js"
-import { hierarchy, tree, select, linkHorizontal, zoom } from "d3";
+import { hierarchy, tree, select, linkHorizontal, zoom, cluster, ascending } from "d3";
 
+export { parseNewick }
 
 /**
  * Main function to initialize the heat-tree visualization.
@@ -14,34 +15,53 @@ export function heatTree(options = {}) {
   console.log('hello world')
 }
 
-export function buildPannableTree(newickStr, containerSelector) {
-  console.log('here')
+export function buildPannableTree(
+  newickStr,
+  containerSelector,
+  windowWidth = document.querySelector(containerSelector).clientWidth,
+  windowHeight = document.querySelector(containerSelector).clientHeight
+) {
+  console.log('buildPannableTree')
+
+  // Set the total plot size, which may be different from the display window size
+  var treeWidth = windowWidth;
+  var treeHeight = windowHeight;
 
   // Parse the Newick string
   const treeData = parseNewick(newickStr);
 
-  // Set dimensions for the SVG
-  const width = 960, height = 600;
-
   // Create a D3 hierarchy from the tree data
-  const root = hierarchy(treeData);
+  const root = hierarchy(treeData, d => d.children)
+    .sum(d => d.children ? 0 : 1)
+    .sort((a, b) => (a.value - b.value) || ascending(a.data.length, b.data.length));
 
-  // Use D3 tree layout to compute node positions
-  const treeLayout = tree().size([height, width - 160]);
+  // Use D3 cluster layout to compute node positions (for x coordinate)
+  const treeLayout = cluster()
+    .size([treeHeight, treeWidth])
+    .separation((a, b) => 1);
   treeLayout(root);
+
+  // Override y coordinate using branch lengths encoded as "length"
+  root.each(d => {
+    if (d.parent) {
+      d.y = d.parent.y + (d.data.length ? d.data.length * treeWidth : 0);
+    } else {
+      d.y = 0;
+    }
+  });
 
   // Create an SVG element in the specified container with pan & zoom behavior
   const svg = select(containerSelector)
     .append("svg")
-    .attr("width", width)
-    .attr("height", height)
+    .attr("width", treeWidth)
+    .attr("height", treeHeight)
     .call(zoom().on("zoom", (event) => {
       svg.attr("transform", event.transform);
     }))
     .append("g")
-    .attr("transform", "translate(80,0)");
+    .attr("transform", "translate(10,0)");
 
-  // Create links between nodes
+  // Create links between nodes with right-angled connectors
   svg.selectAll(".link")
     .data(root.links())
     .enter().append("path")
@@ -49,11 +69,8 @@ export function buildPannableTree(newickStr, containerSelector) {
     .attr("fill", "none")
     .attr("stroke", "#555")
     .attr("stroke-opacity", 0.4)
-    .attr("stroke-width", 1.5)
-    .attr("d", linkHorizontal()
-      .x(d => d.y)
-      .y(d => d.x)
-    );
+    .attr("stroke-treeWidth", 1.5)
+    .attr("d", d => `M${d.source.y},${d.source.x} V${d.target.x} H${d.target.y}`);
 
   // Create node groups
   const node = svg.selectAll(".node")
@@ -69,9 +86,10 @@ export function buildPannableTree(newickStr, containerSelector) {
 
   // Append text labels for nodes
   node.append("text")
-    .attr("dy", 3)
+    .attr("dy", 4)
     .attr("x", d => d.children ? -8 : 8)
     .style("text-anchor", d => d.children ? "end" : "start")
+    .style("font-size", "12px")
     .text(d => d.data.name || "");
 
   return { root, svg };
