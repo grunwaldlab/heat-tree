@@ -53,6 +53,13 @@ export function buildPannableTree(
     .sum(d => d.children ? 0 : 1)
     .sort((a, b) => (a.value - b.value) || ascending(a.data.length, b.data.length));
 
+  // ------------------------------------------------------------------
+  // Assign a stable, unique id to every node so D3 can track elements
+  // across updates.  Stable keys ensure *all* links animate smoothly.
+  // ------------------------------------------------------------------
+  let nodeId = 0;
+  root.each(d => { d.id = ++nodeId; });
+
   // Use D3 cluster layout to compute node positions (for x coordinate)
   const treeLayout = cluster()
     .size([treeHeight, treeWidth])
@@ -94,24 +101,45 @@ export function buildPannableTree(
     }));
     root.each(d => d.y = d.y * scaleFactor);
 
-    // DATA JOIN for links
+    // DATA JOIN for links (use stable target.id as key)
     const link = svg.selectAll(".link")
-      .data(root.links(), d => d.source.data.name + "-" + d.target.data.name);
-    link.exit().remove();
-    link.attr("d", d => `M${d.source.y},${d.source.x} V${d.target.x} H${d.target.y}`);
-    link.enter().append("path")
+      .data(root.links(), d => d.target.id);
+
+    // ENTER links – start at the parent's previous position
+    const linkEnter = link.enter().append("path")
       .attr("class", "link")
       .attr("fill", "none")
       .attr("stroke", "#000")
       .attr("stroke-opacity", 1)
       .attr("stroke-width", 1.5)
+      .attr("d", d => {
+        const sy = d.source.y0 ?? d.source.y;
+        const sx = d.source.x0 ?? d.source.x;
+        return `M${sy},${sx}`;
+      });
+
+    // UPDATE + ENTER => one unified selection
+    const linkUpdate = linkEnter.merge(link);
+
+    // UPDATE links to new position
+    linkUpdate.transition().duration(750)
       .attr("d", d => `M${d.source.y},${d.source.x} V${d.target.x} H${d.target.y}`);
 
-    // DATA JOIN for nodes
+    // EXIT links – collapse back to the parent's new position
+    link.exit().transition().duration(750)
+      .attr("d", d => {
+        const sy = d.source.y;
+        const sx = d.source.x;
+        return `M${sy},${sx}`;
+      })
+      .remove();
+
+    // DATA JOIN for nodes (use stable id)
     const node = svg.selectAll(".node")
-      .data(root.descendants(), d => d.data.name + "-" + d.depth);
+      .data(root.descendants(), d => d.id);
     node.exit().remove();
-    node.attr("transform", d => `translate(${d.y},${d.x})`);
+    node.transition().duration(750)
+      .attr("transform", d => `translate(${d.y},${d.x})`);
     const nodeEnter = node.enter().append("g")
       .attr("class", "node")
       .attr("transform", d => `translate(${d.y},${d.x})`)
@@ -138,6 +166,13 @@ export function buildPannableTree(
       .style("text-anchor", d => (d.children || d._children ? "end" : "start"))
       .style("font-size", `${labelSize}px`)
       .text(d => d.data.name || "");
+
+    // Store current positions for the next update so every branch has
+    // previous coordinates to interpolate from.
+    root.each(d => {
+      d.x0 = d.x;
+      d.y0 = d.y;
+    });
   }
 
   update();
