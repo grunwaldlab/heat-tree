@@ -18,14 +18,32 @@ export function heatTree(options = {}) {
 export function buildPannableTree(
   newickStr,
   containerSelector,
-  windowWidth = document.querySelector(containerSelector).clientWidth,
-  windowHeight = document.querySelector(containerSelector).clientHeight
+  windowWidth = null,
+  windowHeight = null,
+  treeWidth = windowWidth,
+  treeHeight = windowHeight,
+  labelSize = null,
+  labelSpacing = 0.1,
 ) {
   console.log('buildPannableTree')
 
-  // Set the total plot size, which may be different from the display window size
-  var treeWidth = windowWidth;
-  var treeHeight = windowHeight;
+  // Infer window dimensions if needed, taking into account padding
+  const container = document.querySelector(containerSelector);
+  const style = window.getComputedStyle(container);
+  if (windowWidth === null) {
+    windowWidth = container.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  }
+  if (windowHeight === null) {
+    windowHeight = container.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+  }
+
+  // Infer plotted tree dimensions if needed
+  if (treeWidth === null) {
+    treeWidth = windowWidth;
+  }
+  if (treeHeight === null) {
+    treeHeight = windowHeight;
+  }
 
   // Parse the Newick string
   const treeData = parseNewick(newickStr);
@@ -41,14 +59,24 @@ export function buildPannableTree(
     .separation((a, b) => 1);
   treeLayout(root);
 
+  // Infer lable size if needed
+  if (labelSize === null) {
+    const tipCount = root.leaves().length;
+    labelSize = treeHeight / tipCount * (1 - labelSpacing);
+    console.log(`labelSize: ${labelSize}`);
+    console.log(`tipCount: ${tipCount}`);
+  }
+
   // Override y coordinate using branch lengths encoded as "length"
   root.each(d => {
     if (d.parent) {
-      d.y = d.parent.y + (d.data.length ? d.data.length * treeWidth : 0);
+      d.y = d.parent.y + (d.data.length ? d.data.length : 0);
     } else {
       d.y = 0;
     }
   });
+  const scaleFactor = Math.min(...root.leaves().map(d => (treeWidth - d.data.name.length * labelSize * 0.65) / d.y));
+  root.each(d => d.y = d.y * scaleFactor);
 
   // Create an SVG element in the specified container with pan & zoom behavior
   const svg = select(containerSelector)
@@ -59,7 +87,7 @@ export function buildPannableTree(
       svg.attr("transform", event.transform);
     }))
     .append("g")
-    .attr("transform", "translate(10,0)");
+    .attr("transform", "translate(0,0)");
 
   // Create links between nodes with right-angled connectors
   svg.selectAll(".link")
@@ -67,8 +95,8 @@ export function buildPannableTree(
     .enter().append("path")
     .attr("class", "link")
     .attr("fill", "none")
-    .attr("stroke", "#555")
-    .attr("stroke-opacity", 0.4)
+    .attr("stroke", "#000")
+    .attr("stroke-opacity", 1)
     .attr("stroke-treeWidth", 1.5)
     .attr("d", d => `M${d.source.y},${d.source.x} V${d.target.x} H${d.target.y}`);
 
@@ -80,16 +108,17 @@ export function buildPannableTree(
     .attr("transform", d => `translate(${d.y},${d.x})`);
 
   // Append circles for nodes
-  node.append("circle")
-    .attr("r", 4)
-    .attr("fill", d => d.children ? "#555" : "#999");
+  // node.filter(d => !d.children)
+  //   .append("circle")
+  //   .attr("r", 4)
+  //   .attr("fill", "#000");
 
   // Append text labels for nodes
   node.append("text")
-    .attr("dy", 4)
-    .attr("x", d => d.children ? -8 : 8)
+    .attr("dy", labelSize / 2.5)
+    // .attr("x", d => d.children ? -labelSize : labelSize)
     .style("text-anchor", d => d.children ? "end" : "start")
-    .style("font-size", "12px")
+    .style("font-size", `${labelSize}px`)
     .text(d => d.data.name || "");
 
   return { root, svg };
