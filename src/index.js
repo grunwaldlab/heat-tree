@@ -84,7 +84,7 @@ export function buildPannableTree(
     .append("g")
     .attr("transform", "translate(0,0)");
 
-  function update() {
+  function update(onEnd = null, expanding = false) {
     // Recompute layout
     treeLayout(root);
     // Apply branch lengths override
@@ -105,6 +105,9 @@ export function buildPannableTree(
     const link = svg.selectAll(".link")
       .data(root.links(), d => d.target.id);
 
+    // Shared transition for this update
+    const t = svg.transition().duration(750);
+
     // ENTER links – start at the parent's previous position
     const linkEnter = link.enter().append("path")
       .attr("class", "link")
@@ -122,11 +125,11 @@ export function buildPannableTree(
     const linkUpdate = linkEnter.merge(link);
 
     // UPDATE links to new position
-    linkUpdate.transition().duration(750)
+    linkUpdate.transition(t)
       .attr("d", d => `M${d.source.y},${d.source.x} V${d.target.x} H${d.target.y}`);
 
     // EXIT links – collapse back to the parent's new position
-    link.exit().transition().duration(750)
+    link.exit().transition(t)
       .attr("d", d => {
         const sy = d.source.y;
         const sx = d.source.x;
@@ -138,20 +141,21 @@ export function buildPannableTree(
     const node = svg.selectAll(".node")
       .data(root.descendants(), d => d.id);
     node.exit().remove();
-    node.transition().duration(750)
+    node.transition(t)
       .attr("transform", d => `translate(${d.y},${d.x})`);
     const nodeEnter = node.enter().append("g")
       .attr("class", "node")
       .attr("transform", d => `translate(${d.y},${d.x})`)
       .on("click", (event, d) => {
-        if (d.children) {
+        if (d.children) {               // collapse
           d._children = d.children;
           d.children = null;
-        } else if (d._children) {
+          update();
+        } else if (d._children) {       // expand (delayed reveal)
           d.children = d._children;
           d._children = null;
+          update(null, true);
         }
-        update();
       });
 
     // Append circles for nodes
@@ -166,6 +170,22 @@ export function buildPannableTree(
       .style("text-anchor", d => (d.children || d._children ? "end" : "start"))
       .style("font-size", `${labelSize}px`)
       .text(d => d.data.name || "");
+
+    /* -----------------------------------------------------------
+       Delay the appearance of newly-entered subtree when expanding
+    ------------------------------------------------------------ */
+    if (expanding) {
+      linkEnter.attr("opacity", 0);
+      nodeEnter.attr("opacity", 0);
+    }
+
+    t.on("end", () => {
+      if (expanding) {
+        linkEnter.transition().duration(250).attr("opacity", 1);
+        nodeEnter.transition().duration(250).attr("opacity", 1);
+      }
+      if (onEnd) onEnd();
+    });
 
     // Store current positions for the next update so every branch has
     // previous coordinates to interpolate from.
