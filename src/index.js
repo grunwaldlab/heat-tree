@@ -60,6 +60,9 @@ export function buildPannableTree(
   let nodeId = 0;
   root.each(d => { d.id = ++nodeId; });
 
+  // Will hold a visible rectangle that highlights the selected subtree
+  let selectionRect;
+
   // Use D3 cluster layout to compute node positions (for x coordinate)
   const treeLayout = cluster()
     .size([treeHeight, treeWidth])
@@ -84,6 +87,19 @@ export function buildPannableTree(
     .append("g")
     .attr("transform", "translate(0,0)");
 
+  // Layer for invisible hit-test rectangles (kept above links/nodes)
+  const hitLayer = svg.append("g").attr("class", "hit-layer");
+
+  // Visible bounding-box shown when a subtree is selected
+  selectionRect = svg.append("rect")
+    .attr("class", "selection-rect")
+    .attr("fill", "none")
+    .attr("stroke", "grey")
+    .attr("stroke-width", 2)
+    .attr("stroke-dasharray", "5,5")
+    .attr("pointer-events", "none")
+    .style("display", "none");
+
   function update(onEnd = null, expanding = false) {
     // Recompute layout
     treeLayout(root);
@@ -95,11 +111,70 @@ export function buildPannableTree(
         d.y = 0;
       }
     });
+
+    // The estimated width in pixels of the printed label
+    function getLabelWidth(node) {
+      const nameLen = node.data.name ? node.data.name.length : 0;
+      return nameLen * labelSize * 0.65;
+    }
+
+    // The width in pixels of how far the begining of labels are moved right
+    function getLabelXOffset(node) {
+      return labelSize
+    }
+
+    // The width in pixels of how far the begining of labels are moved down
+    function getLabelYOffset(node) {
+      return labelSize / 2.5
+    }
+
     const scaleFactor = Math.min(...root.leaves().map(d => {
-      const nameLen = d.data.name ? d.data.name.length : 0;
-      return (treeWidth - nameLen * labelSize * 0.65) / (d.y || 1);
+      return (treeWidth - getLabelWidth(d) - getLabelXOffset(d)) / (d.y || 1);
     }));
     root.each(d => d.y = d.y * scaleFactor);
+
+    // -------------------------------------------------
+    // Compute bounding rectangles for every subtree node
+    // -------------------------------------------------
+    root.eachAfter(d => {
+      if (d.children || d._children) {
+        const kids = (d.children || d._children);
+        d.x0bbox = Math.min(...kids.map(k => k.x0bbox));
+        d.x1bbox = Math.max(...kids.map(k => k.x1bbox));
+        d.y1bbox = Math.max(...kids.map(k => k.y1bbox));
+      } else {                 // leaf
+        const nameLen = d.data.name ? d.data.name.length : 0;
+        d.x0bbox = d.x - getLabelYOffset(d);
+        d.x1bbox = d.x + getLabelYOffset(d);
+        d.y1bbox = d.y + getLabelXOffset(d) + getLabelWidth(d);
+      }
+    });
+
+    // -------------------------------------------------
+    // Update invisible hit rectangles for every subtree
+    // -------------------------------------------------
+    const hits = hitLayer.selectAll(".hit")
+      .data(root.descendants(), d => d.id);
+
+    hits.exit().remove();
+
+    const hitsEnter = hits.enter().append("rect")
+      .attr("class", "hit")
+      .attr("fill", "transparent")
+      .style("cursor", "pointer")
+      .on("click", (event, d) => {
+        selectSubtree(d);
+        event.stopPropagation();        // don't trigger node click
+      });
+
+    hitsEnter.merge(hits)
+      .attr("x", d => d.y)
+      .attr("y", d => d.x0bbox)
+      .attr("width", d => d.y1bbox - d.y)
+      .attr("height", d => d.x1bbox - d.x0bbox);
+
+    // Deeper nodes (greater depth) rendered above shallower ones
+    hitLayer.selectAll(".hit").sort((a, b) => a.depth - b.depth);
 
     // DATA JOIN for links (use stable target.id as key)
     const link = svg.selectAll(".link")
@@ -165,8 +240,8 @@ export function buildPannableTree(
 
     // Append text labels for nodes
     nodeEnter.append("text")
-      .attr("dy", labelSize / 2.5)
-      .attr("x", d => (d.children || d._children ? -labelSize : labelSize))
+      .attr("dy", d => labelSize / 2.5)
+      .attr("x", d => (d.children || d._children ? -getLabelXOffset(d) : getLabelXOffset(d)))
       .style("text-anchor", d => (d.children || d._children ? "end" : "start"))
       .style("font-size", `${labelSize}px`)
       .text(d => d.data.name || "");
@@ -196,6 +271,18 @@ export function buildPannableTree(
   }
 
   update();
+
+  // -----------------------
+  // Subtree selection logic
+  // -----------------------
+  function selectSubtree(node) {
+    selectionRect
+      .attr("x", node.y)
+      .attr("y", node.x0bbox)
+      .attr("width", node.y1bbox - node.y)
+      .attr("height", node.x1bbox - node.x0bbox)
+      .style("display", "block");
+  }
 
   return { root, svg };
 }
