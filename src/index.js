@@ -71,10 +71,6 @@ export function buildPannableTree(
     labelSize = treeHeight / tipCount * (1 - labelSpacing);
   }
 
-  // Pre-computed symbol paths used for node icons
-  const circlePath = symbol().type(symbolCircle).size(64)();
-  const trianglePath = symbol().type(symbolTriangle).size(64)();
-
   // Toolbar with a “Collapse selected” button
   const toolbar = select(containerSelector)
     .insert("div", ":first-child")
@@ -190,7 +186,7 @@ export function buildPannableTree(
 
     // Update invisible hit rectangles for every subtree
     const hits = hitLayer.selectAll(".hit")
-      .data(root.descendants(), d => d.id);
+      .data(root.descendants().filter(d => d.children), d => d.id);
     hits.exit().remove();
 
     function selectSubtree(node) {
@@ -280,10 +276,27 @@ export function buildPannableTree(
         }
       });
 
-    // Append circles for nodes
-    nodeEnter.append("circle")
-      .attr("r", 4)
-      .attr("fill", "#000");
+    function triangleSideFromArea(area) {
+      return Math.sqrt(2.309401 * area); // 2.309401 = 4 / sqrt(3)
+    }
+
+    function triangleAreaFromSide(side) {
+      return 0.4330127 * side * side; // 0.4330127 == sqrt(3) / 4
+    }
+
+    // Pre-computed symbol paths used for node icons
+    const circlePath = symbol().type(symbolCircle).size(64)();
+    const triangleHeight = labelSize * 1.5;
+    const triangleArea = triangleAreaFromSide(triangleHeight);
+    const trianglePath = symbol().type(symbolTriangle).size(triangleArea)();
+
+    // Append a path that will show a triangle only when subtree is collapsed
+    nodeEnter.append("path")
+      .attr("class", "node-shape")
+      .attr("d", d => d.collapsed_children ? trianglePath : null)
+      .attr("transform", `rotate(-90) translate(0, ${triangleHeight * 0.52})`)
+      .attr("fill", "#000")
+      .style("display", d => d.collapsed_children ? null : "none");
 
     // Append text labels for nodes
     nodeEnter.append("text")
@@ -293,16 +306,11 @@ export function buildPannableTree(
       .style("font-size", `${labelSize}px`)
       .text(d => d.data.name || "");
 
-    // Update icon (circle / triangle) for all nodes
-    nodeEnter.select(".node-shape")
+    // Update visibility and orientation of node-shapes (triangles)
+    svg.selectAll(".node-shape")
       .transition(t)
-      .attr("d", d => d.collapsed_children ? trianglePath : circlePath)
-      .attr("transform", d => d.collapsed_children ? "rotate(-90)" : null)
-      .attr("dy", labelSize / 2.5)
-      .attr("x", d => (d.children || d.collapsed_children ? -getLabelXOffset(d) : getLabelXOffset(d)))
-      .style("text-anchor", d => (d.children || d.collapsed_children ? "end" : "start"))
-      .style("font-size", `${labelSize}px`)
-      .text(d => d.data.name || "");
+      .attr("d", d => d.collapsed_children ? trianglePath : null)
+      .style("display", d => d.collapsed_children ? null : "none");
 
     // Delay the appearance of newly-entered subtree when expanding
     if (expanding) {
