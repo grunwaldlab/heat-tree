@@ -1,5 +1,8 @@
 import { parseNewick } from "./parsers.js"
-import { hierarchy, tree, select, linkHorizontal, zoom, cluster, ascending } from "d3";
+import {
+  hierarchy, tree, select, linkHorizontal, zoom, cluster, ascending,
+  symbol, symbolTriangle, symbolCircle
+} from "d3";
 
 export { parseNewick }
 
@@ -48,20 +51,14 @@ export function buildPannableTree(
   // Parse the Newick string
   const treeData = parseNewick(newickStr);
 
-  // Create a D3 hierarchy from the tree data
+  // Create a D3 hierarchy from the tree data and sort by size of subtree and branch length
   const root = hierarchy(treeData, d => d.children)
     .sum(d => d.children ? 0 : 1)
     .sort((a, b) => (a.value - b.value) || ascending(a.data.length, b.data.length));
 
-  // ------------------------------------------------------------------
-  // Assign a stable, unique id to every node so D3 can track elements
-  // across updates.  Stable keys ensure *all* links animate smoothly.
-  // ------------------------------------------------------------------
+  // Assign a stable, unique id to every node so D3 can track elements across updates
   let nodeId = 0;
   root.each(d => { d.id = ++nodeId; });
-
-  // Will hold a visible rectangle that highlights the selected subtree
-  let selectionRect;
 
   // Use D3 cluster layout to compute node positions (for x coordinate)
   const treeLayout = cluster()
@@ -72,18 +69,46 @@ export function buildPannableTree(
   if (labelSize === null) {
     const tipCount = root.leaves().length;
     labelSize = treeHeight / tipCount * (1 - labelSpacing);
-    console.log(`labelSize: ${labelSize}`);
-    console.log(`tipCount: ${tipCount}`);
   }
+
+  // Pre-computed symbol paths used for node icons
+  const circlePath = symbol().type(symbolCircle).size(64)();
+  const trianglePath = symbol().type(symbolTriangle).size(64)();
+
+  // Toolbar with a “Collapse selected” button
+  const toolbar = select(containerSelector)
+    .insert("div", ":first-child")
+    .attr("class", "ht-toolbar")
+    .style("margin-bottom", "4px");
+
+  let selectedNode = null; // Currently selected subtree root
+  toolbar.append("button")
+    .attr("type", "button")
+    .text("Collapse selected")
+    .on("click", () => {
+      if (selectedNode && selectedNode.children) {
+        selectedNode.collapsed_children = selectedNode.children;
+        selectedNode.children = null;
+        selectedNode = null;
+        update();
+      }
+    });
 
   // Create an SVG element in the specified container with pan & zoom behavior
   const svg = select(containerSelector)
     .append("svg")
     .attr("width", treeWidth)
     .attr("height", treeHeight)
-    .call(zoom().on("zoom", (event) => {
-      svg.attr("transform", event.transform);
-    }))
+    .call(
+      zoom()
+        .filter(event => {
+          if (event.type === 'dblclick') return false;
+          return true;
+        })
+        .on("zoom", (event) => {
+          svg.attr("transform", event.transform);
+        })
+    )
     .append("g")
     .attr("transform", "translate(0,0)");
 
@@ -91,7 +116,7 @@ export function buildPannableTree(
   const hitLayer = svg.append("g").attr("class", "hit-layer");
 
   // Visible bounding-box shown when a subtree is selected
-  selectionRect = svg.append("rect")
+  let selectionRect = svg.append("rect")
     .attr("class", "selection-rect")
     .attr("fill", "none")
     .attr("stroke", "grey")
@@ -101,8 +126,10 @@ export function buildPannableTree(
     .style("display", "none");
 
   function update(onEnd = null, expanding = false) {
+
     // Recompute layout
     treeLayout(root);
+
     // Apply branch lengths override
     root.each(d => {
       if (d.parent) {
@@ -133,30 +160,40 @@ export function buildPannableTree(
     }));
     root.each(d => d.y = d.y * scaleFactor);
 
-    // -------------------------------------------------
     // Compute bounding rectangles for every subtree node
-    // -------------------------------------------------
     root.eachAfter(d => {
-      if (d.children || d._children) {
-        const kids = (d.children || d._children);
+      if (d.children || d.collapsed_children) {
+        const kids = (d.children || d.collapsed_children);
         d.x0bbox = Math.min(...kids.map(k => k.x0bbox));
         d.x1bbox = Math.max(...kids.map(k => k.x1bbox));
         d.y1bbox = Math.max(...kids.map(k => k.y1bbox));
-      } else {                 // leaf
-        const nameLen = d.data.name ? d.data.name.length : 0;
+      } else { // is leaf
         d.x0bbox = d.x - getLabelYOffset(d);
         d.x1bbox = d.x + getLabelYOffset(d);
         d.y1bbox = d.y + getLabelXOffset(d) + getLabelWidth(d);
       }
     });
 
-    // -------------------------------------------------
     // Update invisible hit rectangles for every subtree
-    // -------------------------------------------------
     const hits = hitLayer.selectAll(".hit")
       .data(root.descendants(), d => d.id);
-
     hits.exit().remove();
+
+    function selectSubtree(node) {
+      if (selectedNode == node) {
+        selectedNode = null;
+        selectionRect
+          .style("display", "none");
+      } else {
+        selectedNode = node;
+        selectionRect
+          .attr("x", node.y)
+          .attr("y", node.x0bbox)
+          .attr("width", node.y1bbox - node.y)
+          .attr("height", node.x1bbox - node.x0bbox)
+          .style("display", "block");
+      }
+    }
 
     const hitsEnter = hits.enter().append("rect")
       .attr("class", "hit")
@@ -164,7 +201,7 @@ export function buildPannableTree(
       .style("cursor", "pointer")
       .on("click", (event, d) => {
         selectSubtree(d);
-        event.stopPropagation();        // don't trigger node click
+        event.stopPropagation(); // don't trigger node click
       });
 
     hitsEnter.merge(hits)
@@ -222,13 +259,9 @@ export function buildPannableTree(
       .attr("class", "node")
       .attr("transform", d => `translate(${d.y},${d.x})`)
       .on("click", (event, d) => {
-        if (d.children) {               // collapse
-          d._children = d.children;
-          d.children = null;
-          update();
-        } else if (d._children) {       // expand (delayed reveal)
-          d.children = d._children;
-          d._children = null;
+        if (d.collapsed_children) {       // expand (delayed reveal)
+          d.children = d.collapsed_children;
+          d.collapsed_children = null;
           update(null, true);
         }
       });
@@ -240,15 +273,24 @@ export function buildPannableTree(
 
     // Append text labels for nodes
     nodeEnter.append("text")
-      .attr("dy", d => labelSize / 2.5)
-      .attr("x", d => (d.children || d._children ? -getLabelXOffset(d) : getLabelXOffset(d)))
-      .style("text-anchor", d => (d.children || d._children ? "end" : "start"))
+      .attr("dy", labelSize / 2.5)
+      .attr("x", d => (d.children || d.collapsed_children ? -getLabelXOffset(d) : getLabelXOffset(d)))
+      .style("text-anchor", d => (d.children || d.collapsed_children ? "end" : "start"))
       .style("font-size", `${labelSize}px`)
       .text(d => d.data.name || "");
 
-    /* -----------------------------------------------------------
-       Delay the appearance of newly-entered subtree when expanding
-    ------------------------------------------------------------ */
+    // Update icon (circle / triangle) for all nodes
+    nodeEnter.select(".node-shape")
+      .transition(t)
+      .attr("d", d => d.collapsed_children ? trianglePath : circlePath)
+      .attr("transform", d => d.collapsed_children ? "rotate(-90)" : null)
+      .attr("dy", labelSize / 2.5)
+      .attr("x", d => (d.children || d.collapsed_children ? -getLabelXOffset(d) : getLabelXOffset(d)))
+      .style("text-anchor", d => (d.children || d.collapsed_children ? "end" : "start"))
+      .style("font-size", `${labelSize}px`)
+      .text(d => d.data.name || "");
+
+    // Delay the appearance of newly-entered subtree when expanding
     if (expanding) {
       linkEnter.attr("opacity", 0);
       nodeEnter.attr("opacity", 0);
@@ -272,17 +314,6 @@ export function buildPannableTree(
 
   update();
 
-  // -----------------------
-  // Subtree selection logic
-  // -----------------------
-  function selectSubtree(node) {
-    selectionRect
-      .attr("x", node.y)
-      .attr("y", node.x0bbox)
-      .attr("width", node.y1bbox - node.y)
-      .attr("height", node.x1bbox - node.x0bbox)
-      .style("display", "block");
-  }
 
   return { root, svg };
 }
