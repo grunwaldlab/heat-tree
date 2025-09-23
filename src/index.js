@@ -241,7 +241,8 @@ export function buildPannableTree(
         const sy = d.source.y0 ?? d.source.y;
         const sx = d.source.x0 ?? d.source.x;
         return `M${sy},${sx}`;
-      });
+      })
+      .lower(); // make sure branches appear below selection hit layers
 
     // UPDATE + ENTER => one unified selection
     const linkUpdate = linkEnter.merge(link);
