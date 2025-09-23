@@ -144,7 +144,7 @@ export function buildPannableTree(
 
     // The width in pixels of how far the begining of labels are moved right
     function getLabelXOffset(node) {
-      return labelSize
+      return labelSize / 3
     }
 
     // The width in pixels of how far the begining of labels are moved down
@@ -286,7 +286,7 @@ export function buildPannableTree(
 
     // Pre-computed symbol paths used for node icons
     const circlePath = symbol().type(symbolCircle).size(64)();
-    const triangleHeight = labelSize * 1.5;
+    const triangleHeight = labelSize * 1.3;
     const triangleArea = triangleAreaFromSide(triangleHeight);
     const trianglePath = symbol().type(symbolTriangle).size(triangleArea)();
 
@@ -298,6 +298,13 @@ export function buildPannableTree(
       .attr("fill", "#000")
       .style("display", d => d.collapsed_children ? null : "none");
 
+    // Update collapsed-count labels visibility and text
+    svg.selectAll(".collapsed-count")
+      .transition(t)
+      .text(d => d.collapsed_children ? `Collapsed Subtree (${d.value})` : "")
+      .style("font-weight", "bold")
+      .style("display", d => d.collapsed_children ? null : "none");
+
     // Append text labels for nodes
     nodeEnter.append("text")
       .attr("dy", labelSize / 2.5)
@@ -305,6 +312,16 @@ export function buildPannableTree(
       .style("text-anchor", d => (d.children || d.collapsed_children ? "end" : "start"))
       .style("font-size", `${labelSize}px`)
       .text(d => d.data.name || "");
+
+    // Append label showing number of tips in collapsed subtree
+    nodeEnter.append("text")
+      .attr("class", "collapsed-count")
+      .attr("dy", labelSize / 2.5)
+      .attr("x", triangleHeight)
+      .style("text-anchor", "start")
+      .style("font-size", `${labelSize}px`)
+      .text(d => d.collapsed_children ? `${d.value} collapsed tips` : "")
+      .style("display", d => d.collapsed_children ? null : "none");
 
     // Update visibility and orientation of node-shapes (triangles)
     svg.selectAll(".node-shape")
