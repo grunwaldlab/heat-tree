@@ -90,6 +90,7 @@ export function buildPannableTree(
         selectedNode.collapsed_children = selectedNode.children;
         selectedNode.children = null;
         selectedNode = null;
+        selectionRect.style("display", "none");
         update();
       }
     });
@@ -162,17 +163,30 @@ export function buildPannableTree(
 
     // Compute bounding rectangles for every subtree node
     root.eachAfter(d => {
-      if (d.children || d.collapsed_children) {
-        const kids = (d.children || d.collapsed_children);
+      if (d.children) {                     // only visible children count
+        const kids = d.children;
         d.x0bbox = Math.min(...kids.map(k => k.x0bbox));
         d.x1bbox = Math.max(...kids.map(k => k.x1bbox));
         d.y1bbox = Math.max(...kids.map(k => k.y1bbox));
-      } else { // is leaf
+      } else { // leaf OR collapsed node
         d.x0bbox = d.x - getLabelYOffset(d);
         d.x1bbox = d.x + getLabelYOffset(d);
         d.y1bbox = d.y + getLabelXOffset(d) + getLabelWidth(d);
       }
     });
+
+    // Hide selection rectangle if the node was collapsed,
+    // otherwise reposition it with the updated layout.
+    if (selectedNode && !selectedNode.children) {
+      selectedNode = null;
+      selectionRect.style("display", "none");
+    } else if (selectedNode) {
+      selectionRect
+        .attr("x", selectedNode.y)
+        .attr("y", selectedNode.x0bbox)
+        .attr("width", selectedNode.y1bbox - selectedNode.y)
+        .attr("height", selectedNode.x1bbox - selectedNode.x0bbox);
+    }
 
     // Update invisible hit rectangles for every subtree
     const hits = hitLayer.selectAll(".hit")
