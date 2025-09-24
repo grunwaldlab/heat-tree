@@ -112,6 +112,33 @@ export function buildPannableTree(
       }
     });
 
+  // Button to reset the tree to its original, fully-expanded state
+  toolbar.append("button")
+    .attr("type", "button")
+    .style("margin-left", "8px")
+    .text("Reset tree")
+    .on("click", () => {
+      // Uncollapse every node
+      root.each(d => {
+        if (d.collapsed_children) {
+          d.children = d.collapsed_children;
+          d.collapsed_children = null;
+        }
+        if (d.collapsed_parent) {
+          d.parent = d.collapsed_parent;
+          d.collapsed_parent = null;
+        }
+      });
+
+      // Restore original root, clear selections, reset view
+      displayedRoot = root;
+      selectedNode = null;
+      selectionRect.style("display", "none");
+      svg.attr("transform", "translate(0,0)");
+
+      update();
+    });
+
   // Create an SVG element in the specified container with pan & zoom behavior
   const svg = select(containerSelector)
     .append("svg")
