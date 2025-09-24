@@ -160,7 +160,7 @@ export function buildPannableTree(
   const buttonSize = 25;
   const buttonMargin = 3;
   const buttonPadding = 3;
-  const iconScale = (buttonSize - buttonPadding * 2) / 21; // original SVG viewBox is 21×21
+  const buttonCornerRadius = 5;
 
   // First button – collapse the selected subtree
   // ── Collapse-selected button ────────────────────────────────────────────────
@@ -179,6 +179,8 @@ export function buildPannableTree(
   btnCollapseSelected.insert("rect", ":first-child")
     .attr("width", buttonSize)
     .attr("height", buttonSize)
+    .attr("rx", buttonCornerRadius)
+    .attr("ry", buttonCornerRadius)
     .attr("fill", "#CCC");
 
   // Calculate centering transform for compress icon
@@ -224,6 +226,8 @@ export function buildPannableTree(
   btnCollapseRoot.insert("rect", ":first-child")
     .attr("width", buttonSize)
     .attr("height", buttonSize)
+    .attr("rx", buttonCornerRadius)
+    .attr("ry", buttonCornerRadius)
     .attr("fill", "#CCC");
 
   // Calculate centering transform for expand icon
