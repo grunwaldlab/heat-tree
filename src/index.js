@@ -52,7 +52,7 @@ export function buildPannableTree(
   const treeData = parseNewick(newickStr);
 
   // Create a D3 hierarchy from the tree data and sort by size of subtree and branch length
-  const root = hierarchy(treeData, d => d.children)
+  let root = hierarchy(treeData, d => d.children)
     .sum(d => d.children ? 0 : 1)
     .sort((a, b) => (a.value - b.value) || ascending(a.data.length, b.data.length));
 
@@ -85,6 +85,22 @@ export function buildPannableTree(
       if (selectedNode && selectedNode.children) {
         selectedNode.collapsed_children = selectedNode.children;
         selectedNode.children = null;
+        selectedNode = null;
+        selectionRect.style("display", "none");
+        update();
+      }
+    });
+
+  // Button to collapse the current root to the selected subtree
+  toolbar.append("button")
+    .attr("type", "button")
+    .style("margin-left", "8px")
+    .text("Collapse root")
+    .on("click", () => {
+      if (selectedNode && selectedNode !== root) {
+        root = selectedNode;
+        root.collapsed_parent = root.parent;
+        root.parent = null;
         selectedNode = null;
         selectionRect.style("display", "none");
         update();
@@ -136,26 +152,11 @@ export function buildPannableTree(
       }
     });
 
-    // The estimated width in pixels of the printed label
-    function getLabelWidth(node) {
-      const nameLen = node.data.name ? node.data.name.length : 0;
-      return nameLen * labelSize * 0.65;
-    }
-
-    // The width in pixels of how far the begining of labels are moved right
-    function getLabelXOffset(node) {
-      return labelSize / 3
-    }
-
-    // The width in pixels of how far the begining of labels are moved down
-    function getLabelYOffset(node) {
-      return labelSize / 2.5
-    }
-
     const scaleFactor = Math.min(...root.leaves().map(d => {
       return (treeWidth - getLabelWidth(d) - getLabelXOffset(d)) / (d.y || 1);
     }));
     root.each(d => d.y = d.y * scaleFactor);
+    console.log(`scaleFactor: ${scaleFactor}`)
 
     // Compute bounding rectangles for every subtree node
     root.eachAfter(d => {
@@ -274,16 +275,15 @@ export function buildPannableTree(
           d.children = d.collapsed_children;
           d.collapsed_children = null;
           update(null, true);
+        } else if (d === root && d.collapsed_parent) { // un-collapse root
+          selectedNode = null;
+          selectionRect.style("display", "none");
+          d.parent = d.collapsed_parent;
+          d.collapsed_parent = null;
+          root = d.ancestors().find(d => d.parent === null || d.collapsed_parent);
+          update();
         }
       });
-
-    function triangleSideFromArea(area) {
-      return Math.sqrt(2.309401 * area); // 2.309401 = 4 / sqrt(3)
-    }
-
-    function triangleAreaFromSide(side) {
-      return 0.4330127 * side * side; // 0.4330127 == sqrt(3) / 4
-    }
 
     // Pre-computed symbol paths used for node icons
     const circlePath = symbol().type(symbolCircle).size(64)();
@@ -294,17 +294,17 @@ export function buildPannableTree(
     // Append a path that will show a triangle only when subtree is collapsed
     nodeEnter.append("path")
       .attr("class", "node-shape")
-      .attr("d", d => d.collapsed_children ? trianglePath : null)
+      .attr("d", d => (d.collapsed_children || d.collapsed_parent) ? trianglePath : null)
       .attr("transform", `rotate(-90) translate(0, ${triangleHeight * 0.52})`)
       .attr("fill", "#000")
-      .style("display", d => d.collapsed_children ? null : "none");
+      .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
     // Update collapsed-count labels visibility and text
     svg.selectAll(".collapsed-count")
       .transition(t)
       .text(d => d.collapsed_children ? `Collapsed Subtree (${d.value})` : "")
       .style("font-weight", "bold")
-      .style("display", d => d.collapsed_children ? null : "none");
+      .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
     // Append text labels for nodes
     nodeEnter.append("text")
@@ -327,8 +327,8 @@ export function buildPannableTree(
     // Update visibility and orientation of node-shapes (triangles)
     svg.selectAll(".node-shape")
       .transition(t)
-      .attr("d", d => d.collapsed_children ? trianglePath : null)
-      .style("display", d => d.collapsed_children ? null : "none");
+      .attr("d", d => (d.collapsed_children || d.collapsed_parent) ? trianglePath : null)
+      .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
     // Delay the appearance of newly-entered subtree when expanding
     if (expanding) {
@@ -355,5 +355,31 @@ export function buildPannableTree(
   update();
 
 
+  // The estimated width in pixels of the printed label
+  function getLabelWidth(node) {
+    const nameLen = node.data.name ? node.data.name.length : 0;
+    return nameLen * labelSize * 0.65;
+  }
+
+  // The width in pixels of how far the begining of labels are moved right
+  function getLabelXOffset(node) {
+    return labelSize / 3
+  }
+
+  // The width in pixels of how far the begining of labels are moved down
+  function getLabelYOffset(node) {
+    return labelSize / 2.5
+  }
+
+  function triangleSideFromArea(area) {
+    return Math.sqrt(2.309401 * area); // 2.309401 = 4 / sqrt(3)
+  }
+
+  function triangleAreaFromSide(side) {
+    return 0.4330127 * side * side; // 0.4330127 == sqrt(3) / 4
+  }
+
   return { root, svg };
 }
+
+
