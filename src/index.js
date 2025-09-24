@@ -342,11 +342,14 @@ export function buildPannableTree(
       .style("display", d => d.collapsed_children ? null : "none");
 
     // Update visibility and orientation of node-shapes (triangles)
-    svg.selectAll(".node-shape")
-      .transition(t)
-      .attr("d", d => (d.collapsed_children || d.collapsed_parent) ? trianglePath : null)
+    const nodeShapes = svg.selectAll(".node-shape")
+      // set translate offset immediately (no transition)
       .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -1 : 1) * triangleHeight * 0.52})`)
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
+
+    // animate only the shape/path changes (e.g., rotation)
+    nodeShapes.transition(t)
+      .attr("d", d => (d.collapsed_children || d.collapsed_parent) ? trianglePath : null);
 
     // Delay the appearance of newly-entered subtree when expanding
     if (expanding) {
