@@ -295,7 +295,7 @@ export function buildPannableTree(
     nodeEnter.append("path")
       .attr("class", "node-shape")
       .attr("d", d => (d.collapsed_children || d.collapsed_parent) ? trianglePath : null)
-      .attr("transform", `rotate(-90) translate(0, ${triangleHeight * 0.52})`)
+      .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -1 : 1) * triangleHeight * 0.52})`)
       .attr("fill", "#000")
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
@@ -304,7 +304,24 @@ export function buildPannableTree(
       .transition(t)
       .text(d => d.collapsed_children ? `Collapsed Subtree (${d.value})` : "")
       .style("font-weight", "bold")
-      .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
+      .style("display", d => d.collapsed_children ? null : "none");
+
+    // Append label for collapsed root
+    nodeEnter.append("text")
+      .attr("class", "collapsed-root")
+      .attr("dy", labelSize / 2.5)
+      .attr("x", -triangleHeight)
+      .style("text-anchor", "end")
+      .style("font-size", `${labelSize}px`)
+      .style("font-weight", "bold")
+      .text(d => d.collapsed_parent ? `Collapsed Root (${d.collapsed_parent.value - d.value})` : "")
+      .style("display", d => d.collapsed_parent ? null : "none");
+
+    // Update collapsed-root labels
+    svg.selectAll(".collapsed-root")
+      .transition(t)
+      .text(d => d.collapsed_parent ? `Collapsed Root (${d.collapsed_parent.value - d.value})` : "")
+      .style("display", d => d.collapsed_parent ? null : "none");
 
     // Append text labels for nodes
     nodeEnter.append("text")
@@ -328,6 +345,7 @@ export function buildPannableTree(
     svg.selectAll(".node-shape")
       .transition(t)
       .attr("d", d => (d.collapsed_children || d.collapsed_parent) ? trianglePath : null)
+      .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -1 : 1) * triangleHeight * 0.52})`)
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
     // Delay the appearance of newly-entered subtree when expanding
