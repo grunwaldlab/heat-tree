@@ -74,8 +74,10 @@ export function buildPannableTree(
     .size([treeHeight, treeWidth])
     .separation((a, b) => 1);
 
-  // Infer lable size if needed
+  // Determine label size and whether it should auto-scale on each update
+  let autoLabelSize = false;
   if (labelSize === null) {
+    autoLabelSize = true;
     const tipCount = displayedRoot.leaves().length;
     labelSize = treeHeight / tipCount * (1 - labelSpacing);
   }
@@ -271,6 +273,11 @@ export function buildPannableTree(
   }
 
   function update(onEnd = null, expanding = false) {
+    // Recompute label size if auto-scaling is enabled
+    if (autoLabelSize) {
+      const tipCount = displayedRoot.leaves().length;
+      labelSize = treeHeight / tipCount * (1 - labelSpacing);
+    }
 
     // Recompute layout
     treeLayout(displayedRoot);
@@ -497,6 +504,19 @@ export function buildPannableTree(
       }
       if (onEnd) onEnd();
     });
+
+    // Update label font sizes and offsets according to the latest labelSize
+    svg.selectAll(".node text")
+      .attr("dy", labelSize / 2.5)
+      .style("font-size", `${labelSize}px`);
+
+    svg.selectAll(".collapsed-root")
+      .attr("dy", labelSize / 2.5)
+      .style("font-size", `${labelSize}px`);
+
+    svg.selectAll(".collapsed-count")
+      .attr("dy", labelSize / 2.5)
+      .style("font-size", `${labelSize}px`);
 
     // Store current positions for the next update so every branch has
     // previous coordinates to interpolate from.
