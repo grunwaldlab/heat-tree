@@ -281,7 +281,7 @@ export function buildPannableTree(
           d.parent = d.collapsed_parent;
           d.collapsed_parent = null;
           root = d.ancestors().find(d => d.parent === null || d.collapsed_parent);
-          update();
+          update(null, true);
         }
       });
 
