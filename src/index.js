@@ -52,13 +52,18 @@ export function buildPannableTree(
   const treeData = parseNewick(newickStr);
 
   // Create a D3 hierarchy from the tree data and sort by size of subtree and branch length
-  let root = hierarchy(treeData, d => d.children)
+  const root = hierarchy(treeData, d => d.children)
     .sum(d => d.children ? 0 : 1)
-    .sort((a, b) => (a.value - b.value) || ascending(a.data.length, b.data.length));
+    .each(function(d) {
+      d.leafCount = d.value;
+      delete d.value;
+    })
+    .sort((a, b) => (a.leafCount - b.leafCount) || ascending(a.data.length, b.data.length));
+  let displayedRoot = root;
 
   // Assign a stable, unique id to every node so D3 can track elements across updates
   let nodeId = 0;
-  root.each(d => { d.id = ++nodeId; });
+  displayedRoot.each(d => { d.id = ++nodeId; });
 
   // Use D3 cluster layout to compute node positions (for x coordinate)
   const treeLayout = cluster()
@@ -67,7 +72,7 @@ export function buildPannableTree(
 
   // Infer lable size if needed
   if (labelSize === null) {
-    const tipCount = root.leaves().length;
+    const tipCount = displayedRoot.leaves().length;
     labelSize = treeHeight / tipCount * (1 - labelSpacing);
   }
 
@@ -97,10 +102,10 @@ export function buildPannableTree(
     .style("margin-left", "8px")
     .text("Collapse root")
     .on("click", () => {
-      if (selectedNode && selectedNode !== root) {
-        root = selectedNode;
-        root.collapsed_parent = root.parent;
-        root.parent = null;
+      if (selectedNode && selectedNode !== displayedRoot) {
+        displayedRoot = selectedNode;
+        displayedRoot.collapsed_parent = displayedRoot.parent;
+        displayedRoot.parent = null;
         selectedNode = null;
         selectionRect.style("display", "none");
         update();
@@ -141,10 +146,10 @@ export function buildPannableTree(
   function update(onEnd = null, expanding = false) {
 
     // Recompute layout
-    treeLayout(root);
+    treeLayout(displayedRoot);
 
     // Apply branch lengths override
-    root.each(d => {
+    displayedRoot.each(d => {
       if (d.parent) {
         d.y = d.parent.y + (d.data.length ? d.data.length : 0);
       } else {
@@ -152,14 +157,14 @@ export function buildPannableTree(
       }
     });
 
-    const scaleFactor = Math.min(...root.leaves().map(d => {
+    const scaleFactor = Math.min(...displayedRoot.leaves().map(d => {
       return (treeWidth - getLabelWidth(d) - getLabelXOffset(d)) / (d.y || 1);
     }));
-    root.each(d => d.y = d.y * scaleFactor);
+    displayedRoot.each(d => d.y = d.y * scaleFactor);
     console.log(`scaleFactor: ${scaleFactor}`)
 
     // Compute bounding rectangles for every subtree node
-    root.eachAfter(d => {
+    displayedRoot.eachAfter(d => {
       if (d.children) {                     // only visible children count
         const kids = d.children;
         d.x0bbox = Math.min(...kids.map(k => k.x0bbox));
@@ -187,7 +192,7 @@ export function buildPannableTree(
 
     // Update invisible hit rectangles for every subtree
     const hits = hitLayer.selectAll(".hit")
-      .data(root.descendants().filter(d => d.children), d => d.id);
+      .data(displayedRoot.descendants().filter(d => d.children), d => d.id);
     hits.exit().remove();
 
     function selectSubtree(node) {
@@ -226,10 +231,10 @@ export function buildPannableTree(
 
     // DATA JOIN for links (use stable target.id as key)
     const link = svg.selectAll(".link")
-      .data(root.links(), d => d.target.id);
+      .data(displayedRoot.links(), d => d.target.id);
 
     // Shared transition for this update
-    const t = svg.transition().duration(750);
+    const t = svg.transition().duration(500);
 
     // ENTER links – start at the parent's previous position
     const linkEnter = link.enter().append("path")
@@ -263,7 +268,7 @@ export function buildPannableTree(
 
     // DATA JOIN for nodes (use stable id)
     const node = svg.selectAll(".node")
-      .data(root.descendants(), d => d.id);
+      .data(displayedRoot.descendants(), d => d.id);
     node.exit().remove();
     node.transition(t)
       .attr("transform", d => `translate(${d.y},${d.x})`);
@@ -275,12 +280,12 @@ export function buildPannableTree(
           d.children = d.collapsed_children;
           d.collapsed_children = null;
           update(null, true);
-        } else if (d === root && d.collapsed_parent) { // un-collapse root
+        } else if (d === displayedRoot && d.collapsed_parent) { // un-collapse root
           selectedNode = null;
           selectionRect.style("display", "none");
           d.parent = d.collapsed_parent;
           d.collapsed_parent = null;
-          root = d.ancestors().find(d => d.parent === null || d.collapsed_parent);
+          displayedRoot = d.ancestors().find(d => d.parent === null || d.collapsed_parent);
           update(null, true);
         }
       });
@@ -295,14 +300,13 @@ export function buildPannableTree(
     nodeEnter.append("path")
       .attr("class", "node-shape")
       .attr("d", d => (d.collapsed_children || d.collapsed_parent) ? trianglePath : null)
-      .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -1 : 1) * triangleHeight * 0.52})`)
       .attr("fill", "#000")
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
     // Update collapsed-count labels visibility and text
     svg.selectAll(".collapsed-count")
       .transition(t)
-      .text(d => d.collapsed_children ? `Collapsed Subtree (${d.value})` : "")
+      .text(d => d.collapsed_children ? `Collapsed Subtree (${d.leafCount})` : "")
       .style("font-weight", "bold")
       .style("display", d => d.collapsed_children ? null : "none");
 
@@ -314,13 +318,13 @@ export function buildPannableTree(
       .style("text-anchor", "end")
       .style("font-size", `${labelSize}px`)
       .style("font-weight", "bold")
-      .text(d => d.collapsed_parent ? `Collapsed Root (${d.collapsed_parent.value - d.value})` : "")
+      .text(d => d.collapsed_parent ? `Collapsed Root (${root.leafCount - d.leafCount})` : "")
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Update collapsed-root labels
     svg.selectAll(".collapsed-root")
       .transition(t)
-      .text(d => d.collapsed_parent ? `Collapsed Root (${d.collapsed_parent.value - d.value})` : "")
+      .text(d => d.collapsed_parent ? `Collapsed Root (${root.leafCount - d.leafCount})` : "")
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Append text labels for nodes
@@ -338,13 +342,13 @@ export function buildPannableTree(
       .attr("x", triangleHeight)
       .style("text-anchor", "start")
       .style("font-size", `${labelSize}px`)
-      .text(d => d.collapsed_children ? `${d.value} collapsed tips` : "")
+      .text(d => d.collapsed_children ? `${d.leafCount} collapsed tips` : "")
       .style("display", d => d.collapsed_children ? null : "none");
 
     // Update visibility and orientation of node-shapes (triangles)
     const nodeShapes = svg.selectAll(".node-shape")
       // set translate offset immediately (no transition)
-      .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -1 : 1) * triangleHeight * 0.52})`)
+      .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -0.33 : 0.52) * triangleHeight})`)
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
     // animate only the shape/path changes (e.g., rotation)
@@ -359,15 +363,15 @@ export function buildPannableTree(
 
     t.on("end", () => {
       if (expanding) {
-        linkEnter.transition().duration(250).attr("opacity", 1);
-        nodeEnter.transition().duration(250).attr("opacity", 1);
+        linkEnter.transition().duration(150).attr("opacity", 1);
+        nodeEnter.transition().duration(150).attr("opacity", 1);
       }
       if (onEnd) onEnd();
     });
 
     // Store current positions for the next update so every branch has
     // previous coordinates to interpolate from.
-    root.each(d => {
+    displayedRoot.each(d => {
       d.x0 = d.x;
       d.y0 = d.y;
     });
@@ -400,7 +404,7 @@ export function buildPannableTree(
     return 0.4330127 * side * side; // 0.4330127 == sqrt(3) / 4
   }
 
-  return { root, svg };
+  return { root: displayedRoot, svg };
 }
 
 
