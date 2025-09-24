@@ -1,6 +1,6 @@
 import { parseNewick } from "./parsers.js"
 import {
-  hierarchy, tree, select, linkHorizontal, zoom, cluster, ascending,
+  hierarchy, select, zoom, cluster, ascending,
   symbol, symbolTriangle, symbolCircle
 } from "d3";
 
@@ -29,6 +29,10 @@ export function buildPannableTree(
   labelSpacing = 0.1,
 ) {
   console.log('buildPannableTree')
+
+  // Track the current zoom/pan transform so UI controls
+  // can keep a constant on-screen size.
+  let currentTransform = { x: 0, y: 0, k: 1 };
 
   // Infer window dimensions if needed, taking into account padding
   const container = document.querySelector(containerSelector);
@@ -83,34 +87,6 @@ export function buildPannableTree(
     .style("margin-bottom", "4px");
 
   let selectedNode = null; // Currently selected subtree root
-  toolbar.append("button")
-    .attr("type", "button")
-    .text("Collapse selected")
-    .on("click", () => {
-      if (selectedNode && selectedNode.children) {
-        selectedNode.collapsed_children = selectedNode.children;
-        selectedNode.children = null;
-        selectedNode = null;
-        selectionRect.style("display", "none");
-        update();
-      }
-    });
-
-  // Button to collapse the current root to the selected subtree
-  toolbar.append("button")
-    .attr("type", "button")
-    .style("margin-left", "8px")
-    .text("Collapse root")
-    .on("click", () => {
-      if (selectedNode && selectedNode !== displayedRoot) {
-        displayedRoot = selectedNode;
-        displayedRoot.collapsed_parent = displayedRoot.parent;
-        displayedRoot.parent = null;
-        selectedNode = null;
-        selectionRect.style("display", "none");
-        update();
-      }
-    });
 
   // Button to reset the tree to its original, fully-expanded state
   toolbar.append("button")
@@ -134,6 +110,7 @@ export function buildPannableTree(
       displayedRoot = root;
       selectedNode = null;
       selectionRect.style("display", "none");
+      selectionBtns.style("display", "none");
       svg.attr("transform", "translate(0,0)");
 
       update();
@@ -151,7 +128,9 @@ export function buildPannableTree(
           return true;
         })
         .on("zoom", (event) => {
-          svg.attr("transform", event.transform);
+          currentTransform = event.transform;               // keep latest zoom
+          svg.attr("transform", currentTransform);          // move tree
+          updateSelectionButtons();                         // reposition buttons
         })
     )
     .append("g")
@@ -159,6 +138,9 @@ export function buildPannableTree(
 
   // Layer for invisible hit-test rectangles (kept above links/nodes)
   const hitLayer = svg.append("g").attr("class", "hit-layer");
+
+  // Reference to the outer <svg> (not zoomed) – used for UI overlays
+  const outerSvg = select(containerSelector).select("svg");
 
   // Visible bounding-box shown when a subtree is selected
   let selectionRect = svg.append("rect")
@@ -169,6 +151,120 @@ export function buildPannableTree(
     .attr("stroke-dasharray", "5,5")
     .attr("pointer-events", "none")
     .style("display", "none");
+
+  // Floating button group for subtree actions (added to outer SVG so it ignores zoom)
+  const selectionBtns = outerSvg.append("g")
+    .attr("class", "selection-btns")
+    .style("display", "none");
+
+  const buttonSize = 25;
+  const buttonMargin = 3;
+  const buttonPadding = 3;
+  const iconScale = (buttonSize - buttonPadding * 2) / 21; // original SVG viewBox is 21×21
+
+  // First button – collapse the selected subtree
+  // ── Collapse-selected button ────────────────────────────────────────────────
+  const btnCollapseSelected = selectionBtns.append("g")
+    .style("cursor", "pointer")
+    .on("click", () => {
+      if (selectedNode && selectedNode.children) {
+        selectedNode.collapsed_children = selectedNode.children;
+        selectedNode.children = null;
+        selectedNode = null;
+        selectionRect.style("display", "none");
+        selectionBtns.style("display", "none");
+        update();
+      }
+    });
+  btnCollapseSelected.insert("rect", ":first-child")
+    .attr("width", buttonSize)
+    .attr("height", buttonSize)
+    .attr("fill", "#CCC");
+
+  // Calculate centering transform for compress icon
+  const compressBBox = { w: 14, h: 18 };                                 // icon native bounds
+  const compressScale = (buttonSize - buttonPadding * 2) /
+    Math.max(compressBBox.w, compressBBox.h);          // scale by longest side
+  const compressTx = (buttonSize - compressBBox.w * compressScale) / 2; // horizontal centering
+  const compressTy = (buttonSize - compressBBox.h * compressScale) / 2; // vertical   centering
+
+  // draw “compress” icon paths
+  const compressIcon = btnCollapseSelected.append("g")
+    .attr("transform", `translate(${compressTx},${compressTy}) scale(${compressScale})`)
+    .attr("stroke", "#555")
+    .attr("fill", "none")
+    .attr("stroke-linecap", "round")
+    .attr("stroke-linejoin", "round")
+    .attr("stroke-width", 2);
+
+  [
+    "M4.5 4.5 L7.5 7.5 L10.5 4.5",
+    "M7.5 0.5 V7.5",
+    "M4.5 14.5 L7.5 11.5 L10.5 14.5",
+    "M7.5 11.5 V18.5",
+    "M0.5 9.5 H14.5"
+  ].forEach(d => compressIcon.append("path").attr("d", d));
+
+  // Second button – collapse root to the selected subtree
+  // ── Collapse-root button ───────────────────────────────────────────────────
+  const btnCollapseRoot = selectionBtns.append("g")
+    .attr("transform", `translate(0, ${buttonSize + buttonMargin})`)
+    .style("cursor", "pointer")
+    .on("click", () => {
+      if (selectedNode && selectedNode !== displayedRoot) {
+        displayedRoot = selectedNode;
+        displayedRoot.collapsed_parent = displayedRoot.parent;
+        displayedRoot.parent = null;
+        selectedNode = null;
+        selectionRect.style("display", "none");
+        selectionBtns.style("display", "none");
+        update();
+      }
+    });
+  btnCollapseRoot.insert("rect", ":first-child")
+    .attr("width", buttonSize)
+    .attr("height", buttonSize)
+    .attr("fill", "#CCC");
+
+  // Calculate centering transform for expand icon
+  const expandBBox = { w: 16.02, h: 18 };                                 // icon native bounds
+  const expandScale = (buttonSize - buttonPadding * 2) /
+    Math.max(expandBBox.w, expandBBox.h);                // scale by longest side
+  const expandTx = (buttonSize - expandBBox.w * expandScale) / 2;       // horizontal centering
+  const expandTy = (buttonSize - expandBBox.h * expandScale) / 2;       // vertical   centering
+
+  // draw “expand” icon paths
+  const expandIcon = btnCollapseRoot.append("g")
+    .attr("transform", `translate(${expandTx},${expandTy}) scale(${expandScale})`)
+    .attr("stroke", "#555")
+    .attr("fill", "none")
+    .attr("stroke-linecap", "round")
+    .attr("stroke-linejoin", "round")
+    .attr("stroke-width", 2);
+
+  [
+    { d: "M16.51 0.51 H0.49" },
+    { d: "M16.51 18.51 H0.49" },
+    { d: "m6.503 18.525 4-4 -4-4.015", transform: "matrix(0 1 -1 0 23.021 6.015)" },
+    { d: "m10.503 8.525 -4-4 4-4.015", transform: "matrix(0 1 -1 0 13.021 -3.985)" },
+    { d: "M8.51 16.51 V2.51" }
+  ].forEach(p => {
+    const path = expandIcon.append("path").attr("d", p.d);
+    if (p.transform) path.attr("transform", p.transform);
+  });
+
+  // Helper to position / toggle the floating button group
+  function updateSelectionButtons() {
+    if (!selectedNode) {
+      selectionBtns.style("display", "none");
+      return;
+    }
+    const screenX = selectedNode.y * currentTransform.k + currentTransform.x - buttonSize - buttonMargin;
+    const screenY = selectedNode.x0bbox * currentTransform.k + currentTransform.y - buttonMargin;
+    selectionBtns
+      .attr("transform", `translate(${screenX},${screenY})`)
+      .style("display", "block");
+  }
 
   function update(onEnd = null, expanding = false) {
 
@@ -188,7 +284,6 @@ export function buildPannableTree(
       return (treeWidth - getLabelWidth(d) - getLabelXOffset(d)) / (d.y || 1);
     }));
     displayedRoot.each(d => d.y = d.y * scaleFactor);
-    console.log(`scaleFactor: ${scaleFactor}`)
 
     // Compute bounding rectangles for every subtree node
     displayedRoot.eachAfter(d => {
@@ -215,6 +310,7 @@ export function buildPannableTree(
         .attr("y", selectedNode.x0bbox)
         .attr("width", selectedNode.y1bbox - selectedNode.y)
         .attr("height", selectedNode.x1bbox - selectedNode.x0bbox);
+      updateSelectionButtons();
     }
 
     // Update invisible hit rectangles for every subtree
@@ -227,6 +323,7 @@ export function buildPannableTree(
         selectedNode = null;
         selectionRect
           .style("display", "none");
+        selectionBtns.style("display", "none");
       } else {
         selectedNode = node;
         selectionRect
@@ -235,6 +332,7 @@ export function buildPannableTree(
           .attr("width", node.y1bbox - node.y)
           .attr("height", node.x1bbox - node.x0bbox)
           .style("display", "block");
+        updateSelectionButtons();
       }
     }
 
