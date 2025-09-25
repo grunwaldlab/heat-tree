@@ -21,71 +21,38 @@ export function heatTree(options = {}) {
 export function buildPannableTree(
   newickStr,
   containerSelector,
-  windowWidth = null,
-  windowHeight = null,
-  treeWidth = windowWidth,
-  treeHeight = windowHeight,
-  labelSize = null,
   labelSpacing = 0.1,
 ) {
-  console.log('buildPannableTree')
+
+  // Set constant display settings
+  const buttonSize = 25;
+  const buttonMargin = 3;
+  const buttonPadding = 3;
+  const buttonCornerRadius = 5;
+
+  const parentContainer = select(containerSelector);
+  const mainContainer = parentContainer
+    .insert("div", ":first-child")
+    .attr("class", "heat-tree-main")
+    .style("display", "flex")
+    .style("flex-direction", "column")
+    .style("width", "100%")
+    .style("height", "401px")
+  const treeContainer = mainContainer
+    .append("div")
+    .attr("class", "tree")
+    .style("flex", "1 1 auto")
+    .style("min-height", "0")
 
   // Track the current zoom/pan transform so UI controls
   // can keep a constant on-screen size.
   let currentTransform = { x: 0, y: 0, k: 1 };
 
-  // Infer window dimensions if needed, taking into account padding
-  const container = document.querySelector(containerSelector);
-  const style = window.getComputedStyle(container);
-  if (windowWidth === null) {
-    windowWidth = container.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-  }
-  if (windowHeight === null) {
-    windowHeight = container.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-  }
-
-  // Infer plotted tree dimensions if needed
-  if (treeWidth === null) {
-    treeWidth = windowWidth;
-  }
-  if (treeHeight === null) {
-    treeHeight = windowHeight;
-  }
-
-  // Parse the Newick string
-  const treeData = parseNewick(newickStr);
-
-  // Create a D3 hierarchy from the tree data and sort by size of subtree and branch length
-  const root = hierarchy(treeData, d => d.children)
-    .sum(d => d.children ? 0 : 1)
-    .each(function(d) {
-      d.leafCount = d.value;
-      delete d.value;
-    })
-    .sort((a, b) => (a.leafCount - b.leafCount) || ascending(a.data.length, b.data.length));
-  let displayedRoot = root;
-
-  // Assign a stable, unique id to every node so D3 can track elements across updates
-  let nodeId = 0;
-  displayedRoot.each(d => { d.id = ++nodeId; });
-
-  // Use D3 cluster layout to compute node positions (for x coordinate)
-  const treeLayout = cluster()
-    .size([treeHeight, treeWidth])
-    .separation((a, b) => 1);
-
-  // Determine label size and whether it should auto-scale on each update
-  let autoLabelSize = false;
-  if (labelSize === null) {
-    autoLabelSize = true;
-    const tipCount = displayedRoot.leaves().length;
-    labelSize = treeHeight / tipCount * (1 - labelSpacing);
-  }
-
   // Toolbar with a “Collapse selected” button
-  const toolbar = select(containerSelector)
+  const toolbar = mainContainer
     .insert("div", ":first-child")
     .attr("class", "ht-toolbar")
+    .style("flex", "0 0 auto")
     .style("margin-bottom", "4px");
 
   let selectedNode = null; // Currently selected subtree root
@@ -119,10 +86,10 @@ export function buildPannableTree(
     });
 
   // Create an SVG element in the specified container with pan & zoom behavior
-  const svg = select(containerSelector)
+  const svg = treeContainer
     .append("svg")
-    .attr("width", treeWidth)
-    .attr("height", treeHeight)
+    .attr("width", "100%")
+    .attr("height", "100%")
     .call(
       zoom()
         .filter(event => {
@@ -142,7 +109,35 @@ export function buildPannableTree(
   const hitLayer = svg.append("g").attr("class", "hit-layer");
 
   // Reference to the outer <svg> (not zoomed) – used for UI overlays
-  const outerSvg = select(containerSelector).select("svg");
+  const outerSvg = treeContainer.select("svg");
+
+  // Parse the Newick string
+  const treeData = parseNewick(newickStr);
+
+  // Create a D3 hierarchy from the tree data and sort by size of subtree and branch length
+  const root = hierarchy(treeData, d => d.children)
+    .sum(d => d.children ? 0 : 1)
+    .each(function(d) {
+      d.leafCount = d.value;
+      delete d.value;
+    })
+    .sort((a, b) => (a.leafCount - b.leafCount) || ascending(a.data.length, b.data.length));
+  let displayedRoot = root;
+
+  // Assign a stable, unique id to every node so D3 can track elements across updates
+  let nodeId = 0;
+  root.each(d => { d.id = ++nodeId; });
+
+  // Infer window dimensions if needed, taking into account padding
+  let dimensions = treeContainer.node().getBoundingClientRect();
+  let treeWidth = dimensions.width;
+  let treeHeight = dimensions.height;
+  console.log(`treeHeight: ${treeHeight}`)
+
+  // Use D3 cluster layout to compute node positions (for x coordinate)
+  const treeLayout = cluster()
+    .size([treeHeight, treeWidth])
+    .separation((a, b) => 1);
 
   // Visible bounding-box shown when a subtree is selected
   let selectionRect = svg.append("rect")
@@ -158,11 +153,6 @@ export function buildPannableTree(
   const selectionBtns = outerSvg.append("g")
     .attr("class", "selection-btns")
     .style("display", "none");
-
-  const buttonSize = 25;
-  const buttonMargin = 3;
-  const buttonPadding = 3;
-  const buttonCornerRadius = 5;
 
   // First button – collapse the selected subtree
   // ── Collapse-selected button ────────────────────────────────────────────────
@@ -273,11 +263,35 @@ export function buildPannableTree(
   }
 
   function update(onEnd = null, expanding = false) {
-    // Recompute label size if auto-scaling is enabled
-    if (autoLabelSize) {
-      const tipCount = displayedRoot.leaves().length;
-      labelSize = treeHeight / tipCount * (1 - labelSpacing);
+
+    // The estimated width in pixels of the printed label
+    function getLabelWidth(node) {
+      const nameLen = node.data.name ? node.data.name.length : 0;
+      return nameLen * labelSize * 0.65;
     }
+
+    // The width in pixels of how far the begining of labels are moved right
+    function getLabelXOffset(node) {
+      return labelSize / 3
+    }
+
+    // The width in pixels of how far the begining of labels are moved down
+    function getLabelYOffset(node) {
+      return labelSize / 2.5
+    }
+
+    function triangleSideFromArea(area) {
+      return Math.sqrt(2.309401 * area); // 2.309401 = 4 / sqrt(3)
+    }
+
+    function triangleAreaFromSide(side) {
+      return 0.4330127 * side * side; // 0.4330127 == sqrt(3) / 4
+    }
+
+
+    // Infer label size based on room available
+    const tipCount = displayedRoot.leaves().length;
+    let labelSize = treeContainer.node().getBoundingClientRect().height / tipCount * (1 - labelSpacing);
 
     // Recompute layout
     treeLayout(displayedRoot);
@@ -427,10 +441,9 @@ export function buildPannableTree(
       });
 
     // Pre-computed symbol paths used for node icons
-    const circlePath = symbol().type(symbolCircle).size(64)();
-    const triangleHeight = labelSize * 1.3;
-    const triangleArea = triangleAreaFromSide(triangleHeight);
-    const trianglePath = symbol().type(symbolTriangle).size(triangleArea)();
+    let triangleHeight = labelSize * 1.1;
+    let triangleArea = triangleAreaFromSide(triangleHeight);
+    let trianglePath = symbol().type(symbolTriangle).size(triangleArea)();
 
     // Append a path that will show a triangle only when subtree is collapsed
     nodeEnter.append("path")
@@ -439,9 +452,11 @@ export function buildPannableTree(
       .attr("fill", "#000")
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
-    // Update collapsed-count labels visibility and text
-    svg.selectAll(".collapsed-count")
+    // Update collapsed-subtree labels visibility and text
+    svg.selectAll(".collapsed-subtree")
       .transition(t)
+      .attr("dy", labelSize / 2.5)
+      .attr("x", triangleHeight)
       .text(d => d.collapsed_children ? `Collapsed Subtree (${d.leafCount})` : "")
       .style("font-weight", "bold")
       .style("display", d => d.collapsed_children ? null : "none");
@@ -460,6 +475,8 @@ export function buildPannableTree(
     // Update collapsed-root labels
     svg.selectAll(".collapsed-root")
       .transition(t)
+      .attr("dy", labelSize / 2.5)
+      .attr("x", -triangleHeight)
       .text(d => d.collapsed_parent ? `Collapsed Root (${root.leafCount - d.leafCount})` : "")
       .style("display", d => d.collapsed_parent ? null : "none");
 
@@ -473,7 +490,7 @@ export function buildPannableTree(
 
     // Append label showing number of tips in collapsed subtree
     nodeEnter.append("text")
-      .attr("class", "collapsed-count")
+      .attr("class", "collapsed-subtree")
       .attr("dy", labelSize / 2.5)
       .attr("x", triangleHeight)
       .style("text-anchor", "start")
@@ -514,7 +531,7 @@ export function buildPannableTree(
       .attr("dy", labelSize / 2.5)
       .style("font-size", `${labelSize}px`);
 
-    svg.selectAll(".collapsed-count")
+    svg.selectAll(".collapsed-subtree")
       .attr("dy", labelSize / 2.5)
       .style("font-size", `${labelSize}px`);
 
@@ -529,29 +546,6 @@ export function buildPannableTree(
   update();
 
 
-  // The estimated width in pixels of the printed label
-  function getLabelWidth(node) {
-    const nameLen = node.data.name ? node.data.name.length : 0;
-    return nameLen * labelSize * 0.65;
-  }
-
-  // The width in pixels of how far the begining of labels are moved right
-  function getLabelXOffset(node) {
-    return labelSize / 3
-  }
-
-  // The width in pixels of how far the begining of labels are moved down
-  function getLabelYOffset(node) {
-    return labelSize / 2.5
-  }
-
-  function triangleSideFromArea(area) {
-    return Math.sqrt(2.309401 * area); // 2.309401 = 4 / sqrt(3)
-  }
-
-  function triangleAreaFromSide(side) {
-    return 0.4330127 * side * side; // 0.4330127 == sqrt(3) / 4
-  }
 
   return { root: displayedRoot, svg };
 }
