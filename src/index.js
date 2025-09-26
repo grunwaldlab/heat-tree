@@ -26,9 +26,11 @@ export function buildPannableTree(
 
   // Set constant display settings
   const buttonSize = 25;
-  const buttonMargin = 3;
+  const controlsMargin = 3;
   const buttonPadding = 3;
   const buttonCornerRadius = 5;
+  const legendMargin = 3;
+  const legendElementHeight = 25;
 
   // Initalize main divs where components are placed
   const parentContainer = select(containerSelector);
@@ -54,6 +56,70 @@ export function buildPannableTree(
     .attr("class", "ht-legend")
     .style("flex", "0 0 auto")
     .style("margin-top", "4px");
+
+  // ---------------- Branch length scale bar -----------------
+  const scaleBarEdgeHeight = 6;
+  const scaleBarSvg = legendDiv.append("svg")
+    .attr("class", "ht-scale-bar")
+    .attr("width", "100%")
+    .attr("height", legendElementHeight)
+    .style("margin", legendMargin);
+
+  const scaleBarGroup = scaleBarSvg.append("g")
+    .attr("transform", `translate(0,${legendElementHeight - scaleBarEdgeHeight})`)
+    .attr("stroke", "#000")
+    .attr("stroke-width", 1)
+    .attr("fill", "none");
+
+  // main bar and ticks
+  scaleBarGroup.append("line").attr("class", "bar");
+  scaleBarGroup.append("line").attr("class", "left-tick");
+  scaleBarGroup.append("line").attr("class", "right-tick");
+  // label
+  scaleBarGroup.append("text")
+    .attr("class", "label")
+    .attr("dy", -scaleBarEdgeHeight)
+    .attr("text-anchor", "middle")
+    .style("font-size", "12px");
+
+  // helper to choose a “nice” rounded scale bar length
+  function niceNumber(n) {
+    const exponent = Math.floor(Math.log10(n));
+    const fraction = n / Math.pow(10, exponent);
+    let niceFraction;
+    if (fraction <= 1) niceFraction = 1;
+    else if (fraction <= 2) niceFraction = 2;
+    else if (fraction <= 5) niceFraction = 5;
+    else niceFraction = 10;
+    return niceFraction * Math.pow(10, exponent);
+  }
+
+  // Update the scale-bar graphics according to current pixel-per-unit scale
+  function updateScaleBar(pxPerUnit) {
+    if (!isFinite(pxPerUnit) || pxPerUnit <= 0) return;
+    const desiredPx = 120;                    // target on-screen bar length
+    const unitsRaw = desiredPx / pxPerUnit;
+    const niceUnits = niceNumber(unitsRaw);   // round to 1/2/5 × 10^n
+    const barPx = niceUnits * pxPerUnit;
+
+    // bar & ticks
+    scaleBarGroup.select(".bar")
+      .attr("x1", 0).attr("y1", 0)
+      .attr("x2", barPx).attr("y2", 0);
+
+    scaleBarGroup.select(".left-tick")
+      .attr("x1", 0).attr("y1", -5)
+      .attr("x2", 0).attr("y2", 5);
+
+    scaleBarGroup.select(".right-tick")
+      .attr("x1", barPx).attr("y1", -5)
+      .attr("x2", barPx).attr("y2", 5);
+
+    // centre label
+    scaleBarGroup.select(".label")
+      .attr("x", barPx / 2)
+      .text(niceUnits.toPrecision(3));
+  }
 
   // Track the current zoom/pan transform so UI controls
   // can keep a constant on-screen size.
@@ -240,7 +306,7 @@ export function buildPannableTree(
 
   // Button to collapse root to the selected subtree
   const btnCollapseRoot = selectionBtns.append("g")
-    .attr("transform", `translate(0, ${buttonSize + buttonMargin})`)
+    .attr("transform", `translate(0, ${buttonSize + controlsMargin})`)
     .style("cursor", "pointer")
     .on("click", () => {
       if (selectedNode && selectedNode !== displayedRoot) {
@@ -292,8 +358,8 @@ export function buildPannableTree(
       selectionBtns.style("display", "none");
       return;
     }
-    const screenX = selectedNode.y * currentTransform.k + currentTransform.x - buttonSize - buttonMargin;
-    const screenY = selectedNode.x0bbox * currentTransform.k + currentTransform.y - buttonMargin;
+    const screenX = selectedNode.y * currentTransform.k + currentTransform.x - buttonSize - controlsMargin;
+    const screenY = selectedNode.x0bbox * currentTransform.k + currentTransform.y - controlsMargin;
     selectionBtns
       .attr("transform", `translate(${screenX},${screenY})`)
       .style("display", "block");
@@ -345,6 +411,9 @@ export function buildPannableTree(
     const scaleFactor = Math.min(...displayedRoot.leaves().map(d => {
       return (treeWidth - getLabelWidth(d) - getLabelXOffset(d)) / (d.y || 1);
     }));
+
+    // Refresh branch-length scale bar
+    updateScaleBar(scaleFactor);
     displayedRoot.each(d => d.y = d.y * scaleFactor);
 
     // Compute bounding rectangles for every subtree node
