@@ -340,7 +340,7 @@ export function buildPannableTree(
         selectedNode = null;
         selectionRect.style("display", "none");
         selectionBtns.style("display", "none");
-        update();
+        update(null, false, false);
       }
     });
   btnCollapseSelected.insert("rect", ":first-child")
@@ -434,7 +434,7 @@ export function buildPannableTree(
       .style("display", "block");
   }
 
-  function update(onEnd = null, expanding = false) {
+  function update(onEnd = null, expanding = false, fit = true) {
 
     // Ensure the full tree is visible with extra space on the left for
     // the floating selection buttons.  This is invoked after the very
@@ -580,7 +580,7 @@ export function buildPannableTree(
       }
     });
 
-    fitToView();
+    if (fit || !zoomEnabled) fitToView();
 
     // Hide selection rectangle if the node was collapsed,
     // otherwise reposition it with the updated layout.
@@ -687,14 +687,14 @@ export function buildPannableTree(
         if (d.collapsed_children) {       // expand (delayed reveal)
           d.children = d.collapsed_children;
           d.collapsed_children = null;
-          update(null, true);
+          update(null, true, false);
         } else if (d === displayedRoot && d.collapsed_parent) { // un-collapse root
           selectedNode = null;
           selectionRect.style("display", "none");
           d.parent = d.collapsed_parent;
           d.collapsed_parent = null;
           displayedRoot = d.ancestors().find(d => d.parent === null || d.collapsed_parent);
-          update(null, true);
+          update(null, true, true);
         }
       });
 
