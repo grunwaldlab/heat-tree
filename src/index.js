@@ -386,7 +386,7 @@ export function buildPannableTree(
       const marginLeft = buttonSize + controlsMargin;
 
       // Size of rendered tree in the internal coordinate system
-      const treeWidth = displayedRoot.y1bbox;                       // 0 … max-x
+      const treeWidth = displayedRoot.y1bbox + getLabelWidth(displayedRoot);                       // 0 … max-x
       const treeHeight = displayedRoot.x1bbox - displayedRoot.x0bbox; // y-span
 
       const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
@@ -399,7 +399,7 @@ export function buildPannableTree(
       if (!Number.isFinite(k) || k <= 0) k = 1;
 
       // Translate so left margin is honoured and tree is vertically centred
-      const tx = marginLeft;
+      const tx = Math.max(marginLeft, getLabelWidth(displayedRoot) * k);
       const ty = (viewH - treeHeight * k) / 2 - displayedRoot.x0bbox * k;
 
       const transform = zoomIdentity.translate(tx, ty).scale(k);
