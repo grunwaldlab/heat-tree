@@ -1,6 +1,6 @@
 import { parseNewick } from "./parsers.js"
 import {
-  hierarchy, select, zoom, cluster, ascending,
+  hierarchy, select, zoom, zoomIdentity, cluster, ascending,
   symbol, symbolTriangle, symbolCircle
 } from "d3";
 
@@ -86,7 +86,8 @@ export function buildPannableTree(
       selectionRect.style("display", "none");
       selectionBtns.style("display", "none");
       currentTransform = { x: 0, y: 0, k: 1 };
-      treeSvg.attr("transform", `translate(${currentTransform.x},${currentTransform.y}) scale(${currentTransform.k})`);
+      // Also reset the internal zoom state so future interactions start from identity
+      overlaySvg.call(treeZoom.transform, zoomIdentity);
 
       update();
     });
@@ -120,25 +121,31 @@ export function buildPannableTree(
   refreshIcon
     .attr("transform", `translate(${refreshTx},${refreshTy}) scale(${refreshScale})`);
 
-  // Create an SVG element in the specified container with pan & zoom behavior
-  const treeSvg = treeDiv
+  let treeSvg; // group containing the rendered tree
+
+  // Outer SVG that receives zoom / pan
+  const outerSvg = treeDiv
     .append("svg")
     .attr("width", "100%")
-    .attr("height", "100%")
-    .call(
-      zoom()
-        .filter(event => {
-          if (event.type === 'dblclick') return false;
-          return true;
-        })
-        .on("zoom", (event) => {
-          currentTransform = event.transform;               // keep latest zoom
-          console.log(currentTransform);
-          treeSvg.attr("transform", currentTransform);          // move tree
-          updateSelectionButtons();                         // reposition buttons
-        })
-    )
-    .append("g");
+    .attr("height", "100%");
+
+  // Re-usable zoom behaviour so we can reset it programmatically
+  const treeZoom = zoom()
+    .filter(event => {
+      if (event.type === 'dblclick') return false;
+      return true;
+    })
+    .on("zoom", (event) => {
+      currentTransform = event.transform;          // keep latest zoom
+      treeSvg.attr("transform", currentTransform); // move tree
+      updateSelectionButtons();                    // reposition buttons
+    });
+
+  // Attach zoom behaviour to the outer SVG
+  outerSvg.call(treeZoom);
+
+  // Group that holds all tree graphics (subject to zoom / pan)
+  treeSvg = outerSvg.append("g");
 
   // Layer for invisible hit-test rectangles (kept above links/nodes)
   const hitLayer = treeSvg.append("g").attr("class", "hit-layer");
