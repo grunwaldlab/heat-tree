@@ -30,6 +30,7 @@ export function buildPannableTree(
   const buttonPadding = 3;
   const buttonCornerRadius = 5;
   const legendElementHeight = 25;
+  const nodeLabelSizeScale = 0.66;
 
   // Scale-bar width limits (pixels)
   const SCALE_BAR_MIN_PX = 60;
@@ -392,17 +393,17 @@ export function buildPannableTree(
     // The estimated width in pixels of the printed label
     function getLabelWidth(node) {
       const nameLen = node.data.name ? node.data.name.length : 0;
-      return nameLen * labelSize * 0.65;
+      return nameLen * leafLabelSize * 0.65;
     }
 
     // The width in pixels of how far the begining of labels are moved right
     function getLabelXOffset(node) {
-      return labelSize / 3
+      return fontSizeForNode(node) / 3
     }
 
     // The width in pixels of how far the begining of labels are moved down
     function getLabelYOffset(node) {
-      return labelSize / 2.5
+      return fontSizeForNode(node) / 2.5
     }
 
     function triangleSideFromArea(area) {
@@ -413,10 +414,33 @@ export function buildPannableTree(
       return 0.4330127 * side * side; // 0.4330127 == sqrt(3) / 4
     }
 
+    // Helper functions for node label sizing & positioning
+    function fontSizeForNode(d) {
+      return (d.children || d.collapsed_children)
+        ? leafLabelSize * nodeLabelSizeScale     // interior node
+        : leafLabelSize;                         // leaf
+    }
+
+    // Return the appropriate vertical offset (dy) so interior node
+    // labels stay on the opposite side of the branch line from
+    // their parent to avoid overlap.
+    function computeDy(d) {
+      const size = fontSizeForNode(d);
+      if (d.children || d.collapsed_children) {
+        if (d.collapsed_parent) {
+          return leafLabelSize * 1.2;
+        } else {
+          const parentBelow = d.parent && d.parent.x > d.x;
+          return parentBelow ? - size * 0.3 : size * 1;
+        }
+      }
+      return size / 2.5; // leaves unchanged
+    }
+
 
     // Infer label size based on room available
     const tipCount = displayedRoot.leaves().length;
-    let labelSize = treeDiv.node().getBoundingClientRect().height / tipCount * (1 - labelSpacing);
+    let leafLabelSize = treeDiv.node().getBoundingClientRect().height / tipCount * (1 - labelSpacing);
 
     // Recompute layout
     treeLayout(displayedRoot);
@@ -570,7 +594,7 @@ export function buildPannableTree(
       });
 
     // Pre-computed symbol paths used for node icons
-    let triangleHeight = labelSize * 1.1;
+    let triangleHeight = leafLabelSize * 1.1;
     let triangleArea = triangleAreaFromSide(triangleHeight);
     let trianglePath = symbol().type(symbolTriangle).size(triangleArea)();
 
@@ -584,7 +608,7 @@ export function buildPannableTree(
     // Update collapsed-subtree labels visibility and text
     treeSvg.selectAll(".collapsed-subtree")
       .transition(t)
-      .attr("dy", labelSize / 2.5)
+      .attr("dy", leafLabelSize / 2.5)
       .attr("x", triangleHeight)
       .text(d => d.collapsed_children ? `Collapsed Subtree (${d.leafCount})` : "")
       .style("font-weight", "bold")
@@ -593,10 +617,10 @@ export function buildPannableTree(
     // Append label for collapsed root
     nodeEnter.append("text")
       .attr("class", "collapsed-root")
-      .attr("dy", labelSize / 2.5)
+      .attr("dy", leafLabelSize / 2.5)
       .attr("x", -triangleHeight)
       .style("text-anchor", "end")
-      .style("font-size", `${labelSize}px`)
+      .style("font-size", `${leafLabelSize}px`)
       .style("font-weight", "bold")
       .text(d => d.collapsed_parent ? `Collapsed Root (${root.leafCount - d.leafCount})` : "")
       .style("display", d => d.collapsed_parent ? null : "none");
@@ -604,26 +628,26 @@ export function buildPannableTree(
     // Update collapsed-root labels
     treeSvg.selectAll(".collapsed-root")
       .transition(t)
-      .attr("dy", labelSize / 2.5)
+      .attr("dy", leafLabelSize / 2.5)
       .attr("x", -triangleHeight)
       .text(d => d.collapsed_parent ? `Collapsed Root (${root.leafCount - d.leafCount})` : "")
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Append text labels for nodes
     nodeEnter.append("text")
-      .attr("dy", labelSize / 2.5)
+      .attr("dy", d => computeDy(d))
       .attr("x", d => (d.children || d.collapsed_children ? -getLabelXOffset(d) : getLabelXOffset(d)))
       .style("text-anchor", d => (d.children || d.collapsed_children ? "end" : "start"))
-      .style("font-size", `${labelSize}px`)
+      .style("font-size", d => `${fontSizeForNode(d)}px`)
       .text(d => d.data.name || "");
 
     // Append label showing number of tips in collapsed subtree
     nodeEnter.append("text")
       .attr("class", "collapsed-subtree")
-      .attr("dy", labelSize / 2.5)
+      .attr("dy", leafLabelSize / 2.5)
       .attr("x", triangleHeight)
       .style("text-anchor", "start")
-      .style("font-size", `${labelSize}px`)
+      .style("font-size", `${leafLabelSize}px`)
       .text(d => d.collapsed_children ? `${d.leafCount} collapsed tips` : "")
       .style("display", d => d.collapsed_children ? null : "none");
 
@@ -653,16 +677,16 @@ export function buildPannableTree(
 
     // Update label font sizes and offsets according to the latest labelSize
     treeSvg.selectAll(".node text")
-      .attr("dy", labelSize / 2.5)
-      .style("font-size", `${labelSize}px`);
+      .attr("dy", d => computeDy(d))
+      .style("font-size", d => `${fontSizeForNode(d)}px`);
 
     treeSvg.selectAll(".collapsed-root")
-      .attr("dy", labelSize / 2.5)
-      .style("font-size", `${labelSize}px`);
+      .attr("dy", leafLabelSize / 2.5)
+      .style("font-size", `${leafLabelSize}px`);
 
     treeSvg.selectAll(".collapsed-subtree")
-      .attr("dy", labelSize / 2.5)
-      .style("font-size", `${labelSize}px`);
+      .attr("dy", leafLabelSize / 2.5)
+      .style("font-size", `${leafLabelSize}px`);
 
     // Store current positions for the next update so every branch has
     // previous coordinates to interpolate from.
