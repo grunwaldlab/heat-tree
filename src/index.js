@@ -1,7 +1,7 @@
 import { parseNewick } from "./parsers.js"
 import {
   hierarchy, select, zoom, zoomIdentity, cluster, ascending,
-  symbol, symbolTriangle, symbolCircle
+  symbol, symbolTriangle,
 } from "d3";
 
 export { parseNewick }
@@ -31,6 +31,7 @@ export function buildPannableTree(
   const buttonCornerRadius = 5;
   const legendElementHeight = 25;
   const nodeLabelSizeScale = 0.66;
+  const maxLableSize = 30;
 
   // Scale-bar width limits (pixels)
   const SCALE_BAR_MIN_PX = 60;
@@ -441,6 +442,9 @@ export function buildPannableTree(
     // Infer label size based on room available
     const tipCount = displayedRoot.leaves().length;
     let leafLabelSize = treeDiv.node().getBoundingClientRect().height / tipCount * (1 - labelSpacing);
+    if (leafLabelSize > maxLableSize) {
+      leafLabelSize = maxLableSize;
+    }
 
     // Recompute layout
     treeLayout(displayedRoot);
