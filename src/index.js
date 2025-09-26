@@ -31,7 +31,7 @@ export function buildPannableTree(
   const buttonCornerRadius = 5;
   const legendElementHeight = 25;
   const nodeLabelSizeScale = 0.66;
-  const maxLableSize = 30;
+  const maxLabelWidthProportion = 0.03;
 
   // Scale-bar width limits (pixels)
   const SCALE_BAR_MIN_PX = 60;
@@ -45,7 +45,7 @@ export function buildPannableTree(
     .style("display", "flex")
     .style("flex-direction", "column")
     .style("width", "100%")
-    .style("height", "401px")
+    .style("height", "100%")
   const toolbarDiv = widgetDiv
     .append("div")
     .attr("class", "ht-toolbar")
@@ -260,16 +260,6 @@ export function buildPannableTree(
   let nodeId = 0;
   root.each(d => { d.id = ++nodeId; });
 
-  // Infer window dimensions if needed, taking into account padding
-  let dimensions = treeDiv.node().getBoundingClientRect();
-  let treeWidth = dimensions.width;
-  let treeHeight = dimensions.height;
-
-  // Use D3 cluster layout to compute node positions (for x coordinate)
-  const treeLayout = cluster()
-    .size([treeHeight, treeWidth])
-    .separation((a, b) => 1);
-
   // Visible bounding-box shown when a subtree is selected
   let selectionRect = treeSvg.append("rect")
     .attr("class", "selection-rect")
@@ -439,12 +429,20 @@ export function buildPannableTree(
     }
 
 
+    // Infer window dimensions if needed, taking into account padding
+    let treeDivSize = treeDiv.node().getBoundingClientRect();
+
     // Infer label size based on room available
     const tipCount = displayedRoot.leaves().length;
-    let leafLabelSize = treeDiv.node().getBoundingClientRect().height / tipCount * (1 - labelSpacing);
-    if (leafLabelSize > maxLableSize) {
-      leafLabelSize = maxLableSize;
+    let leafLabelSize = treeDivSize.height / tipCount * (1 - labelSpacing);
+    if (leafLabelSize > maxLabelWidthProportion * treeDivSize.width) {
+      leafLabelSize = maxLabelWidthProportion * treeDivSize.width;
     }
+
+    // Use D3 cluster layout to compute node positions (for x coordinate)
+    let treeLayout = cluster()
+      .size([treeDivSize.height, treeDivSize.width])
+      .separation((a, b) => 1);
 
     // Recompute layout
     treeLayout(displayedRoot);
@@ -459,7 +457,7 @@ export function buildPannableTree(
     });
 
     const scaleFactor = Math.min(...displayedRoot.leaves().map(d => {
-      return (treeWidth - getLabelWidth(d) - getLabelXOffset(d)) / (d.y || 1);
+      return (treeDivSize.width - getLabelWidth(d) - getLabelXOffset(d)) / (d.y || 1);
     }));
 
     // Store base pixel-per-unit and refresh scale bar for current zoom level
