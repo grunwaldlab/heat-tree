@@ -174,9 +174,6 @@ export function buildPannableTree(
       selectedNode = null;
       selectionRect.style("display", "none");
       selectionBtns.style("display", "none");
-      currentTransform = { x: 0, y: 0, k: 1 };
-      // Also reset the internal zoom state so future interactions start from identity
-      overlaySvg.call(treeZoom.transform, zoomIdentity);
 
       update();
     });
@@ -381,9 +378,45 @@ export function buildPannableTree(
 
   function update(onEnd = null, expanding = false) {
 
+    // Ensure the full tree is visible with extra space on the left for
+    // the floating selection buttons.  This is invoked after the very
+    // first render and every time the user clicks the “reset” button.
+    function fitToView() {
+      // Extra space needed on the left for the button column
+      const marginLeft = buttonSize + controlsMargin;
+
+      // Size of rendered tree in the internal coordinate system
+      const treeWidth = displayedRoot.y1bbox;                       // 0 … max-x
+      const treeHeight = displayedRoot.x1bbox - displayedRoot.x0bbox; // y-span
+
+      const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
+
+      // Find a uniform scale that fits the tree (after margin) in both axes
+      let k = 1;
+      if (treeWidth + marginLeft > viewW) k = (viewW - marginLeft) / treeWidth;
+      if (treeHeight * k > viewH) k = viewH / treeHeight;
+
+      if (!Number.isFinite(k) || k <= 0) k = 1;
+
+      // Translate so left margin is honoured and tree is vertically centred
+      const tx = marginLeft;
+      const ty = (viewH - treeHeight * k) / 2 - displayedRoot.x0bbox * k;
+
+      const transform = zoomIdentity.translate(tx, ty).scale(k);
+      // Apply through zoom behaviour so internal state & listeners update
+      overlaySvg.call(treeZoom.transform, transform);
+    }
+
     // The estimated width in pixels of the printed label
     function getLabelWidth(node) {
-      const nameLen = node.data.name ? node.data.name.length : 0;
+      let nameLen;
+      if (node.collapsed_children) {
+        nameLen = node.collapsed_children_name ? node.collapsed_children_name.length : 0;
+      } else if (node.collapsed_parent) {
+        nameLen = node.collapsed_parent_name ? node.collapsed_parent_name.length : 0;
+      } else {
+        nameLen = node.data.name ? node.data.name.length : 0;
+      }
       return nameLen * leafLabelSize * 0.65;
     }
 
@@ -430,7 +463,7 @@ export function buildPannableTree(
 
 
     // Infer window dimensions if needed, taking into account padding
-    let treeDivSize = treeDiv.node().getBoundingClientRect();
+    let treeDivSize = treeDiv.select('svg').node().getBoundingClientRect();
 
     // Infer label size based on room available
     const tipCount = displayedRoot.leaves().length;
@@ -465,6 +498,16 @@ export function buildPannableTree(
     updateScaleBar(basePxPerUnit * currentTransform.k);
     displayedRoot.each(d => d.y = d.y * scaleFactor);
 
+    // Set the names for collapsed parents and children
+    root.each(d => {
+      if (d.collapsed_parent) {
+        d.collapsed_parent_name = `Collapsed Root (${root.leafCount - d.leafCount})`;
+      }
+      if (d.collapsed_children) {
+        d.collapsed_children_name = `Collapsed Subtree (${d.leafCount})`;
+      }
+    });
+
     // Compute bounding rectangles for every subtree node
     displayedRoot.eachAfter(d => {
       if (d.children) {                     // only visible children count
@@ -478,6 +521,8 @@ export function buildPannableTree(
         d.y1bbox = d.y + getLabelXOffset(d) + getLabelWidth(d);
       }
     });
+
+    fitToView();
 
     // Hide selection rectangle if the node was collapsed,
     // otherwise reposition it with the updated layout.
@@ -612,7 +657,7 @@ export function buildPannableTree(
       .transition(t)
       .attr("dy", leafLabelSize / 2.5)
       .attr("x", triangleHeight)
-      .text(d => d.collapsed_children ? `Collapsed Subtree (${d.leafCount})` : "")
+      .text(d => d.collapsed_children ? d.collapsed_children_name : "")
       .style("font-weight", "bold")
       .style("display", d => d.collapsed_children ? null : "none");
 
@@ -624,7 +669,7 @@ export function buildPannableTree(
       .style("text-anchor", "end")
       .style("font-size", `${leafLabelSize}px`)
       .style("font-weight", "bold")
-      .text(d => d.collapsed_parent ? `Collapsed Root (${root.leafCount - d.leafCount})` : "")
+      .text(d => d.collapsed_parent ? d.collapsed_parent_name : "")
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Update collapsed-root labels
@@ -632,7 +677,7 @@ export function buildPannableTree(
       .transition(t)
       .attr("dy", leafLabelSize / 2.5)
       .attr("x", -triangleHeight)
-      .text(d => d.collapsed_parent ? `Collapsed Root (${root.leafCount - d.leafCount})` : "")
+      .text(d => d.collapsed_parent ? d.collapsed_parent_name : "")
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Append text labels for nodes
@@ -698,6 +743,8 @@ export function buildPannableTree(
     });
   }
 
+  // Initial render then auto-fit so the whole tree is visible and
+  // a margin is left on the left for the floating action buttons.
   update();
 
 
