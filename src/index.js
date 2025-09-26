@@ -30,38 +30,43 @@ export function buildPannableTree(
   const buttonPadding = 3;
   const buttonCornerRadius = 5;
 
+  // Initalize main divs where components are placed
   const parentContainer = select(containerSelector);
-  const mainContainer = parentContainer
-    .insert("div", ":first-child")
-    .attr("class", "heat-tree-main")
+  const widgetDiv = parentContainer
+    .append("div")
+    .attr("class", "ht-widget")
     .style("display", "flex")
     .style("flex-direction", "column")
     .style("width", "100%")
     .style("height", "401px")
-  const treeContainer = mainContainer
+  const toolbarDiv = widgetDiv
     .append("div")
-    .attr("class", "tree")
+    .attr("class", "ht-toolbar")
+    .style("flex", "0 0 auto")
+    .style("margin-bottom", "4px");
+  const treeDiv = widgetDiv
+    .append("div")
+    .attr("class", "ht-tree")
     .style("flex", "1 1 auto")
     .style("min-height", "0")
+  const legendDiv = widgetDiv
+    .append("div")
+    .attr("class", "ht-legend")
+    .style("flex", "0 0 auto")
+    .style("margin-top", "4px");
 
   // Track the current zoom/pan transform so UI controls
   // can keep a constant on-screen size.
   let currentTransform = { x: 0, y: 0, k: 1 };
 
-  // Toolbar with a “Collapse selected” button
-  const toolbar = mainContainer
-    .insert("div", ":first-child")
-    .attr("class", "ht-toolbar")
-    .style("flex", "0 0 auto")
-    .style("margin-bottom", "4px");
+  // Currently selected subtree root
+  let selectedNode = null;
 
-  let selectedNode = null; // Currently selected subtree root
-
-  // Button to reset the tree to its original, fully-expanded state
-  toolbar.append("button")
-    .attr("type", "button")
-    .style("margin-left", "8px")
-    .text("Reset tree")
+  // SVG button to reset the tree to its original, fully-expanded state
+  const btnReset = toolbarDiv.append("svg")
+    .attr("width", buttonSize)
+    .attr("height", buttonSize)
+    .style("cursor", "pointer")
     .on("click", () => {
       // Uncollapse every node
       root.each(d => {
@@ -80,13 +85,43 @@ export function buildPannableTree(
       selectedNode = null;
       selectionRect.style("display", "none");
       selectionBtns.style("display", "none");
-      svg.attr("transform", "translate(0,0)");
+      currentTransform = { x: 0, y: 0, k: 1 };
+      treeSvg.attr("transform", `translate(${currentTransform.x},${currentTransform.y}) scale(${currentTransform.k})`);
 
       update();
     });
 
+  // Background rectangle for the button
+  btnReset.append("rect")
+    .attr("width", buttonSize)
+    .attr("height", buttonSize)
+    .attr("rx", buttonCornerRadius)
+    .attr("ry", buttonCornerRadius)
+    .attr("fill", "#CCC");
+
+  // Referesh icon
+  const refreshIcon = btnReset.append("g")
+    .attr("stroke", "#555")
+    .attr("fill", "none")
+    .attr("stroke-linecap", "round")
+    .attr("stroke-linejoin", "round")
+    .attr("stroke-width", 2);
+  refreshIcon.append("path")
+    .attr("d", "M8 4a8 8 0 1 0 8 8 M8 4V0l4 4-4 4V4");
+
+
+  // Calculate scale & translation for the refresh icon
+  const refreshBBox = refreshIcon.node().getBBox(); // native icon bounds
+  const refreshScale = (buttonSize - buttonPadding * 2) / Math.max(refreshBBox.width, refreshBBox.height);
+  const refreshTx = (buttonSize - refreshBBox.width * refreshScale) / 2;
+  const refreshTy = (buttonSize - refreshBBox.height * refreshScale) / 2;
+
+  // Draw refresh icon (circular arrow)
+  refreshIcon
+    .attr("transform", `translate(${refreshTx},${refreshTy}) scale(${refreshScale})`);
+
   // Create an SVG element in the specified container with pan & zoom behavior
-  const svg = treeContainer
+  const treeSvg = treeDiv
     .append("svg")
     .attr("width", "100%")
     .attr("height", "100%")
@@ -98,18 +133,18 @@ export function buildPannableTree(
         })
         .on("zoom", (event) => {
           currentTransform = event.transform;               // keep latest zoom
-          svg.attr("transform", currentTransform);          // move tree
+          console.log(currentTransform);
+          treeSvg.attr("transform", currentTransform);          // move tree
           updateSelectionButtons();                         // reposition buttons
         })
     )
-    .append("g")
-    .attr("transform", "translate(0,0)");
+    .append("g");
 
   // Layer for invisible hit-test rectangles (kept above links/nodes)
-  const hitLayer = svg.append("g").attr("class", "hit-layer");
+  const hitLayer = treeSvg.append("g").attr("class", "hit-layer");
 
   // Reference to the outer <svg> (not zoomed) – used for UI overlays
-  const outerSvg = treeContainer.select("svg");
+  const overlaySvg = treeDiv.select("svg");
 
   // Parse the Newick string
   const treeData = parseNewick(newickStr);
@@ -129,10 +164,9 @@ export function buildPannableTree(
   root.each(d => { d.id = ++nodeId; });
 
   // Infer window dimensions if needed, taking into account padding
-  let dimensions = treeContainer.node().getBoundingClientRect();
+  let dimensions = treeDiv.node().getBoundingClientRect();
   let treeWidth = dimensions.width;
   let treeHeight = dimensions.height;
-  console.log(`treeHeight: ${treeHeight}`)
 
   // Use D3 cluster layout to compute node positions (for x coordinate)
   const treeLayout = cluster()
@@ -140,7 +174,7 @@ export function buildPannableTree(
     .separation((a, b) => 1);
 
   // Visible bounding-box shown when a subtree is selected
-  let selectionRect = svg.append("rect")
+  let selectionRect = treeSvg.append("rect")
     .attr("class", "selection-rect")
     .attr("fill", "none")
     .attr("stroke", "grey")
@@ -150,12 +184,11 @@ export function buildPannableTree(
     .style("display", "none");
 
   // Floating button group for subtree actions (added to outer SVG so it ignores zoom)
-  const selectionBtns = outerSvg.append("g")
+  const selectionBtns = overlaySvg.append("g")
     .attr("class", "selection-btns")
     .style("display", "none");
 
-  // First button – collapse the selected subtree
-  // ── Collapse-selected button ────────────────────────────────────────────────
+  // Button to collapse the selected subtree
   const btnCollapseSelected = selectionBtns.append("g")
     .style("cursor", "pointer")
     .on("click", () => {
@@ -177,8 +210,7 @@ export function buildPannableTree(
 
   // Calculate centering transform for compress icon
   const compressBBox = { w: 14, h: 18 };                                 // icon native bounds
-  const compressScale = (buttonSize - buttonPadding * 2) /
-    Math.max(compressBBox.w, compressBBox.h);          // scale by longest side
+  const compressScale = (buttonSize - buttonPadding * 2) / Math.max(compressBBox.w, compressBBox.h);
   const compressTx = (buttonSize - compressBBox.w * compressScale) / 2; // horizontal centering
   const compressTy = (buttonSize - compressBBox.h * compressScale) / 2; // vertical   centering
 
@@ -199,8 +231,7 @@ export function buildPannableTree(
     "M0.5 9.5 H14.5"
   ].forEach(d => compressIcon.append("path").attr("d", d));
 
-  // Second button – collapse root to the selected subtree
-  // ── Collapse-root button ───────────────────────────────────────────────────
+  // Button to collapse root to the selected subtree
   const btnCollapseRoot = selectionBtns.append("g")
     .attr("transform", `translate(0, ${buttonSize + buttonMargin})`)
     .style("cursor", "pointer")
@@ -224,8 +255,7 @@ export function buildPannableTree(
 
   // Calculate centering transform for expand icon
   const expandBBox = { w: 16.02, h: 18 };                                 // icon native bounds
-  const expandScale = (buttonSize - buttonPadding * 2) /
-    Math.max(expandBBox.w, expandBBox.h);                // scale by longest side
+  const expandScale = (buttonSize - buttonPadding * 2) / Math.max(expandBBox.w, expandBBox.h);
   const expandTx = (buttonSize - expandBBox.w * expandScale) / 2;       // horizontal centering
   const expandTy = (buttonSize - expandBBox.h * expandScale) / 2;       // vertical   centering
 
@@ -291,7 +321,7 @@ export function buildPannableTree(
 
     // Infer label size based on room available
     const tipCount = displayedRoot.leaves().length;
-    let labelSize = treeContainer.node().getBoundingClientRect().height / tipCount * (1 - labelSpacing);
+    let labelSize = treeDiv.node().getBoundingClientRect().height / tipCount * (1 - labelSpacing);
 
     // Recompute layout
     treeLayout(displayedRoot);
@@ -380,11 +410,11 @@ export function buildPannableTree(
     hitLayer.selectAll(".hit").sort((a, b) => a.depth - b.depth);
 
     // DATA JOIN for links (use stable target.id as key)
-    const link = svg.selectAll(".link")
+    const link = treeSvg.selectAll(".link")
       .data(displayedRoot.links(), d => d.target.id);
 
     // Shared transition for this update
-    const t = svg.transition().duration(500);
+    const t = treeSvg.transition().duration(500);
 
     // ENTER links – start at the parent's previous position
     const linkEnter = link.enter().append("path")
@@ -417,7 +447,7 @@ export function buildPannableTree(
       .remove();
 
     // DATA JOIN for nodes (use stable id)
-    const node = svg.selectAll(".node")
+    const node = treeSvg.selectAll(".node")
       .data(displayedRoot.descendants(), d => d.id);
     node.exit().remove();
     node.transition(t)
@@ -453,7 +483,7 @@ export function buildPannableTree(
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
     // Update collapsed-subtree labels visibility and text
-    svg.selectAll(".collapsed-subtree")
+    treeSvg.selectAll(".collapsed-subtree")
       .transition(t)
       .attr("dy", labelSize / 2.5)
       .attr("x", triangleHeight)
@@ -473,7 +503,7 @@ export function buildPannableTree(
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Update collapsed-root labels
-    svg.selectAll(".collapsed-root")
+    treeSvg.selectAll(".collapsed-root")
       .transition(t)
       .attr("dy", labelSize / 2.5)
       .attr("x", -triangleHeight)
@@ -499,7 +529,7 @@ export function buildPannableTree(
       .style("display", d => d.collapsed_children ? null : "none");
 
     // Update visibility and orientation of node-shapes (triangles)
-    const nodeShapes = svg.selectAll(".node-shape")
+    const nodeShapes = treeSvg.selectAll(".node-shape")
       // set translate offset immediately (no transition)
       .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -0.33 : 0.52) * triangleHeight})`)
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
@@ -523,15 +553,15 @@ export function buildPannableTree(
     });
 
     // Update label font sizes and offsets according to the latest labelSize
-    svg.selectAll(".node text")
+    treeSvg.selectAll(".node text")
       .attr("dy", labelSize / 2.5)
       .style("font-size", `${labelSize}px`);
 
-    svg.selectAll(".collapsed-root")
+    treeSvg.selectAll(".collapsed-root")
       .attr("dy", labelSize / 2.5)
       .style("font-size", `${labelSize}px`);
 
-    svg.selectAll(".collapsed-subtree")
+    treeSvg.selectAll(".collapsed-subtree")
       .attr("dy", labelSize / 2.5)
       .style("font-size", `${labelSize}px`);
 
@@ -547,7 +577,7 @@ export function buildPannableTree(
 
 
 
-  return { root: displayedRoot, svg };
+  return { root: displayedRoot, svg: treeSvg };
 }
 
 
