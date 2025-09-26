@@ -51,7 +51,10 @@ export function buildPannableTree(
     .append("div")
     .attr("class", "ht-toolbar")
     .style("flex", "0 0 auto")
-    .style("margin-bottom", "4px");
+    .style("margin-bottom", "4px")
+    .style("display", "flex")                 // lay out buttons in a row
+    .style("gap", `${controlsMargin}px`)      // gap between buttons
+    .style("align-items", "flex-start");      // align to the top/left
   const treeDiv = widgetDiv
     .append("div")
     .attr("class", "ht-tree")
@@ -156,7 +159,9 @@ export function buildPannableTree(
   let selectedNode = null;
 
   // SVG button to reset the tree to its original, fully-expanded state
-  const btnReset = toolbarDiv.append("svg")
+  const btnReset = toolbarDiv.append("div")
+    .style("flex", "0 0 auto")
+    .append("svg")
     .attr("width", buttonSize)
     .attr("height", buttonSize)
     .style("cursor", "pointer")
@@ -212,7 +217,9 @@ export function buildPannableTree(
     .attr("transform", `translate(${refreshTx},${refreshTy}) scale(${refreshScale})`);
 
   // ---------- Toggle Zoom/Pan button ----------
-  const btnToggleZoom = toolbarDiv.append("svg")
+  const btnToggleZoom = toolbarDiv.append("div")
+    .style("flex", "0 0 auto")
+    .append("svg")
     .attr("width", buttonSize)
     .attr("height", buttonSize)
     .style("cursor", "pointer")
