@@ -22,6 +22,7 @@ export function buildPannableTree(
   newickStr,
   containerSelector,
   labelSpacing = 0.1,
+  zoomInitiallyEnabled = true,
 ) {
 
   // Set constant display settings
@@ -141,6 +142,9 @@ export function buildPannableTree(
       .text(units.toPrecision(3));
   }
 
+  // Toggle state for user-initiated zooming/panning
+  let zoomEnabled = zoomInitiallyEnabled;
+
   // Track the current zoom/pan transform so UI controls
   // can keep a constant on-screen size.
   let currentTransform = { x: 0, y: 0, k: 1 };
@@ -207,6 +211,52 @@ export function buildPannableTree(
   refreshIcon
     .attr("transform", `translate(${refreshTx},${refreshTy}) scale(${refreshScale})`);
 
+  // ---------- Toggle Zoom/Pan button ----------
+  const btnToggleZoom = toolbarDiv.append("svg")
+    .attr("width", buttonSize)
+    .attr("height", buttonSize)
+    .style("cursor", "pointer")
+    .on("click", () => {
+      zoomEnabled = !zoomEnabled;
+      updateToggleZoomAppearance();
+    });
+
+  const btnToggleBg = btnToggleZoom.append("rect")
+    .attr("width", buttonSize)
+    .attr("height", buttonSize)
+    .attr("rx", buttonCornerRadius)
+    .attr("ry", buttonCornerRadius)
+    .attr("fill", "#CCC");
+
+  const arrowsIcon = btnToggleZoom.append("g")
+    .attr("stroke", "#555")
+    .attr("fill", "none")
+    .attr("stroke-linecap", "round")
+    .attr("stroke-linejoin", "round")
+    .attr("stroke-width", 2);
+
+  [
+    "M10 8 H16 M16 8 L14 6 M16 8 L14 10",
+    "M6 8 H0 M0 8 L2 6 M0 8 L2 10",
+    "M8 6 V0 M8 0 L6 2 M8 0 L10 2",
+    "M8 10 V16 M8 16 L6 14 M8 16 L10 14"
+  ].forEach(d => arrowsIcon.append("path").attr("d", d));
+
+  // Calculate scale & translation for the refresh icon
+  const arrowsBBox = arrowsIcon.node().getBBox(); // native icon bounds
+  const arrowsScale = (buttonSize - buttonPadding * 2) / Math.max(arrowsBBox.width, arrowsBBox.height);
+  const arrowsTx = (buttonSize - arrowsBBox.width * arrowsScale) / 2;
+  const arrowsTy = (buttonSize - arrowsBBox.height * arrowsScale) / 2;
+
+  // Draw refresh icon (circular arrow)
+  arrowsIcon
+    .attr("transform", `translate(${arrowsTx},${arrowsTy}) scale(${arrowsScale})`);
+
+  function updateToggleZoomAppearance() {
+    btnToggleBg.attr("fill", zoomEnabled ? "#CCC" : "#EEE");
+  }
+  updateToggleZoomAppearance();
+
   let treeSvg; // group containing the rendered tree
 
   // Outer SVG that receives zoom / pan
@@ -218,6 +268,7 @@ export function buildPannableTree(
   // Re-usable zoom behaviour so we can reset it programmatically
   const treeZoom = zoom()
     .filter(event => {
+      if (!zoomEnabled) return false;      // honour toggle button
       if (event.type === 'dblclick') return false;
       return true;
     })
