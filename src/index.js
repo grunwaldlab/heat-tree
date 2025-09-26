@@ -33,6 +33,7 @@ export function buildPannableTree(
   const legendElementHeight = 25;
   const nodeLabelSizeScale = 0.66;
   const maxLabelWidthProportion = 0.03;
+  const branchThicknessProp = 0.2;
 
   // Scale-bar width limits (pixels)
   const SCALE_BAR_MIN_PX = 60;
@@ -530,6 +531,9 @@ export function buildPannableTree(
       leafLabelSize = maxLabelWidthProportion * treeDivSize.width;
     }
 
+    // Branch thickness proportional to label font size
+    const branchWidth = leafLabelSize * branchThicknessProp;
+
     // Use D3 cluster layout to compute node positions (for x coordinate)
     let treeLayout = cluster()
       .size([treeDivSize.height, treeDivSize.width])
@@ -550,8 +554,6 @@ export function buildPannableTree(
     const scaleFactor = Math.min(...displayedRoot.leaves().map(d => {
       return (treeDivSize.width - getLabelWidth(d) - getLabelXOffset(d)) / d.y;
     }));
-    console.log(`scaleFactor: ${scaleFactor}`);
-    console.log(`treeDivSize.width: ${treeDivSize.width}`);
 
     // Store base pixel-per-unit and refresh scale bar for current zoom level
     basePxPerUnit = scaleFactor;
@@ -652,7 +654,7 @@ export function buildPannableTree(
       .attr("fill", "none")
       .attr("stroke", "#000")
       .attr("stroke-opacity", 1)
-      .attr("stroke-width", 1.5)
+      .attr("stroke-width", branchWidth)
       .attr("d", d => {
         const sy = d.source.y0 ?? d.source.y;
         const sx = d.source.x0 ?? d.source.x;
@@ -665,6 +667,7 @@ export function buildPannableTree(
 
     // UPDATE links to new position
     linkUpdate.transition(t)
+      .attr("stroke-width", branchWidth)
       .attr("d", d => `M${d.source.y},${d.source.x} V${d.target.x} H${d.target.y}`);
 
     // EXIT links – collapse back to the parent's new position
