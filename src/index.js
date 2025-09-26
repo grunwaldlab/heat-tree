@@ -29,8 +29,11 @@ export function buildPannableTree(
   const controlsMargin = 3;
   const buttonPadding = 3;
   const buttonCornerRadius = 5;
-  const legendMargin = 3;
   const legendElementHeight = 25;
+
+  // Scale-bar width limits (pixels)
+  const SCALE_BAR_MIN_PX = 60;
+  const SCALE_BAR_MAX_PX = 150;
 
   // Initalize main divs where components are placed
   const parentContainer = select(containerSelector);
@@ -62,13 +65,12 @@ export function buildPannableTree(
   const scaleBarSvg = legendDiv.append("svg")
     .attr("class", "ht-scale-bar")
     .attr("width", "100%")
-    .attr("height", legendElementHeight)
-    .style("margin", legendMargin);
+    .attr("height", legendElementHeight);
 
   const scaleBarGroup = scaleBarSvg.append("g")
-    .attr("transform", `translate(0,${legendElementHeight - scaleBarEdgeHeight})`)
+    .attr("transform", `translate(1,${legendElementHeight - scaleBarEdgeHeight})`)
     .attr("stroke", "#000")
-    .attr("stroke-width", 1)
+    .attr("stroke-width", 2)
     .attr("fill", "none");
 
   // main bar and ticks
@@ -80,6 +82,7 @@ export function buildPannableTree(
     .attr("class", "label")
     .attr("dy", -scaleBarEdgeHeight)
     .attr("text-anchor", "middle")
+    .attr("stroke-width", 1)
     .style("font-size", "12px");
 
   // helper to choose a “nice” rounded scale bar length
@@ -97,10 +100,25 @@ export function buildPannableTree(
   // Update the scale-bar graphics according to current pixel-per-unit scale
   function updateScaleBar(pxPerUnit) {
     if (!isFinite(pxPerUnit) || pxPerUnit <= 0) return;
-    const desiredPx = 120;                    // target on-screen bar length
-    const unitsRaw = desiredPx / pxPerUnit;
-    const niceUnits = niceNumber(unitsRaw);   // round to 1/2/5 × 10^n
-    const barPx = niceUnits * pxPerUnit;
+
+    // choose an initial “nice” distance then adjust to keep bar within limits
+    let units = niceNumber(1);      // start from 1 unit
+    let barPx = units * pxPerUnit;
+
+    // expand / shrink until within [min,max] pixels
+    if (barPx < SCALE_BAR_MIN_PX || barPx > SCALE_BAR_MAX_PX) {
+      // estimate a closer starting length
+      units = niceNumber(SCALE_BAR_MIN_PX / pxPerUnit);
+      barPx = units * pxPerUnit;
+    }
+    while (barPx < SCALE_BAR_MIN_PX) {
+      units *= 2;
+      barPx = units * pxPerUnit;
+    }
+    while (barPx > SCALE_BAR_MAX_PX) {
+      units /= 2;
+      barPx = units * pxPerUnit;
+    }
 
     // bar & ticks
     scaleBarGroup.select(".bar")
@@ -118,12 +136,15 @@ export function buildPannableTree(
     // centre label
     scaleBarGroup.select(".label")
       .attr("x", barPx / 2)
-      .text(niceUnits.toPrecision(3));
+      .text(units.toPrecision(3));
   }
 
   // Track the current zoom/pan transform so UI controls
   // can keep a constant on-screen size.
   let currentTransform = { x: 0, y: 0, k: 1 };
+
+  // Pixel-per-branch-length unit before zoom is applied
+  let basePxPerUnit = 1;
 
   // Currently selected subtree root
   let selectedNode = null;
@@ -205,6 +226,7 @@ export function buildPannableTree(
       currentTransform = event.transform;          // keep latest zoom
       treeSvg.attr("transform", currentTransform); // move tree
       updateSelectionButtons();                    // reposition buttons
+      updateScaleBar(basePxPerUnit * currentTransform.k); // rescale bar
     });
 
   // Attach zoom behaviour to the outer SVG
@@ -412,8 +434,9 @@ export function buildPannableTree(
       return (treeWidth - getLabelWidth(d) - getLabelXOffset(d)) / (d.y || 1);
     }));
 
-    // Refresh branch-length scale bar
-    updateScaleBar(scaleFactor);
+    // Store base pixel-per-unit and refresh scale bar for current zoom level
+    basePxPerUnit = scaleFactor;
+    updateScaleBar(basePxPerUnit * currentTransform.k);
     displayedRoot.each(d => d.y = d.y * scaleFactor);
 
     // Compute bounding rectangles for every subtree node
