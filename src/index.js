@@ -548,8 +548,10 @@ export function buildPannableTree(
     });
 
     const scaleFactor = Math.min(...displayedRoot.leaves().map(d => {
-      return (treeDivSize.width - getLabelWidth(d) - getLabelXOffset(d)) / (d.y || 1);
+      return (treeDivSize.width - getLabelWidth(d) - getLabelXOffset(d)) / d.y;
     }));
+    console.log(`scaleFactor: ${scaleFactor}`);
+    console.log(`treeDivSize.width: ${treeDivSize.width}`);
 
     // Store base pixel-per-unit and refresh scale bar for current zoom level
     basePxPerUnit = scaleFactor;
