@@ -1,4 +1,5 @@
 import { parseNewick } from "./parsers.js"
+import { appendIcon } from "./icons.js"
 import {
   hierarchy, select, zoom, zoomIdentity, cluster, ascending,
   symbol, symbolTriangle,
@@ -14,7 +15,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     zoomInitiallyEnabled: true,
     scaleBarSize: { min: 60, max: 150 },
     controlsMargin: 3,
-    buttonPadding: 3,
+    buttonPadding: 2,
     legendElementHeight: 25,
     nodeLabelSizeScale: 0.66,
     maxLabelWidthProportion: 0.03,
@@ -50,13 +51,12 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     .style("flex", "0 0 auto")
     .style("margin-top", "4px");
 
-  // ---------------- Branch length scale bar -----------------
+  // Branch length scale bar
   const scaleBarEdgeHeight = 6;
   const scaleBarSvg = legendDiv.append("svg")
     .attr("class", "ht-scale-bar")
     .attr("width", "100%")
     .attr("height", options.legendElementHeight);
-
   const scaleBarGroup = scaleBarSvg.append("g")
     .attr("transform", `translate(1,${options.legendElementHeight - scaleBarEdgeHeight})`)
     .attr("stroke", "#000")
@@ -170,37 +170,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
       update();
     });
+  appendIcon(btnReset, "refresh", options.buttonSize, options.buttonPadding);
 
-  // Background rectangle for the button
-  btnReset.append("rect")
-    .attr("width", options.buttonSize)
-    .attr("height", options.buttonSize)
-    .attr("rx", "5px")
-    .attr("ry", "5px")
-    .attr("fill", "#CCC");
-
-  // Referesh icon
-  const refreshIcon = btnReset.append("g")
-    .attr("stroke", "#555")
-    .attr("fill", "none")
-    .attr("stroke-linecap", "round")
-    .attr("stroke-linejoin", "round")
-    .attr("stroke-width", 2);
-  refreshIcon.append("path")
-    .attr("d", "M8 4a8 8 0 1 0 8 8 M8 4V0l4 4-4 4V4");
-
-
-  // Calculate scale & translation for the refresh icon
-  const refreshBBox = refreshIcon.node().getBBox(); // native icon bounds
-  const refreshScale = (options.buttonSize - options.buttonPadding * 2) / Math.max(refreshBBox.width, refreshBBox.height);
-  const refreshTx = (options.buttonSize - refreshBBox.width * refreshScale) / 2;
-  const refreshTy = (options.buttonSize - refreshBBox.height * refreshScale) / 2;
-
-  // Draw refresh icon (circular arrow)
-  refreshIcon
-    .attr("transform", `translate(${refreshTx},${refreshTy}) scale(${refreshScale})`);
-
-  // ---------- Toggle Zoom/Pan button ----------
+  // Toggle Zoom/Pan button 
   const btnToggleZoom = toolbarDiv.append("div")
     .style("flex", "0 0 auto")
     .append("svg")
@@ -211,40 +183,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       zoomEnabled = !zoomEnabled;
       updateToggleZoomAppearance();
     });
-
-  const btnToggleBg = btnToggleZoom.append("rect")
-    .attr("width", options.buttonSize)
-    .attr("height", options.buttonSize)
-    .attr("rx", "5px")
-    .attr("ry", "5px")
-    .attr("fill", "#CCC");
-
-  const arrowsIcon = btnToggleZoom.append("g")
-    .attr("stroke", "#555")
-    .attr("fill", "none")
-    .attr("stroke-linecap", "round")
-    .attr("stroke-linejoin", "round")
-    .attr("stroke-width", 2);
-
-  [
-    "M10 8 H16 M16 8 L14 6 M16 8 L14 10",
-    "M6 8 H0 M0 8 L2 6 M0 8 L2 10",
-    "M8 6 V0 M8 0 L6 2 M8 0 L10 2",
-    "M8 10 V16 M8 16 L6 14 M8 16 L10 14"
-  ].forEach(d => arrowsIcon.append("path").attr("d", d));
-
-  // Calculate scale & translation for the refresh icon
-  const arrowsBBox = arrowsIcon.node().getBBox(); // native icon bounds
-  const arrowsScale = (options.buttonSize - options.buttonPadding * 2) / Math.max(arrowsBBox.width, arrowsBBox.height);
-  const arrowsTx = (options.buttonSize - arrowsBBox.width * arrowsScale) / 2;
-  const arrowsTy = (options.buttonSize - arrowsBBox.height * arrowsScale) / 2;
-
-  // Draw refresh icon (circular arrow)
-  arrowsIcon
-    .attr("transform", `translate(${arrowsTx},${arrowsTy}) scale(${arrowsScale})`);
-
+  appendIcon(btnToggleZoom, "outwardArrows", options.buttonSize, options.buttonPadding);
   function updateToggleZoomAppearance() {
-    btnToggleBg.attr("fill", zoomEnabled ? "#CCC" : "#EEE");
+    btnToggleZoom.select("rect").attr("fill", zoomEnabled ? "#CCC" : "#EEE");
   }
   updateToggleZoomAppearance();
 
@@ -315,7 +256,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     .style("display", "none");
 
   // Button to collapse the selected subtree
-  const btnCollapseSelected = selectionBtns.append("g")
+  const btnCollapseSelected = selectionBtns.append("svg")
+    .attr("width", options.buttonSize)
+    .attr("height", options.buttonSize)
     .style("cursor", "pointer")
     .on("click", () => {
       if (selectedNode && selectedNode.children) {
@@ -327,39 +270,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         update(null, false, false);
       }
     });
-  btnCollapseSelected.insert("rect", ":first-child")
-    .attr("width", options.buttonSize)
-    .attr("height", options.buttonSize)
-    .attr("rx", "5px")
-    .attr("ry", "5px")
-    .attr("fill", "#CCC");
-
-  // Calculate centering transform for compress icon
-  const compressBBox = { w: 14, h: 18 };                                 // icon native bounds
-  const compressScale = (options.buttonSize - options.buttonPadding * 2) / Math.max(compressBBox.w, compressBBox.h);
-  const compressTx = (options.buttonSize - compressBBox.w * compressScale) / 2; // horizontal centering
-  const compressTy = (options.buttonSize - compressBBox.h * compressScale) / 2; // vertical   centering
-
-  // draw “compress” icon paths
-  const compressIcon = btnCollapseSelected.append("g")
-    .attr("transform", `translate(${compressTx},${compressTy}) scale(${compressScale})`)
-    .attr("stroke", "#555")
-    .attr("fill", "none")
-    .attr("stroke-linecap", "round")
-    .attr("stroke-linejoin", "round")
-    .attr("stroke-width", 2);
-
-  [
-    "M4.5 4.5 L7.5 7.5 L10.5 4.5",
-    "M7.5 0.5 V7.5",
-    "M4.5 14.5 L7.5 11.5 L10.5 14.5",
-    "M7.5 11.5 V18.5",
-    "M0.5 9.5 H14.5"
-  ].forEach(d => compressIcon.append("path").attr("d", d));
+  appendIcon(btnCollapseSelected, "compress", options.buttonSize, options.buttonPadding);
 
   // Button to collapse root to the selected subtree
-  const btnCollapseRoot = selectionBtns.append("g")
+  const btnCollapseRoot = selectionBtns.append("svg")
     .attr("transform", `translate(0, ${options.buttonSize + options.controlsMargin})`)
+    .attr("width", options.buttonSize)
+    .attr("height", options.buttonSize)
     .style("cursor", "pointer")
     .on("click", () => {
       if (selectedNode && selectedNode !== displayedRoot) {
@@ -372,38 +289,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         update();
       }
     });
-  btnCollapseRoot.insert("rect", ":first-child")
-    .attr("width", options.buttonSize)
-    .attr("height", options.buttonSize)
-    .attr("rx", "5px")
-    .attr("ry", "5px")
-    .attr("fill", "#CCC");
-
-  // Calculate centering transform for expand icon
-  const expandBBox = { w: 16.02, h: 18 };                                 // icon native bounds
-  const expandScale = (options.buttonSize - options.buttonPadding * 2) / Math.max(expandBBox.w, expandBBox.h);
-  const expandTx = (options.buttonSize - expandBBox.w * expandScale) / 2;       // horizontal centering
-  const expandTy = (options.buttonSize - expandBBox.h * expandScale) / 2;       // vertical   centering
-
-  // draw “expand” icon paths
-  const expandIcon = btnCollapseRoot.append("g")
-    .attr("transform", `translate(${expandTx},${expandTy}) scale(${expandScale})`)
-    .attr("stroke", "#555")
-    .attr("fill", "none")
-    .attr("stroke-linecap", "round")
-    .attr("stroke-linejoin", "round")
-    .attr("stroke-width", 2);
-
-  [
-    { d: "M16.51 0.51 H0.49" },
-    { d: "M16.51 18.51 H0.49" },
-    { d: "m6.503 18.525 4-4 -4-4.015", transform: "matrix(0 1 -1 0 23.021 6.015)" },
-    { d: "m10.503 8.525 -4-4 4-4.015", transform: "matrix(0 1 -1 0 13.021 -3.985)" },
-    { d: "M8.51 16.51 V2.51" }
-  ].forEach(p => {
-    const path = expandIcon.append("path").attr("d", p.d);
-    if (p.transform) path.attr("transform", p.transform);
-  });
+  appendIcon(btnCollapseRoot, "expand", options.buttonSize, options.buttonPadding);
 
   // Helper to position / toggle the floating button group
   function updateSelectionButtons() {
@@ -502,7 +388,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       }
       return size / 2.5; // leaves unchanged
     }
-
 
     // Infer window dimensions if needed, taking into account padding
     let treeDivSize = treeDiv.select('svg').node().getBoundingClientRect();
@@ -792,8 +677,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   // Initial render then auto-fit so the whole tree is visible and
   // a margin is left on the left for the floating action buttons.
   update();
-
-
 
   return { root: displayedRoot, svg: treeSvg };
 }
