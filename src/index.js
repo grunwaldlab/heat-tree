@@ -4,40 +4,23 @@ import {
   symbol, symbolTriangle,
 } from "d3";
 
-export { parseNewick }
 
-/**
- * Main function to initialize the heat-tree visualization.
- * @param {object} options - Initialization options.
- */
-export function heatTree(options = {}) {
-  if (options.newick) {
-    const treeData = parseNewick(options.newick);
-    console.log("Parsed tree data:", treeData);
-  }
-  console.log('hello world')
-}
+export function heatTree(newickStr, containerSelector, options = {}) {
 
-export function buildPannableTree(
-  newickStr,
-  containerSelector,
-  labelSpacing = 0.1,
-  zoomInitiallyEnabled = true,
-) {
-
-  // Set constant display settings
-  const buttonSize = 25;
-  const controlsMargin = 3;
-  const buttonPadding = 3;
-  const buttonCornerRadius = 5;
-  const legendElementHeight = 25;
-  const nodeLabelSizeScale = 0.66;
-  const maxLabelWidthProportion = 0.03;
-  const branchThicknessProp = 0.2;
-
-  // Scale-bar width limits (pixels)
-  const SCALE_BAR_MIN_PX = 60;
-  const SCALE_BAR_MAX_PX = 150;
+  // Set defualt options
+  options = {
+    buttonSize: 25,
+    labelSpacing: 0.1,
+    zoomInitiallyEnabled: true,
+    scaleBarSize: { min: 60, max: 150 },
+    controlsMargin: 3,
+    buttonPadding: 3,
+    legendElementHeight: 25,
+    nodeLabelSizeScale: 0.66,
+    maxLabelWidthProportion: 0.03,
+    branchThicknessProp: 0.2,
+    ...options
+  };
 
   // Initalize main divs where components are placed
   const parentContainer = select(containerSelector);
@@ -54,7 +37,7 @@ export function buildPannableTree(
     .style("flex", "0 0 auto")
     .style("margin-bottom", "4px")
     .style("display", "flex")                 // lay out buttons in a row
-    .style("gap", `${controlsMargin}px`)      // gap between buttons
+    .style("gap", `${options.controlsMargin}px`)      // gap between buttons
     .style("align-items", "flex-start");      // align to the top/left
   const treeDiv = widgetDiv
     .append("div")
@@ -72,10 +55,10 @@ export function buildPannableTree(
   const scaleBarSvg = legendDiv.append("svg")
     .attr("class", "ht-scale-bar")
     .attr("width", "100%")
-    .attr("height", legendElementHeight);
+    .attr("height", options.legendElementHeight);
 
   const scaleBarGroup = scaleBarSvg.append("g")
-    .attr("transform", `translate(1,${legendElementHeight - scaleBarEdgeHeight})`)
+    .attr("transform", `translate(1,${options.legendElementHeight - scaleBarEdgeHeight})`)
     .attr("stroke", "#000")
     .attr("stroke-width", 2)
     .attr("fill", "none");
@@ -113,16 +96,16 @@ export function buildPannableTree(
     let barPx = units * pxPerUnit;
 
     // expand / shrink until within [min,max] pixels
-    if (barPx < SCALE_BAR_MIN_PX || barPx > SCALE_BAR_MAX_PX) {
+    if (barPx < options.scaleBarSize.min || barPx > options.scaleBarSize.max) {
       // estimate a closer starting length
-      units = niceNumber(SCALE_BAR_MIN_PX / pxPerUnit);
+      units = niceNumber(options.scaleBarSize.min / pxPerUnit);
       barPx = units * pxPerUnit;
     }
-    while (barPx < SCALE_BAR_MIN_PX) {
+    while (barPx < options.scaleBarSize.min) {
       units *= 2;
       barPx = units * pxPerUnit;
     }
-    while (barPx > SCALE_BAR_MAX_PX) {
+    while (barPx > options.scaleBarSize.max) {
       units /= 2;
       barPx = units * pxPerUnit;
     }
@@ -147,7 +130,7 @@ export function buildPannableTree(
   }
 
   // Toggle state for user-initiated zooming/panning
-  let zoomEnabled = zoomInitiallyEnabled;
+  let zoomEnabled = options.zoomInitiallyEnabled;
 
   // Track the current zoom/pan transform so UI controls
   // can keep a constant on-screen size.
@@ -163,8 +146,8 @@ export function buildPannableTree(
   const btnReset = toolbarDiv.append("div")
     .style("flex", "0 0 auto")
     .append("svg")
-    .attr("width", buttonSize)
-    .attr("height", buttonSize)
+    .attr("width", options.buttonSize)
+    .attr("height", options.buttonSize)
     .style("cursor", "pointer")
     .on("click", () => {
       // Uncollapse every node
@@ -190,10 +173,10 @@ export function buildPannableTree(
 
   // Background rectangle for the button
   btnReset.append("rect")
-    .attr("width", buttonSize)
-    .attr("height", buttonSize)
-    .attr("rx", buttonCornerRadius)
-    .attr("ry", buttonCornerRadius)
+    .attr("width", options.buttonSize)
+    .attr("height", options.buttonSize)
+    .attr("rx", "5px")
+    .attr("ry", "5px")
     .attr("fill", "#CCC");
 
   // Referesh icon
@@ -209,9 +192,9 @@ export function buildPannableTree(
 
   // Calculate scale & translation for the refresh icon
   const refreshBBox = refreshIcon.node().getBBox(); // native icon bounds
-  const refreshScale = (buttonSize - buttonPadding * 2) / Math.max(refreshBBox.width, refreshBBox.height);
-  const refreshTx = (buttonSize - refreshBBox.width * refreshScale) / 2;
-  const refreshTy = (buttonSize - refreshBBox.height * refreshScale) / 2;
+  const refreshScale = (options.buttonSize - options.buttonPadding * 2) / Math.max(refreshBBox.width, refreshBBox.height);
+  const refreshTx = (options.buttonSize - refreshBBox.width * refreshScale) / 2;
+  const refreshTy = (options.buttonSize - refreshBBox.height * refreshScale) / 2;
 
   // Draw refresh icon (circular arrow)
   refreshIcon
@@ -221,8 +204,8 @@ export function buildPannableTree(
   const btnToggleZoom = toolbarDiv.append("div")
     .style("flex", "0 0 auto")
     .append("svg")
-    .attr("width", buttonSize)
-    .attr("height", buttonSize)
+    .attr("width", options.buttonSize)
+    .attr("height", options.buttonSize)
     .style("cursor", "pointer")
     .on("click", () => {
       zoomEnabled = !zoomEnabled;
@@ -230,10 +213,10 @@ export function buildPannableTree(
     });
 
   const btnToggleBg = btnToggleZoom.append("rect")
-    .attr("width", buttonSize)
-    .attr("height", buttonSize)
-    .attr("rx", buttonCornerRadius)
-    .attr("ry", buttonCornerRadius)
+    .attr("width", options.buttonSize)
+    .attr("height", options.buttonSize)
+    .attr("rx", "5px")
+    .attr("ry", "5px")
     .attr("fill", "#CCC");
 
   const arrowsIcon = btnToggleZoom.append("g")
@@ -252,9 +235,9 @@ export function buildPannableTree(
 
   // Calculate scale & translation for the refresh icon
   const arrowsBBox = arrowsIcon.node().getBBox(); // native icon bounds
-  const arrowsScale = (buttonSize - buttonPadding * 2) / Math.max(arrowsBBox.width, arrowsBBox.height);
-  const arrowsTx = (buttonSize - arrowsBBox.width * arrowsScale) / 2;
-  const arrowsTy = (buttonSize - arrowsBBox.height * arrowsScale) / 2;
+  const arrowsScale = (options.buttonSize - options.buttonPadding * 2) / Math.max(arrowsBBox.width, arrowsBBox.height);
+  const arrowsTx = (options.buttonSize - arrowsBBox.width * arrowsScale) / 2;
+  const arrowsTy = (options.buttonSize - arrowsBBox.height * arrowsScale) / 2;
 
   // Draw refresh icon (circular arrow)
   arrowsIcon
@@ -345,17 +328,17 @@ export function buildPannableTree(
       }
     });
   btnCollapseSelected.insert("rect", ":first-child")
-    .attr("width", buttonSize)
-    .attr("height", buttonSize)
-    .attr("rx", buttonCornerRadius)
-    .attr("ry", buttonCornerRadius)
+    .attr("width", options.buttonSize)
+    .attr("height", options.buttonSize)
+    .attr("rx", "5px")
+    .attr("ry", "5px")
     .attr("fill", "#CCC");
 
   // Calculate centering transform for compress icon
   const compressBBox = { w: 14, h: 18 };                                 // icon native bounds
-  const compressScale = (buttonSize - buttonPadding * 2) / Math.max(compressBBox.w, compressBBox.h);
-  const compressTx = (buttonSize - compressBBox.w * compressScale) / 2; // horizontal centering
-  const compressTy = (buttonSize - compressBBox.h * compressScale) / 2; // vertical   centering
+  const compressScale = (options.buttonSize - options.buttonPadding * 2) / Math.max(compressBBox.w, compressBBox.h);
+  const compressTx = (options.buttonSize - compressBBox.w * compressScale) / 2; // horizontal centering
+  const compressTy = (options.buttonSize - compressBBox.h * compressScale) / 2; // vertical   centering
 
   // draw “compress” icon paths
   const compressIcon = btnCollapseSelected.append("g")
@@ -376,7 +359,7 @@ export function buildPannableTree(
 
   // Button to collapse root to the selected subtree
   const btnCollapseRoot = selectionBtns.append("g")
-    .attr("transform", `translate(0, ${buttonSize + controlsMargin})`)
+    .attr("transform", `translate(0, ${options.buttonSize + options.controlsMargin})`)
     .style("cursor", "pointer")
     .on("click", () => {
       if (selectedNode && selectedNode !== displayedRoot) {
@@ -390,17 +373,17 @@ export function buildPannableTree(
       }
     });
   btnCollapseRoot.insert("rect", ":first-child")
-    .attr("width", buttonSize)
-    .attr("height", buttonSize)
-    .attr("rx", buttonCornerRadius)
-    .attr("ry", buttonCornerRadius)
+    .attr("width", options.buttonSize)
+    .attr("height", options.buttonSize)
+    .attr("rx", "5px")
+    .attr("ry", "5px")
     .attr("fill", "#CCC");
 
   // Calculate centering transform for expand icon
   const expandBBox = { w: 16.02, h: 18 };                                 // icon native bounds
-  const expandScale = (buttonSize - buttonPadding * 2) / Math.max(expandBBox.w, expandBBox.h);
-  const expandTx = (buttonSize - expandBBox.w * expandScale) / 2;       // horizontal centering
-  const expandTy = (buttonSize - expandBBox.h * expandScale) / 2;       // vertical   centering
+  const expandScale = (options.buttonSize - options.buttonPadding * 2) / Math.max(expandBBox.w, expandBBox.h);
+  const expandTx = (options.buttonSize - expandBBox.w * expandScale) / 2;       // horizontal centering
+  const expandTy = (options.buttonSize - expandBBox.h * expandScale) / 2;       // vertical   centering
 
   // draw “expand” icon paths
   const expandIcon = btnCollapseRoot.append("g")
@@ -428,8 +411,8 @@ export function buildPannableTree(
       selectionBtns.style("display", "none");
       return;
     }
-    const screenX = selectedNode.y * currentTransform.k + currentTransform.x - buttonSize - controlsMargin;
-    const screenY = selectedNode.x0bbox * currentTransform.k + currentTransform.y - controlsMargin;
+    const screenX = selectedNode.y * currentTransform.k + currentTransform.x - options.buttonSize - options.controlsMargin;
+    const screenY = selectedNode.x0bbox * currentTransform.k + currentTransform.y - options.controlsMargin;
     selectionBtns
       .attr("transform", `translate(${screenX},${screenY})`)
       .style("display", "block");
@@ -442,7 +425,7 @@ export function buildPannableTree(
     // first render and every time the user clicks the “reset” button.
     function fitToView() {
       // Extra space needed on the left for the button column
-      const marginLeft = buttonSize + controlsMargin;
+      const marginLeft = options.buttonSize + options.controlsMargin;
 
       // Size of rendered tree in the internal coordinate system
       const treeWidth = displayedRoot.y1bbox + getLabelWidth(displayedRoot);                       // 0 … max-x
@@ -500,7 +483,7 @@ export function buildPannableTree(
     // Helper functions for node label sizing & positioning
     function fontSizeForNode(d) {
       return (d.children || d.collapsed_children)
-        ? leafLabelSize * nodeLabelSizeScale     // interior node
+        ? leafLabelSize * options.nodeLabelSizeScale     // interior node
         : leafLabelSize;                         // leaf
     }
 
@@ -526,13 +509,13 @@ export function buildPannableTree(
 
     // Infer label size based on room available
     const tipCount = displayedRoot.leaves().length;
-    let leafLabelSize = treeDivSize.height / tipCount * (1 - labelSpacing);
-    if (leafLabelSize > maxLabelWidthProportion * treeDivSize.width) {
-      leafLabelSize = maxLabelWidthProportion * treeDivSize.width;
+    let leafLabelSize = treeDivSize.height / tipCount * (1 - options.labelSpacing);
+    if (leafLabelSize > options.maxLabelWidthProportion * treeDivSize.width) {
+      leafLabelSize = options.maxLabelWidthProportion * treeDivSize.width;
     }
 
     // Branch thickness proportional to label font size
-    const branchWidth = leafLabelSize * branchThicknessProp;
+    const branchWidth = leafLabelSize * options.branchThicknessProp;
 
     // Use D3 cluster layout to compute node positions (for x coordinate)
     let treeLayout = cluster()
