@@ -215,7 +215,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     })
     .on("zoom", (event) => {
       currentTransform = event.transform;          // keep latest zoom
-      console.log(currentTransform);
       treeSvg.attr("transform", currentTransform); // move tree
       updateSelectionButtons();                    // reposition buttons
       updateScaleBar(xScaleFactor * currentTransform.k); // rescale bar
@@ -316,38 +315,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   function update(onEnd = null, expanding = false, fit = true) {
 
-    // Ensure the full tree is visible with extra space on the left for
-    // the floating selection buttons.  This is invoked after the very
-    // first render and every time the user clicks the “reset” button.
-    function fitToView() {
-      // Extra space needed on the left for the button column
-      const marginLeft = options.buttonSize + options.controlsMargin;
-
-      // Size of rendered tree in the internal coordinate system
-      let treeDivSize = treeDiv.select('svg').node().getBoundingClientRect();
-      // const treeWidth = displayedRoot.x1bbox + getLabelWidth(displayedRoot);
-      // const treeHeight = displayedRoot.y1bbox - displayedRoot.y0bbox;
-      const treeWidth = treeDivSize.width + getLabelWidth(displayedRoot);
-      const treeHeight = treeDivSize.height;
-
-      const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
-
-      // Find a uniform scale that fits the tree (after margin) in both axes
-      let k = 1;
-      if (treeWidth + marginLeft > viewW) k = (viewW - marginLeft) / treeWidth;
-      if (treeHeight * k > viewH) k = viewH / treeHeight;
-
-      if (!Number.isFinite(k) || k <= 0) k = 1;
-
-      // Translate so left margin is honoured and tree is vertically centred
-      const tx = Math.max(marginLeft, getLabelWidth(displayedRoot) * k);
-      const ty = (viewH - treeHeight * k) / 2 - displayedRoot.y0bbox * k;
-
-      const transform = zoomIdentity.translate(tx, ty).scale(k);
-      // Apply through zoom behaviour so internal state & listeners update
-      overlaySvg.call(treeZoom.transform, transform);
-    }
-
     // The estimated width in pixels of the printed label
     function getLabelWidth(node) {
       let nameLen;
@@ -394,6 +361,75 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       return size / 2.5;
     }
 
+    // Ensure the full tree is visible with extra space on the left for
+    // the floating selection buttons.  This is invoked after the very
+    // first render and every time the user clicks the "reset" button.
+    function fitToView() {
+      const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
+
+      // Calculate bounds of all tree elements (branches + labels)
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+
+      displayedRoot.each(d => {
+        const labelWidth = getLabelWidth(d);
+        const labelOffset = getLabelXOffset(d);
+        const fontSize = fontSizeForNode(d);
+
+        if (circularLayout) {
+          // For circular layout, calculate the x/y extent of label ends
+          const labelEndRadius = d.radius + labelOffset + labelWidth;
+          const labelEndX = labelEndRadius * Math.cos(d.angle);
+          const labelEndY = labelEndRadius * Math.sin(d.angle);
+
+          // Consider label end position
+          if (labelEndX < minX) minX = labelEndX;
+          if (labelEndX > maxX) maxX = labelEndX;
+          if (labelEndY < minY) minY = labelEndY;
+          if (labelEndY > maxY) maxY = labelEndY;
+        } else {
+          // For rectangular layout
+          // Consider collapsed root labels (point left)
+          const triangleHeight = leafLabelSize * 1.1;
+          const leftExtent = d.x - (d.collapsed_parent ? triangleHeight + labelWidth : 0);
+          if (leftExtent < minX) minX = leftExtent;
+
+          // Consider node position and right-pointing labels
+          const rightExtent = d.x + labelOffset + labelWidth;
+          if (rightExtent > maxX) maxX = rightExtent;
+
+          // Consider vertical extent (y ± fontSize)
+          const topExtent = d.y - fontSize;
+          const bottomExtent = d.y + fontSize;
+          if (topExtent < minY) minY = topExtent;
+          if (bottomExtent > maxY) maxY = bottomExtent;
+        }
+      });
+
+      // Calculate tree dimensions
+      const treeWidth = maxX - minX;
+      const treeHeight = maxY - minY;
+
+      // Left margin for control buttons
+      const marginLeft = options.buttonSize + options.controlsMargin;
+
+      // Available space (allow tree to touch right boundary)
+      const availableWidth = viewW - marginLeft;
+      const availableHeight = viewH;
+
+      // Calculate translation to center tree (no scaling, k=1)
+      let tx, ty;
+
+      tx = marginLeft + availableWidth / 2 - (minX + maxX) / 2;
+      ty = availableHeight / 2 - (minY + maxY) / 2;
+
+      const transform = zoomIdentity.translate(tx, ty).scale(1);
+      // Apply through zoom behaviour so internal state & listeners update
+      overlaySvg.call(treeZoom.transform, transform);
+    }
+
     // Infer window dimensions if needed, taking into account padding
     let treeDivSize = treeDiv.select('svg').node().getBoundingClientRect();
 
@@ -401,14 +437,24 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     const tipCount = displayedRoot.leaves().length;
     let leafLabelSize = treeDivSize.height / tipCount * (1 - options.labelSpacing);
     if (circularLayout) {
-      leafLabelSize = leafLabelSize / Math.PI;
+      leafLabelSize = leafLabelSize / 2;
     }
     if (leafLabelSize > options.maxLabelWidthProportion * treeDivSize.width) {
       leafLabelSize = options.maxLabelWidthProportion * treeDivSize.width;
     }
 
     // Branch thickness proportional to label font size
-    const branchWidth = leafLabelSize * options.branchThicknessProp;
+    let branchWidth = leafLabelSize * options.branchThicknessProp;
+
+    // Set the names for collapsed parents and children
+    root.each(d => {
+      if (d.collapsed_parent) {
+        d.collapsed_parent_name = `Collapsed Root (${root.leafCount - d.leafCount})`;
+      }
+      if (d.collapsed_children) {
+        d.collapsed_children_name = `Collapsed Subtree (${d.leafCount})`;
+      }
+    });
 
     // Use D3 cluster layout to compute node positions (for x coordinate)
     let treeLayout = cluster()
@@ -447,15 +493,16 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       if (circularLayout) {
         return (Math.min(treeDivSize.width, treeDivSize.height) / 2 - getLabelWidth(d) - getLabelXOffset(d)) / d.x;
       } else {
-        return (treeDivSize.width - getLabelWidth(d) - getLabelXOffset(d)) / d.x;
+        const labelOffset = getLabelWidth(d) + getLabelXOffset(d);
+        return (treeDivSize.width + (d.collapsed_parent ? labelOffset : -labelOffset)) / d.x;
       }
     }));
     displayedRoot.each(d => {
       d.x = d.x * branchLengthScaleFactor;
       d.radius = d.radius * branchLengthScaleFactor;
     });
+    xScaleFactor = branchLengthScaleFactor;
     updateScaleBar(branchLengthScaleFactor * currentTransform.k);
-    console.log(branchLengthScaleFactor);
 
     // Calculate x, y from polar coordinates if needed
     if (circularLayout) {
@@ -469,15 +516,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       })
     }
 
-    // Set the names for collapsed parents and children
-    root.each(d => {
-      if (d.collapsed_parent) {
-        d.collapsed_parent_name = `Collapsed Root (${root.leafCount - d.leafCount})`;
-      }
-      if (d.collapsed_children) {
-        d.collapsed_children_name = `Collapsed Subtree (${d.leafCount})`;
-      }
-    });
+    if (fit || !zoomEnabled) fitToView();
 
     // Compute bounding rectangles for every subtree node
     displayedRoot.eachAfter(d => {
@@ -492,8 +531,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         d.x1bbox = d.x + getLabelXOffset(d) + getLabelWidth(d);
       }
     });
-
-    if (fit || !zoomEnabled) fitToView();
 
     // Hide selection rectangle if the node was collapsed, otherwise reposition it with the updated layout.
     if (selectedNode && !selectedNode.children) {
@@ -584,14 +621,17 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     if (circularLayout) {
       linkUpdate.transition(t)
+        .attr("stroke-width", branchWidth)
         .attr("d", radialBranch);
     } else {
       linkUpdate.transition(t)
+        .attr("stroke-width", branchWidth)
         .attr("d", d => `M${d.source.x},${d.source.y} V${d.target.y} H${d.target.x} `);
     }
 
     // EXIT links – collapse back to the parent's new position
     link.exit().transition(t)
+      .attr("stroke-width", branchWidth)
       .attr("d", d => `M${d.source.x},${d.source.y}`)
       .remove();
 
@@ -671,7 +711,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         }
       })
       .style("text-anchor", d => (d.children || d.collapsed_children ? "end" : "start"))
-      .style("font-size", d => `${fontSizeForNode(d)} px`)
+      .style("font-size", d => `${fontSizeForNode(d)}px`)
       .text(d => d.data.name || "");
 
     // Append label showing number of tips in collapsed subtree
@@ -680,7 +720,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("dy", leafLabelSize / 2.5)
       .attr("x", triangleHeight)
       .style("text-anchor", "start")
-      .style("font-size", `${leafLabelSize} px`)
+      .style("font-size", `${leafLabelSize}px`)
       .text(d => d.collapsed_children ? `${d.leafCount} collapsed tips` : "")
       .style("display", d => d.collapsed_children ? null : "none");
 
@@ -718,7 +758,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
           return "rotate(0)";
         }
       })
-      .style("font-size", d => `${fontSizeForNode(d)} px`);
+      .style("font-size", d => `${fontSizeForNode(d)}px`);
 
     treeSvg.selectAll(".collapsed-root")
       .attr("dy", leafLabelSize / 2.5)
@@ -729,7 +769,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
           return "rotate(0)";
         }
       })
-      .style("font-size", `${leafLabelSize} px`);
+      .style("font-size", `${leafLabelSize}px`);
 
     treeSvg.selectAll(".collapsed-subtree")
       .attr("dy", leafLabelSize / 2.5)
@@ -740,7 +780,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
           return "rotate(0)";
         }
       })
-      .style("font-size", `${leafLabelSize} px`);
+      .style("font-size", `${leafLabelSize}px`);
 
     // Store current positions for the next update so every branch has
     // previous coordinates to interpolate from.
@@ -756,5 +796,3 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   return { root: displayedRoot, svg: treeSvg };
 }
-
-
