@@ -58,8 +58,9 @@ Variables used in equations below:
 - N_i = The number of characters in the label of leaf node i. Always > 0
 - S_i = A unitless factor for scaling font size for the label of leaf node i. Always > 0
 - W = The mean width of a character for the given font, expressed as a proportion of its height. Always > 0. Default: 0.65
-- `minFontPx` = The minimum height of characters in labels in pixels. Always > 0. Default: 12
-- `idealFontPx` = The ideal height of characters in labels in pixels. Always > 0. Default: 18
+- `minFontPx` = The minimum height in pixels of characters in labels. Always > 0. Default: 10
+- `idealFontPx` = The ideal height in pixels of characters in labels. Always > 0. Default: 18
+- `maxFontPx` = The maximum height in pixels of characters in labels. Always > 0. Default: 32
 - `branchLenToPxFactor` = The factor used to convert branch lengths to pixels. Always > 0
 - `labelSizeToPxFactor` = The factor used to convert leaf annotations to pixels. Always > 0
 - `treeWidthPx` = The width of the plotted tree, including any annotations, in pixels. Always > 0
@@ -67,12 +68,20 @@ Variables used in equations below:
 - `viewWidthPx` = The width in pixels of area available to display the tree. Always > 0
 - `viewHeightPx` = The height in pixels of area available to display the tree. Always > 0
 - `minBranchThicknessPx` = The minimum thickness of branches in pixels. Always > 0
+- `minBranchLenProp` = The minimum proportion of tree width taken up by the longest branch. Always > 0 and < 1. Default: 0.5
 
 Branch lengths must be scaled to convert them into pixel coordinates for plotting such that text and geometry are correctly sized.
 Branch length must be scaled large enough relative to text size in order to show phylogenetic relationships, but cant be so long relative to text size that the tree is too wide to be viewed on a screen or the text is too small.
 Every tree will be different, with different, with differently sized labels appended to branches of varying length.
 For example, a long label on a short branch does not effect the overall tree dimensions as much as a short label on the longest branch.
 What matters is how much text (or other leaf annotations) extend past the longest branch and how that interacts with the viewing window.
+
+The relative scaling of branch lengths (`branchLenToPxFactor`) and leaf annotations (`labelSizeToPxFactor`) will be determined by a series of constraints on their potential ranges.
+These constraints should be applied in order to infer an minimum and maximum range for `branchLenToPxFactor` and `labelSizeToPxFactor`.
+Many trees will not have a solution that fulfills all these constraints, in which case constraints with higher priority apply.
+Constraints should be applied in order to interativly restrict the acceptable range for each factor.
+If applying a constraint would cause the range to be inverted (e.g. making the maximum less than the minimum) then modified boundary is set equal to the unmodified boundary and no further constraints are calculated or applied.
+If there is a range of acceptable values after all constraints have been applied (i.e. the minimum != the maximum), then the `branchLenToPxFactor` should be maximized.
 
 ### Constraints for rectangular layouts
 
@@ -84,20 +93,20 @@ If we assume that each leaf annotation can have a different dimensions, then the
 where the dimensions of leaf annotations in units of branch length for each leaf is defined by:
 
 `leafAnnotationWidth`(i) = W * N_i * S_i
-`leafAnnotationHeight`(i) = S_i
+`leafAnnotationHeight`(i) = max(S_i, `minBranchThicknessPx`)
 
-Ideally the plotted tree would have the following properties, in order of importance:
+Ideally the plotted tree would have the following constraints, in order of importance:
 
 - The text should be readable at 100% zoom. If labels are too small to read they are only a distraction.
 
 `minFontPx` <= min(S_i) * `labelSizeToPxFactor`
 `labelSizeToPxFactor` >= `minFontPx` / min(S_i)
 
-- The tree width should be equal to the viewing window.
+- The tree width should fit into to the viewing window.
 
-`viewWidthPx` = max(X_i * `branchLenToPxFactor` + `leafAnnotationWidth`(i) * `labelSizeToPxFactor`)
-`branchLenToPxFactor` = min((`viewWidthPx` - `leafAnnotationWidth`(i) * `labelSizeToPxFactor`) / X_i)
-`labelSizeToPxFactor` = min((`viewWidthPx` - X_i * `branchLenToPxFactor`) / `leafAnnotationWidth`(i))
+`viewWidthPx` >= max(X_i * `branchLenToPxFactor` + `leafAnnotationWidth`(i) * `labelSizeToPxFactor`)
+`branchLenToPxFactor` <= min((`viewWidthPx` - `leafAnnotationWidth`(i) * `labelSizeToPxFactor`) / X_i)
+`labelSizeToPxFactor` <= min((`viewWidthPx` - X_i * `branchLenToPxFactor`) / `leafAnnotationWidth`(i))
 
 - The tree height should fit into the viewing window. This will not practical for all trees.
 
@@ -109,13 +118,22 @@ Ideally the plotted tree would have the following properties, in order of import
 `minBranchThicknessPx` <= min(B_i) * `branchLenToPxFactor`    where B_i > 0
 `branchLenToPxFactor` >= `minBranchThicknessPx` / min(B_i)    where B_i > 0
 
+- Branches should take up some minimum proportion of the tree space. Phylogenetic relationships should be the focus of the tree rather than annotations and labels.
+
+`minBranchLenProp` <= max(X_i) * `branchLenToPxFactor` / max(X_i * `branchLenToPxFactor` + `leafAnnotationWidth`(i) * `labelSizeToPxFactor`)
+`labelSizeToPxFactor` <= min((`branchLenToPxFactor` * (max(X_i) - `minBranchLenProp` * X_i)) / (`minBranchLenProp` * `leafAnnotationWidth`(i)))
+`branchLenToPxFactor` >= max((`leafAnnotationWidth`(i) * `labelSizeToPxFactor`) / ((max(X_i) / `minBranchLenProp`) - X_i))
+
 - The text should be large and easy to read at 100% zoom.
 
 `idealFontPx` <= min(S_i) * `labelSizeToPxFactor`
 `labelSizeToPxFactor` >= `idealFontPx` / min(S_i)
 
+- The text should be less than some maximum size at 100% zoom.
 
-These constraints should be applied in order to infer an minimum and maximum range for `branchLenToPxFactor` and `labelSizeToPxFactor`. Many trees will not have a solution that fulfills all these constraints, in which case constraints with higher priority apply. If there is a range of acceptable values after all constraints have been applied, then the `branchLenToPxFactor` should be maximized.
+`maxFontPx` >= min(S_i) * `labelSizeToPxFactor`
+`labelSizeToPxFactor` <= `maxFontPx` / min(S_i)
+
 
 ### Constraints for circular layouts
 
