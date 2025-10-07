@@ -51,22 +51,79 @@
 
 ## Label/tree sizing rules
 
+Variables used in equations below:
 
-### Rectangular layouts
+- X_i = The x-axis position of leaf node i in units of branch length. Always >= 0
+- B_i = The branch length between node i and its parent. Always >= 0
+- N_i = The number of characters in the label of leaf node i. Always > 0
+- S_i = A unitless factor for scaling font size for the label of leaf node i. Always > 0
+- W = The mean width of a character for the given font, expressed as a proportion of its height. Always > 0. Default: 0.65
+- `minFontPx` = The minimum height of characters in labels in pixels. Always > 0. Default: 12
+- `idealFontPx` = The ideal height of characters in labels in pixels. Always > 0. Default: 18
+- `branchLenToPxFactor` = The factor used to convert branch lengths to pixels. Always > 0
+- `labelSizeToPxFactor` = The factor used to convert leaf annotations to pixels. Always > 0
+- `treeWidthPx` = The width of the plotted tree, including any annotations, in pixels. Always > 0
+- `treeHeightPx` = The height of the plotted tree, including any annotations, in pixels. Always > 0
+- `viewWidthPx` = The width in pixels of area available to display the tree. Always > 0
+- `viewHeightPx` = The height in pixels of area available to display the tree. Always > 0
+- `minBranchThicknessPx` = The minimum thickness of branches in pixels. Always > 0
 
-#### Lower limits
+Branch lengths must be scaled to convert them into pixel coordinates for plotting such that text and geometry are correctly sized.
+Branch length must be scaled large enough relative to text size in order to show phylogenetic relationships, but cant be so long relative to text size that the tree is too wide to be viewed on a screen or the text is too small.
+Every tree will be different, with different, with differently sized labels appended to branches of varying length.
+For example, a long label on a short branch does not effect the overall tree dimensions as much as a short label on the longest branch.
+What matters is how much text (or other leaf annotations) extend past the longest branch and how that interacts with the viewing window.
 
-- Label font size, measured in pixels, must be large enough to be legible when viewed on screens and printed (`minLabelSize`; 12 by default)
+### Constraints for rectangular layouts
 
-#### Upper limits
+If we assume that each leaf annotation can have a different dimensions, then the relationship between branch and annotation scaling factors and tree dimensions in pixels is:
 
-- The proportion of total x-axis space taken up by labels extending past the longest branch on the right and the root on the left is less than some constant (maxLabelWidthProp; 0.3 by default).
-- Some proportion of screen height (maxLabelHeightProp; 0.1 by default).
+`treeWidthPx` = max(X_i * `branchLenToPxFactor` + `leafAnnotationWidth`(i) * `labelSizeToPxFactor`)
+`treeHeightPx` = sum(`leafAnnotationHeight`(i)) * `labelSizeToPxFactor`
+
+where the dimensions of leaf annotations in units of branch length for each leaf is defined by:
+
+`leafAnnotationWidth`(i) = W * N_i * S_i
+`leafAnnotationHeight`(i) = S_i
+
+Ideally the plotted tree would have the following properties, in order of importance:
+
+- The text should be readable at 100% zoom. If labels are too small to read they are only a distraction.
+
+`minFontPx` <= min(S_i) * `labelSizeToPxFactor`
+`labelSizeToPxFactor` >= `minFontPx` / min(S_i)
+
+- The tree width should be equal to the viewing window.
+
+`viewWidthPx` = max(X_i * `branchLenToPxFactor` + `leafAnnotationWidth`(i) * `labelSizeToPxFactor`)
+`branchLenToPxFactor` = min((`viewWidthPx` - `leafAnnotationWidth`(i) * `labelSizeToPxFactor`) / X_i)
+`labelSizeToPxFactor` = min((`viewWidthPx` - X_i * `branchLenToPxFactor`) / `leafAnnotationWidth`(i))
+
+- The tree height should fit into the viewing window. This will not practical for all trees.
+
+`viewHeightPx` >= sum(`leafAnnotationHeight`(i)) * `labelSizeToPxFactor`
+`labelSizeToPxFactor` <= sum(`leafAnnotationHeight`(i)) / `viewHeightPx`
+
+- The shortest non-zero-length branches should be longer than the branch thickness. This will not be practical for all trees.
+
+`minBranchThicknessPx` <= min(B_i) * `branchLenToPxFactor`    where B_i > 0
+`branchLenToPxFactor` >= `minBranchThicknessPx` / min(B_i)    where B_i > 0
+
+- The text should be large and easy to read at 100% zoom.
+
+`idealFontPx` <= min(S_i) * `labelSizeToPxFactor`
+`labelSizeToPxFactor` >= `idealFontPx` / min(S_i)
 
 
-### Circular layouts
+These constraints should be applied in order to infer an minimum and maximum range for `branchLenToPxFactor` and `labelSizeToPxFactor`. Many trees will not have a solution that fulfills all these constraints, in which case constraints with higher priority apply. If there is a range of acceptable values after all constraints have been applied, then the `branchLenToPxFactor` should be maximized.
 
-  - the ratio (maximum label length extending past the maximum root-to-tip radius) / (maximum root-to-tip radius) is less than some constant (maxLabelWidthProp; 0.3 by default)
-  - the height of labels (font size) must be small enough such that these is minimum gap between labels defined by a constant representing proportion of label size (minLabelGapProp; 0.1 by default). The space available to plot labels is the circumference of a circle with a radius equal to the maximum root-to-tip radius.
-  - Label font size must be less than some maximum. The maximum is a proportion of the height or width of the viewing window, whichever is smaller (maxLabelSizeProp; 0.05 by default).
+### Constraints for circular layouts
+
+....
+
+- Leaf annotations should not overlap when used in a circular layout.
+
+sum(`leafAnnotationHeight`(i)) * `labelSizeToPxFactor` <= max(X_i) * `branchLenToPxFactor` * 2 * pi
+`labelSizeToPxFactor` <= max(X_i) * `branchLenToPxFactor` * 2 * pi / sum(`leafAnnotationHeight`(i))
+`branchLenToPxFactor` >= (sum(`leafAnnotationHeight`(i)) * `labelSizeToPxFactor`) / (max(X_i) * 2 * pi)
 
