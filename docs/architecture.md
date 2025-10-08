@@ -53,7 +53,7 @@
 
 Variables used in equations below:
 
-- X_i = The x-axis position of leaf node i in units of branch length. Always >= 0
+- X_i = The x-axis position (for rectangular layouts) or the radius (for circular layouts) of leaf node i in units of branch length. Always >= 0
 - B_i = The branch length between node i and its parent. Always >= 0
 - N_i = The number of characters in the label of leaf node i. Always > 0
 - S_i = A unitless factor for scaling font size for the label of leaf node i. Always > 0
@@ -102,6 +102,12 @@ Ideally the plotted tree would have the following constraints, in order of impor
 `minFontPx` <= min(S_i) * `labelSizeToPxFactor`
 `labelSizeToPxFactor` >= `minFontPx` / min(S_i)
 
+- Branches should take up some minimum proportion of the tree space. Phylogenetic relationships should be the focus of the tree rather than annotations and labels.
+
+`minBranchLenProp` <= max(X_i) * `branchLenToPxFactor` / max(X_i * `branchLenToPxFactor` + `leafAnnotationWidth`(i) * `labelSizeToPxFactor`)
+`labelSizeToPxFactor` <= min((`branchLenToPxFactor` * (max(X_i) - `minBranchLenProp` * X_i)) / (`minBranchLenProp` * `leafAnnotationWidth`(i)))
+`branchLenToPxFactor` >= max((`leafAnnotationWidth`(i) * `labelSizeToPxFactor`) / ((max(X_i) / `minBranchLenProp`) - X_i))
+
 - The tree width should fit into to the viewing window.
 
 `viewWidthPx` >= max(X_i * `branchLenToPxFactor` + `leafAnnotationWidth`(i) * `labelSizeToPxFactor`)
@@ -113,21 +119,15 @@ Ideally the plotted tree would have the following constraints, in order of impor
 `viewHeightPx` >= sum(`leafAnnotationHeight`(i)) * `labelSizeToPxFactor`
 `labelSizeToPxFactor` <= sum(`leafAnnotationHeight`(i)) / `viewHeightPx`
 
-- The shortest non-zero-length branches should be longer than the branch thickness. This will not be practical for all trees.
-
-`minBranchThicknessPx` <= min(B_i) * `branchLenToPxFactor`    where B_i > 0
-`branchLenToPxFactor` >= `minBranchThicknessPx` / min(B_i)    where B_i > 0
-
-- Branches should take up some minimum proportion of the tree space. Phylogenetic relationships should be the focus of the tree rather than annotations and labels.
-
-`minBranchLenProp` <= max(X_i) * `branchLenToPxFactor` / max(X_i * `branchLenToPxFactor` + `leafAnnotationWidth`(i) * `labelSizeToPxFactor`)
-`labelSizeToPxFactor` <= min((`branchLenToPxFactor` * (max(X_i) - `minBranchLenProp` * X_i)) / (`minBranchLenProp` * `leafAnnotationWidth`(i)))
-`branchLenToPxFactor` >= max((`leafAnnotationWidth`(i) * `labelSizeToPxFactor`) / ((max(X_i) / `minBranchLenProp`) - X_i))
-
 - The text should be large and easy to read at 100% zoom.
 
 `idealFontPx` <= min(S_i) * `labelSizeToPxFactor`
 `labelSizeToPxFactor` >= `idealFontPx` / min(S_i)
+
+- The shortest non-zero-length branches should be longer than the branch thickness. This will not be practical for all trees.
+
+`minBranchThicknessPx` <= min(B_i) * `branchLenToPxFactor`    where B_i > 0
+`branchLenToPxFactor` >= `minBranchThicknessPx` / min(B_i)    where B_i > 0
 
 - The text should be less than some maximum size at 100% zoom.
 
@@ -137,11 +137,70 @@ Ideally the plotted tree would have the following constraints, in order of impor
 
 ### Constraints for circular layouts
 
-....
+If we assume that each leaf annotation can have a different dimensions and that the height of leaf annotations has a negligible effect on tree dimensions, then the relationship between branch and annotation scaling factors and tree dimensions in pixels is:
+
+`A_i` = 2 * pi * i / `tipCount`
+`maxX` = max(X_i * cos(`A_i`) * `branchLenToPxFactor` + max(0, -`leafAnnotationWidth`(i) * cos(`A_i`)) * `labelSizeToPxFactor`)
+`minX` = min(X_i * cos(`A_i`) * `branchLenToPxFactor` + min(0, -`leafAnnotationWidth`(i) * cos(`A_i`)) * `labelSizeToPxFactor`)
+`maxY` = max(X_i * sin(`A_i`) * `branchLenToPxFactor` + max(0, -`leafAnnotationWidth`(i) * sin(`A_i`)) * `labelSizeToPxFactor`)
+`minY` = min(X_i * sin(`A_i`) * `branchLenToPxFactor` + min(0, -`leafAnnotationWidth`(i) * sin(`A_i`)) * `labelSizeToPxFactor`)
+`treeWidthPx` = maxX - minX
+`treeHeightPx` = maxY - minY
+
+where the dimensions of leaf annotations in units of branch length for each leaf is defined by:
+
+`leafAnnotationWidth`(i) = W * N_i * S_i
+`leafAnnotationHeight`(i) = max(S_i, `minBranchThicknessPx`)
+
+Ideally the plotted tree would have the following constraints, in order of importance:
+
+- The text should be readable at 100% zoom. If labels are too small to read they are only a distraction.
+
+`minFontPx` <= min(S_i) * `labelSizeToPxFactor`
+`labelSizeToPxFactor` >= `minFontPx` / min(S_i)
 
 - Leaf annotations should not overlap when used in a circular layout.
 
 sum(`leafAnnotationHeight`(i)) * `labelSizeToPxFactor` <= max(X_i) * `branchLenToPxFactor` * 2 * pi
 `labelSizeToPxFactor` <= max(X_i) * `branchLenToPxFactor` * 2 * pi / sum(`leafAnnotationHeight`(i))
 `branchLenToPxFactor` >= (sum(`leafAnnotationHeight`(i)) * `labelSizeToPxFactor`) / (max(X_i) * 2 * pi)
+
+- Branches should take up some minimum proportion of the tree space. Phylogenetic relationships should be the focus of the tree rather than annotations and labels.
+
+`minBranchLenProp` <= max(X_i) * `branchLenToPxFactor` / max(X_i * `branchLenToPxFactor` + `leafAnnotationWidth`(i) * `labelSizeToPxFactor`)
+`labelSizeToPxFactor` <= min((`branchLenToPxFactor` * (max(X_i) - `minBranchLenProp` * X_i)) / (`minBranchLenProp` * `leafAnnotationWidth`(i)))
+`branchLenToPxFactor` >= max((`leafAnnotationWidth`(i) * `labelSizeToPxFactor`) / ((max(X_i) / `minBranchLenProp`) - X_i))
+
+- The tree width should fit into to the viewing window.
+
+`viewWidthPx` >= `maxX` - `minX`
+`branchLenToPxFactor` <= min(
+  `viewWidthPx` / (max(X_i * cos(A_i) where A_i >= 0) - min(X_i * cos(A_i) where A_i < 0)),
+  (`viewWidthPx` - max(-`leafAnnotationWidth`(i) * cos(A_i) * `labelSizeToPxFactor` where A_i < 0)) / - min(X_i * cos(A_i) where A_i < 0)),
+  (`viewWidthPx` - min(-`leafAnnotationWidth`(i) * cos(A_i) * `labelSizeToPxFactor` where A_i >= 0)) / - max(X_i * cos(A_i) where A_i >= 0))
+)
+
+- The tree height should fit into to the viewing window.
+
+`viewHeightPx` >= `maxY` - `minY`
+`branchLenToPxFactor` <= min(
+  `viewWidthPx` / (max(X_i * sin(A_i) where A_i >= 0) - min(X_i * sin(A_i) where A_i < 0)),
+  (`viewWidthPx` - max(-`leafAnnotationWidth`(i) * sin(A_i) * `labelSizeToPxFactor` where A_i < 0)) / - min(X_i * sin(A_i) where A_i < 0)),
+  (`viewWidthPx` - min(-`leafAnnotationWidth`(i) * sin(A_i) * `labelSizeToPxFactor` where A_i >= 0)) / - max(X_i * sin(A_i) where A_i >= 0))
+)
+
+- The text should be large and easy to read at 100% zoom.
+
+`idealFontPx` <= min(S_i) * `labelSizeToPxFactor`
+`labelSizeToPxFactor` >= `idealFontPx` / min(S_i)
+
+- The shortest non-zero-length branches should be longer than the branch thickness. This will not be practical for all trees.
+
+`minBranchThicknessPx` <= min(B_i) * `branchLenToPxFactor`    where B_i > 0
+`branchLenToPxFactor` >= `minBranchThicknessPx` / min(B_i)    where B_i > 0
+
+- The text should be less than some maximum size at 100% zoom.
+
+`maxFontPx` >= min(S_i) * `labelSizeToPxFactor`
+`labelSizeToPxFactor` <= `maxFontPx` / min(S_i)
 
