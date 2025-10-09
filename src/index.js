@@ -392,18 +392,18 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       }
     }
 
-    const minS_i = Math.min(...leafAnnotations.map(a => a.S_i));
-    const maxX_i = Math.max(...leafAnnotations.map(a => a.X_i));
+    const minLabelScale = Math.min(...leafAnnotations.map(a => a.S_i));
+    const maxBranchX = Math.max(...leafAnnotations.map(a => a.X_i));
     const nonZeroBranches = leafAnnotations.filter(a => a.branchLength > 0);
     const minbranchLength = nonZeroBranches.length > 0 ? Math.min(...nonZeroBranches.map(a => a.branchLength)) : Infinity;
 
     // Text should be readable at 100% zoom
-    applyLabelMin(options.minFontPx / minS_i);
+    applyLabelMin(options.minFontPx / minLabelScale);
     console.log(`1) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
 
     // Branches should take up minimum proportion of tree space
     applyBranchMin(Math.max(...leafAnnotations.map(a =>
-      (a.leafAnnotationWidth * labelSizeToPxFactor_min) / ((maxX_i / options.minBranchLenProp) - a.X_i)
+      (a.leafAnnotationWidth * labelSizeToPxFactor_min) / ((maxBranchX / options.minBranchLenProp) - a.X_i)
     )))
     console.log(`2) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
 
@@ -424,7 +424,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     console.log(`4) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
 
     // Text should be large and easy to read
-    applyLabelMin(options.idealFontPx / minS_i, undefined);
+    applyLabelMin(options.idealFontPx / minLabelScale, undefined);
     applyBranchMax(Math.min(...leafAnnotations.map(a =>
       (viewWidthPx - a.leafAnnotationWidth * labelSizeToPxFactor_min) / a.X_i
     )));
@@ -440,7 +440,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     console.log(`6) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
 
     // Text should be less than maximum size
-    applyLabelMax(options.maxFontPx / minS_i);
+    applyLabelMax(options.maxFontPx / minLabelScale);
     console.log(`7) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
 
     // If there's a range of acceptable values, maximize branchLenToPxFactor
