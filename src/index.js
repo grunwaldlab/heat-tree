@@ -1,7 +1,7 @@
 import { parseNewick } from "./parsers.js"
 import { appendIcon } from "./icons.js"
 import { niceNumber, triangleAreaFromSide } from "./utils.js"
-import { calculateScalingFactors } from "./scaling.js"
+import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
 
 import {
   hierarchy, select, zoom, zoomIdentity, cluster, ascending,
@@ -471,7 +471,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     displayedRoot.each(d => {
       d.originalX = d.x;
       d.originalY = d.y;
-      d.angle = d.x * Math.PI * 2;
+      d.angle = d.x * Math.PI * 2 + Math.PI;
+      d.cos = Math.cos(d.angle);
+      d.sin = Math.sin(d.angle);
       d.radius = d.y;
       d.x = d.originalY; // D3 uses y for what is the x axis in our case
       d.y = d.originalX;
@@ -488,18 +490,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     const tipCount = displayedRoot.leaves().length;
 
     if (circularLayout) {
-      // Use original simple scaling for circular layout
-      leafLabelSize = treeDivSize.height / tipCount * (1 - options.labelSpacing);
-      leafLabelSize = leafLabelSize / 2;
-      if (leafLabelSize > options.maxLabelWidthProportion * treeDivSize.width) {
-        leafLabelSize = options.maxLabelWidthProportion * treeDivSize.width;
-      }
+      // Use constraint-based scaling for circular layout
+      scalingFactors = calculateCircularScalingFactors(displayedRoot, treeDivSize.width, treeDivSize.height, options, characterWidthProportion);
 
-      branchLengthScaleFactor = Math.min(...displayedRoot.leaves().map(d => {
-        const labelWidth = d.data.name ? d.data.name.length * leafLabelSize * characterWidthProportion : 0;
-        const labelOffset = leafLabelSize / 3;
-        return (Math.min(treeDivSize.width, treeDivSize.height) / 2 - labelWidth - labelOffset) / d.x;
-      }));
+      branchLengthScaleFactor = scalingFactors.branchLenToPxFactor_max;
+      leafLabelSize = scalingFactors.labelSizeToPxFactor_min;
     } else {
       // Use constraint-based scaling for rectangular layout
       scalingFactors = calculateScalingFactors(displayedRoot, treeDivSize.width, treeDivSize.height, options, characterWidthProportion);
