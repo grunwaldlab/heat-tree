@@ -89,27 +89,39 @@ export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options
   )));
 
   // Tree height should fit into viewing window
-  applyLabelMax(viewHeightPx / leafData.reduce((sum, a) => sum + a.height, 0));
+  if (labelSizeToPxFactor_min != labelSizeToPxFactor_max) {
+    applyLabelMax(viewHeightPx / leafData.reduce((sum, a) => sum + a.height, 0));
+  }
 
   // Text should be large and easy to read
-  applyLabelMin(options.idealFontPx / minLabelScale, undefined);
+  if (labelSizeToPxFactor_min != labelSizeToPxFactor_max) {
+    applyLabelMin(options.idealFontPx / minLabelScale);
+  }
 
   // Tree width should fit into viewing window (recalculate since labelSizeToPxFactor_min changed)
-  applyBranchMax(Math.min(...leafData.map(a =>
-    (viewWidthPx - a.width * labelSizeToPxFactor_min) / a.x
-  )));
-
-  // Shortest non-zero branches should be longer than branch thickness
-  if (isFinite(minbranchLength)) {
-    applyBranchMin(options.minBranchThicknessPx / minbranchLength);
-    // Tree width should fit into viewing window (recalculate since branchLenToPxFactor_min changed)
-    applyLabelMax(Math.min(...leafData.map(a =>
-      (viewWidthPx - a.x * branchLenToPxFactor_min) / a.width
+  if (branchLenToPxFactor_min != branchLenToPxFactor_max) {
+    applyBranchMax(Math.min(...leafData.map(a =>
+      (viewWidthPx - a.width * labelSizeToPxFactor_min) / a.x
     )));
   }
 
+  // Shortest non-zero branches should be longer than branch thickness
+  if (isFinite(minbranchLength)) {
+    if (branchLenToPxFactor_min != branchLenToPxFactor_max) {
+      applyBranchMin(options.minBranchThicknessPx / minbranchLength);
+    }
+    // Tree width should fit into viewing window (recalculate since branchLenToPxFactor_min changed)
+    if (labelSizeToPxFactor_min != labelSizeToPxFactor_max) {
+      applyLabelMax(Math.min(...leafData.map(a =>
+        (viewWidthPx - a.x * branchLenToPxFactor_min) / a.width
+      )));
+    }
+  }
+
   // Text should be less than maximum size
-  applyLabelMax(options.maxFontPx / minLabelScale);
+  if (labelSizeToPxFactor_min != labelSizeToPxFactor_max) {
+    applyLabelMax(options.maxFontPx / minLabelScale);
+  }
 
   return {
     branchLenToPxFactor_min: branchLenToPxFactor_min,
