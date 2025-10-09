@@ -117,7 +117,7 @@ Ideally the plotted tree would have the following constraints, in order of impor
 - The tree height should fit into the viewing window. This will not practical for all trees.
 
 `viewHeightPx` >= sum(`leafAnnotationHeight`(i)) * `labelSizeToPxFactor`
-`labelSizeToPxFactor` <= sum(`leafAnnotationHeight`(i)) / `viewHeightPx`
+`labelSizeToPxFactor` <= `viewHeightPx` / sum(`leafAnnotationHeight`(i))
 
 - The text should be large and easy to read at 100% zoom.
 

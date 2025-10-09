@@ -23,9 +23,15 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     maxLabelWidthProportion: 0.03,
     branchThicknessProp: 0.2,
     circularLayoutInitiallyEnabled: false,
+    minFontPx: 10,
+    idealFontPx: 18,
+    maxFontPx: 32,
+    minBranchThicknessPx: 1,
+    minBranchLenProp: 0.5,
     ...options
   };
 
+  const characterWidthProportion = 0.65;
   // Initalize main divs where components are placed
   const parentContainer = select(containerSelector);
   const widgetDiv = parentContainer
@@ -313,6 +319,141 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("display", "block");
   }
 
+  // Calculate optimal scaling factors using constraint-based approach
+  function calculateScalingFactors(root, viewWidthPx, viewHeightPx) {
+    // Calculate leaf annotation dimensions for each node
+    const leafAnnotations = root.leaves().map(node => {
+      let nameLen;
+      if (node.collapsed_children) {
+        nameLen = node.collapsed_children_name ? node.collapsed_children_name.length : 0;
+      } else if (node.collapsed_parent) {
+        nameLen = node.collapsed_parent_name ? node.collapsed_parent_name.length : 0;
+      } else {
+        nameLen = node.data.name ? node.data.name.length : 0;
+      }
+
+      const labelScale = 1; // Unitless scaling factor (assuming 1 for now)
+      const leafAnnotationWidth = characterWidthProportion * nameLen * labelScale;
+      const leafAnnotationHeight = Math.max(labelScale, options.minBranchThicknessPx);
+
+      return {
+        node,
+        X_i: node.x, // x-axis position in branch length units
+        branchLength: node.data.length || 0, // branch length
+        leafAnnotationWidth,
+        leafAnnotationHeight,
+        S_i: labelScale
+      };
+    });
+
+    // Initialize constraint ranges
+    let branchLenToPxFactor_min = 0;
+    let branchLenToPxFactor_max = Infinity;
+    let labelSizeToPxFactor_min = 0;
+    let labelSizeToPxFactor_max = Infinity;
+
+    function applyBranchMax(newMax) {
+      if (newMax < branchLenToPxFactor_max) {
+        if (newMax < branchLenToPxFactor_min) {
+          branchLenToPxFactor_max = branchLenToPxFactor_min;
+        } else {
+          branchLenToPxFactor_max = newMax;
+        }
+      }
+    }
+
+    function applyBranchMin(newMin) {
+      if (newMin > branchLenToPxFactor_min) {
+        if (newMin > branchLenToPxFactor_max) {
+          branchLenToPxFactor_min = branchLenToPxFactor_max;
+        } else {
+          branchLenToPxFactor_min = newMin;
+        }
+      }
+    }
+
+    function applyLabelMax(newMax) {
+      if (newMax < labelSizeToPxFactor_max) {
+        if (newMax < labelSizeToPxFactor_min) {
+          labelSizeToPxFactor_max = labelSizeToPxFactor_min;
+        } else {
+          labelSizeToPxFactor_max = newMax;
+        }
+      }
+    }
+
+    function applyLabelMin(newMin) {
+      if (newMin > labelSizeToPxFactor_min) {
+        if (newMin > labelSizeToPxFactor_max) {
+          labelSizeToPxFactor_min = labelSizeToPxFactor_max;
+        } else {
+          labelSizeToPxFactor_min = newMin;
+        }
+      }
+    }
+
+    const minS_i = Math.min(...leafAnnotations.map(a => a.S_i));
+    const maxX_i = Math.max(...leafAnnotations.map(a => a.X_i));
+    const nonZeroBranches = leafAnnotations.filter(a => a.branchLength > 0);
+    const minbranchLength = nonZeroBranches.length > 0 ? Math.min(...nonZeroBranches.map(a => a.branchLength)) : Infinity;
+
+    // Text should be readable at 100% zoom
+    applyLabelMin(options.minFontPx / minS_i);
+    console.log(`1) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
+
+    // Branches should take up minimum proportion of tree space
+    applyBranchMin(Math.max(...leafAnnotations.map(a =>
+      (a.leafAnnotationWidth * labelSizeToPxFactor_min) / ((maxX_i / options.minBranchLenProp) - a.X_i)
+    )))
+    console.log(`2) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
+
+    // Tree width should fit into viewing window
+    applyBranchMax(Math.min(...leafAnnotations.map(a =>
+      (viewWidthPx - a.leafAnnotationWidth * labelSizeToPxFactor_min) / a.X_i
+    )));
+    applyLabelMax(Math.min(...leafAnnotations.map(a =>
+      (viewWidthPx - a.X_i * branchLenToPxFactor_min) / a.leafAnnotationWidth
+    )));
+    console.log(`viewWidthPx: ${viewWidthPx}`);
+    console.log(`3) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
+
+    // Tree height should fit into viewing window
+    applyLabelMax(viewHeightPx / leafAnnotations.reduce((sum, a) => sum + a.leafAnnotationHeight, 0));
+    console.log(`viewHeightPx: ${viewHeightPx}`);
+    console.log(`sum: ${leafAnnotations.reduce((sum, a) => sum + a.leafAnnotationHeight, 0)}`);
+    console.log(`4) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
+
+    // Text should be large and easy to read
+    applyLabelMin(options.idealFontPx / minS_i, undefined);
+    applyBranchMax(Math.min(...leafAnnotations.map(a =>
+      (viewWidthPx - a.leafAnnotationWidth * labelSizeToPxFactor_min) / a.X_i
+    )));
+    console.log(`5) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
+
+    // Shortest non-zero branches should be longer than branch thickness
+    if (isFinite(minbranchLength)) {
+      applyBranchMin(options.minBranchThicknessPx / minbranchLength);
+      applyLabelMax(Math.min(...leafAnnotations.map(a =>
+        (viewWidthPx - a.X_i * branchLenToPxFactor_min) / a.leafAnnotationWidth
+      )));
+    }
+    console.log(`6) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
+
+    // Text should be less than maximum size
+    applyLabelMax(options.maxFontPx / minS_i);
+    console.log(`7) branchLenToPxFactor_min: ${branchLenToPxFactor_min}, branchLenToPxFactor_max: ${branchLenToPxFactor_max}, labelSizeToPxFactor_min: ${labelSizeToPxFactor_min}, labelSizeToPxFactor_max: ${labelSizeToPxFactor_max}`);
+
+    // If there's a range of acceptable values, maximize branchLenToPxFactor
+    const branchLenToPxFactor = branchLenToPxFactor_max
+    const labelSizeToPxFactor = labelSizeToPxFactor_min;
+
+    console.log(`F) branchLenToPxFactor: ${branchLenToPxFactor}, labelSizeToPxFactor: ${labelSizeToPxFactor}`);
+    return {
+      branchLenToPxFactor: Math.max(0, isFinite(branchLenToPxFactor) ? branchLenToPxFactor : 1),
+      labelSizeToPxFactor: Math.max(0, isFinite(labelSizeToPxFactor) ? labelSizeToPxFactor : 1)
+    };
+  }
+
   function update(onEnd = null, expanding = false, fit = true) {
 
     // The estimated width in pixels of the printed label
@@ -325,7 +466,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       } else {
         nameLen = node.data.name ? node.data.name.length : 0;
       }
-      return nameLen * leafLabelSize * 0.65;
+      return nameLen * leafLabelSize * characterWidthProportion;
     }
 
     // The width in pixels of how far the begining of labels are moved right
@@ -433,26 +574,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Infer window dimensions if needed, taking into account padding
     let treeDivSize = treeDiv.select('svg').node().getBoundingClientRect();
 
-    // Infer label size based on room available
-    const tipCount = displayedRoot.leaves().length;
-    let leafLabelSize = treeDivSize.height / tipCount * (1 - options.labelSpacing);
-    if (circularLayout) {
-      leafLabelSize = leafLabelSize / 2;
-    }
-    if (leafLabelSize > options.maxLabelWidthProportion * treeDivSize.width) {
-      leafLabelSize = options.maxLabelWidthProportion * treeDivSize.width;
-    }
-
-    // Branch thickness proportional to label font size
-    let branchWidth = leafLabelSize * options.branchThicknessProp;
-
     // Set the names for collapsed parents and children
     root.each(d => {
       if (d.collapsed_parent) {
-        d.collapsed_parent_name = `Collapsed Root (${root.leafCount - d.leafCount})`;
+        d.collapsed_parent_name = `(${root.leafCount - d.leafCount})`;
       }
       if (d.collapsed_children) {
-        d.collapsed_children_name = `Collapsed Subtree (${d.leafCount})`;
+        d.collapsed_children_name = `(${d.leafCount})`;
       }
     });
 
@@ -488,21 +616,41 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       d.y = d.y - displayedRoot.y;
     })
 
-    // Store base pixel-per-unit scale for branch length and refresh scale bar for current zoom level
-    const branchLengthScaleFactor = Math.min(...displayedRoot.leaves().map(d => {
-      if (circularLayout) {
-        return (Math.min(treeDivSize.width, treeDivSize.height) / 2 - getLabelWidth(d) - getLabelXOffset(d)) / d.x;
-      } else {
-        const labelOffset = getLabelWidth(d) + getLabelXOffset(d);
-        return (treeDivSize.width + (d.collapsed_parent ? labelOffset : -labelOffset)) / d.x;
+    let leafLabelSize, branchLengthScaleFactor;
+    let scalingFactors;
+    const tipCount = displayedRoot.leaves().length;
+
+    if (circularLayout) {
+      // Use original simple scaling for circular layout
+      leafLabelSize = treeDivSize.height / tipCount * (1 - options.labelSpacing);
+      leafLabelSize = leafLabelSize / 2;
+      if (leafLabelSize > options.maxLabelWidthProportion * treeDivSize.width) {
+        leafLabelSize = options.maxLabelWidthProportion * treeDivSize.width;
       }
-    }));
+
+      branchLengthScaleFactor = Math.min(...displayedRoot.leaves().map(d => {
+        const labelWidth = d.data.name ? d.data.name.length * leafLabelSize * characterWidthProportion : 0;
+        const labelOffset = leafLabelSize / 3;
+        return (Math.min(treeDivSize.width, treeDivSize.height) / 2 - labelWidth - labelOffset) / d.x;
+      }));
+    } else {
+      // Use constraint-based scaling for rectangular layout
+      scalingFactors = calculateScalingFactors(displayedRoot, treeDivSize.width, treeDivSize.height);
+
+      branchLengthScaleFactor = scalingFactors.branchLenToPxFactor;
+      leafLabelSize = scalingFactors.labelSizeToPxFactor;
+    }
+
+    // Apply scaling factors
     displayedRoot.each(d => {
       d.x = d.x * branchLengthScaleFactor;
       d.radius = d.radius * branchLengthScaleFactor;
     });
     xScaleFactor = branchLengthScaleFactor;
     updateScaleBar(branchLengthScaleFactor * currentTransform.k);
+
+    // Branch thickness proportional to label font size
+    let branchWidth = leafLabelSize * options.branchThicknessProp;
 
     // Calculate x, y from polar coordinates if needed
     if (circularLayout) {
@@ -512,7 +660,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       })
     } else {
       displayedRoot.each(d => {
-        d.y = d.y * treeDivSize.height;
+        d.y = d.y * tipCount * scalingFactors.labelSizeToPxFactor;
       })
     }
 
@@ -721,7 +869,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("x", triangleHeight)
       .style("text-anchor", "start")
       .style("font-size", `${leafLabelSize}px`)
-      .text(d => d.collapsed_children ? `${d.leafCount} collapsed tips` : "")
+      .text(d => d.collapsed_children ? d.collapsed_children_name : "")
       .style("display", d => d.collapsed_children ? null : "none");
 
     // Update visibility and orientation of node-shapes (triangles)
