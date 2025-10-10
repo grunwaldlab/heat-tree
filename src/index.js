@@ -36,6 +36,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     maxFontPx: 32,
     minBranchThicknessPx: 1,
     minBranchLenProp: 0.5,
+    transitionSpeedFactor: 1,
     ...options
   };
 
@@ -294,7 +295,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
           return labelSizeToPxFactor * 1.2;
         } else {
           const parentBelow = d.parent && d.parent.y > d.y;
-          return parentBelow ?  - size * 0.3 : size * 1;
+          return parentBelow ? - size * 0.3 : size * 1;
         }
       }
       return size / 2.5;
@@ -497,7 +498,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .data(displayedRoot.links(), d => d.target.id);
 
     // Shared transition for this update
-    const t = treeSvg.transition().duration(500);
+    const t = treeSvg.transition().duration(500 * options.transitionSpeedFactor);
 
     // ENTER links – start at the parent's previous position
     const linkEnter = link.enter().append("path")
@@ -647,8 +648,8 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     t.on("end", () => {
       if (expanding) {
-        linkEnter.transition().duration(150).attr("opacity", 1);
-        nodeEnter.transition().duration(150).attr("opacity", 1);
+        linkEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
+        nodeEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
       }
       if (onEnd) onEnd();
     });
