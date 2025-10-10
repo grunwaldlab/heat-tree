@@ -1,7 +1,8 @@
 import { parseNewick } from "./parsers.js"
 import { appendIcon } from "./icons.js"
-import { niceNumber, triangleAreaFromSide } from "./utils.js"
+import { triangleAreaFromSide } from "./utils.js"
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
+import { initZoomIndicator, initScaleBar } from "./legends.js"
 
 import {
   hierarchy, select, zoom, zoomIdentity, cluster, ascending,
@@ -67,91 +68,10 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
 
   // Create zoom indicator
-  const zoomIndicatorDiv = legendDiv.append("div")
-  const zoomIndicatorSvg = zoomIndicatorDiv.append("svg")
-    .attr("class", "ht-zoom-indicator")
-    .attr("width", 40)
-    .attr("height", options.legendElementHeight);
-  const zoomIndicatorText = zoomIndicatorSvg.append("text")
-    .attr("x", "50%")
-    .attr("y", "50%")
-    .attr("text-anchor", "middle")
-    .attr("dominant-baseline", "middle")
-    .style("font-size", "14px")
-    .style("fill", "#999")
-    .text("100%");
-
-  // Update the zoom indicator text and color
-  function updateZoomIndicator(zoomLevel) {
-    const percentage = Math.round(zoomLevel * 100);
-    zoomIndicatorText
-      .text(`${percentage}%`)
-      .style("fill", percentage === 100 ? "#999" : "#000");
-  }
+  const zoomIndicator = initZoomIndicator(legendDiv, options);
 
   // Create scale bar 
-  const scaleBarEdgeHeight = 6;
-  const scaleBarDiv = legendDiv.append("div")
-  const scaleBarSvg = scaleBarDiv.append("svg")
-    .attr("class", "ht-scale-bar")
-    .attr("width", "100%")
-    .attr("height", options.legendElementHeight);
-  const scaleBarGroup = scaleBarSvg.append("g")
-    .attr("transform", `translate(1,${options.legendElementHeight - scaleBarEdgeHeight})`)
-    .attr("stroke", "#000")
-    .attr("stroke-width", 2)
-    .attr("fill", "none");
-  scaleBarGroup.append("line").attr("class", "bar");
-  scaleBarGroup.append("line").attr("class", "left-tick");
-  scaleBarGroup.append("line").attr("class", "right-tick");
-  scaleBarSvg.append("text")
-    .attr("transform", `translate(1,${options.legendElementHeight - scaleBarEdgeHeight})`)
-    .attr("class", "label")
-    .attr("dy", -scaleBarEdgeHeight)
-    .attr("text-anchor", "middle")
-    .style("font-size", "12px");
-
-  // Update the scale-bar graphics according to current pixel-per-unit scale
-  function updateScaleBar(pxPerUnit) {
-    if (!isFinite(pxPerUnit) || pxPerUnit <= 0) return;
-
-    // choose an initial "nice" distance then adjust to keep bar within limits
-    let units = niceNumber(1);      // start from 1 unit
-    let barPx = units * pxPerUnit;
-
-    // expand / shrink until within [min,max] pixels
-    if (barPx < options.scaleBarSize.min || barPx > options.scaleBarSize.max) {
-      // estimate a closer starting length
-      units = niceNumber(options.scaleBarSize.min / pxPerUnit);
-      barPx = units * pxPerUnit;
-    }
-    while (barPx < options.scaleBarSize.min) {
-      units *= 2;
-      barPx = units * pxPerUnit;
-    }
-    while (barPx > options.scaleBarSize.max) {
-      units /= 2;
-      barPx = units * pxPerUnit;
-    }
-
-    // bar & ticks
-    scaleBarGroup.select(".bar")
-      .attr("x1", 0).attr("y1", 0)
-      .attr("x2", barPx).attr("y2", 0);
-
-    scaleBarGroup.select(".left-tick")
-      .attr("x1", 0).attr("y1", -5)
-      .attr("x2", 0).attr("y2", 5);
-
-    scaleBarGroup.select(".right-tick")
-      .attr("x1", barPx).attr("y1", -5)
-      .attr("x2", barPx).attr("y2", 5);
-
-    // centre label
-    scaleBarSvg.select(".label")
-      .attr("x", barPx / 2)
-      .text(units.toPrecision(3));
-  }
+  const scaleBar = initScaleBar(legendDiv, options);
 
   // Toggle state for user-initiated zooming/panning
   let manualZoomAndPanEnabled = options.manualZoomAndPanEnabled;
@@ -251,8 +171,8 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       currentTransform = event.transform;          // keep latest zoom
       treeSvg.attr("transform", currentTransform); // move tree
       updateSelectionButtons();                    // reposition buttons
-      updateScaleBar(branchLenToPxFactor * currentTransform.k); // rescale bar
-      updateZoomIndicator(currentTransform.k);     // update zoom indicator
+      scaleBar.update(branchLenToPxFactor * currentTransform.k); // rescale bar
+      zoomIndicator.update(currentTransform.k);     // update zoom indicator
     });
 
   // Attach zoom behaviour to the outer SVG
@@ -539,7 +459,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     }
 
     // Update scale bar to reflect new scaling factors
-    updateScaleBar(branchLenToPxFactor * currentTransform.k);
+    scaleBar.update(branchLenToPxFactor * currentTransform.k);
 
     // Branch thickness proportional to label font size
     let branchWidth = labelSizeToPxFactor * options.branchThicknessProp;
