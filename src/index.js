@@ -60,11 +60,39 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     .append("div")
     .attr("class", "ht-legend")
     .style("flex", "0 0 auto")
-    .style("margin-top", "4px");
+    .style("margin-top", "4px")
+    .style("display", "flex")
+    .style("gap", `${options.controlsMargin}px`)
+    .style("align-items", "center");
+
+
+  // Create zoom indicator
+  const zoomIndicatorDiv = legendDiv.append("div")
+  const zoomIndicatorSvg = zoomIndicatorDiv.append("svg")
+    .attr("class", "ht-zoom-indicator")
+    .attr("width", 40)
+    .attr("height", options.legendElementHeight);
+  const zoomIndicatorText = zoomIndicatorSvg.append("text")
+    .attr("x", "50%")
+    .attr("y", "50%")
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .style("font-size", "14px")
+    .style("fill", "#999")
+    .text("100%");
+
+  // Update the zoom indicator text and color
+  function updateZoomIndicator(zoomLevel) {
+    const percentage = Math.round(zoomLevel * 100);
+    zoomIndicatorText
+      .text(`${percentage}%`)
+      .style("fill", percentage === 100 ? "#999" : "#000");
+  }
 
   // Create scale bar 
   const scaleBarEdgeHeight = 6;
-  const scaleBarSvg = legendDiv.append("svg")
+  const scaleBarDiv = legendDiv.append("div")
+  const scaleBarSvg = scaleBarDiv.append("svg")
     .attr("class", "ht-scale-bar")
     .attr("width", "100%")
     .attr("height", options.legendElementHeight);
@@ -76,11 +104,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   scaleBarGroup.append("line").attr("class", "bar");
   scaleBarGroup.append("line").attr("class", "left-tick");
   scaleBarGroup.append("line").attr("class", "right-tick");
-  scaleBarGroup.append("text")
+  scaleBarSvg.append("text")
+    .attr("transform", `translate(1,${options.legendElementHeight - scaleBarEdgeHeight})`)
     .attr("class", "label")
     .attr("dy", -scaleBarEdgeHeight)
     .attr("text-anchor", "middle")
-    .attr("stroke-width", 1)
     .style("font-size", "12px");
 
   // Update the scale-bar graphics according to current pixel-per-unit scale
@@ -120,7 +148,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("x2", barPx).attr("y2", 5);
 
     // centre label
-    scaleBarGroup.select(".label")
+    scaleBarSvg.select(".label")
       .attr("x", barPx / 2)
       .text(units.toPrecision(3));
   }
@@ -224,6 +252,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       treeSvg.attr("transform", currentTransform); // move tree
       updateSelectionButtons();                    // reposition buttons
       updateScaleBar(branchLenToPxFactor * currentTransform.k); // rescale bar
+      updateZoomIndicator(currentTransform.k);     // update zoom indicator
     });
 
   // Attach zoom behaviour to the outer SVG
@@ -388,8 +417,8 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         if (isCircularLayout) {
           // For circular layout, calculate the x/y extent of label ends
           const labelEndRadius = d.radius + labelOffset + labelWidth;
-          const labelEndX = labelEndRadius * Math.cos(d.angle);
-          const labelEndY = labelEndRadius * Math.sin(d.angle);
+          const labelEndX = labelEndRadius * d.cos;
+          const labelEndY = labelEndRadius * d.sin;
 
           // Consider label end position
           if (labelEndX < minX) minX = labelEndX;
@@ -613,8 +642,8 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // UPDATE links to new position
     function radialBranch(d) {
       const arcEnd = {
-        x: d.source.radius * Math.cos(d.target.angle),
-        y: d.source.radius * Math.sin(d.target.angle)
+        x: d.source.radius * d.target.cos,
+        y: d.source.radius * d.target.sin
       };
       return `M${d.source.x},${d.source.y} A${d.source.radius},${d.source.radius} 0 0,${d.target.angle > d.source.angle ? 1 : 0} ${arcEnd.x},${arcEnd.y} L${d.target.x},${d.target.y}`;
     }
