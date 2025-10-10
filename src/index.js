@@ -3,6 +3,11 @@ import { appendIcon } from "./icons.js"
 import { triangleAreaFromSide } from "./utils.js"
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
 import { initZoomIndicator, initScaleBar } from "./legends.js"
+import {
+  initResetButton,
+  initToggleZoomButton,
+  initToggleCircularButton
+} from "./controls.js"
 
 import {
   hierarchy, select, zoom, zoomIdentity, cluster, ascending,
@@ -66,13 +71,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     .style("gap", `${options.controlsMargin}px`)
     .style("align-items", "center");
 
-
-  // Create zoom indicator
-  const zoomIndicator = initZoomIndicator(legendDiv, options);
-
-  // Create scale bar 
-  const scaleBar = initScaleBar(legendDiv, options);
-
   // Toggle state for user-initiated zooming/panning
   let manualZoomAndPanEnabled = options.manualZoomAndPanEnabled;
 
@@ -85,70 +83,66 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   // Currently selected subtree root
   let selectedNode = null;
 
-  // SVG button to reset the tree to its original, fully-expanded state
-  const btnReset = toolbarDiv.append("div")
-    .style("flex", "0 0 auto")
-    .append("svg")
-    .attr("width", options.buttonSize)
-    .attr("height", options.buttonSize)
-    .style("cursor", "pointer")
-    .on("click", () => {
-      // Uncollapse every node
-      root.each(d => {
-        if (d.collapsed_children) {
-          d.children = d.collapsed_children;
-          d.collapsed_children = null;
-        }
-        if (d.collapsed_parent) {
-          d.parent = d.collapsed_parent;
-          d.collapsed_parent = null;
-        }
-      });
+  // Parse the Newick string
+  const treeData = parseNewick(newickStr);
 
-      // Restore original root, clear selections, reset view
-      displayedRoot = root;
-      selectedNode = null;
-      selectionRect.style("display", "none");
-      selectionBtns.style("display", "none");
+  // Create a D3 hierarchy from the tree data and sort by size of subtree and branch length
+  const root = hierarchy(treeData, d => d.children)
+    .sum(d => d.children ? 0 : 1)
+    .each(function(d) {
+      d.leafCount = d.value;
+      delete d.value;
+    })
+    .sort((a, b) => (a.leafCount - b.leafCount) || ascending(a.data.length, b.data.length));
+  let displayedRoot = root;
 
-      update();
+  // Assign a stable, unique id to every node so D3 can track elements across updates
+  let nodeId = 0;
+  root.each(d => { d.id = ++nodeId; });
+
+  // Create reset button
+  const resetButton = initResetButton(toolbarDiv, options, () => {
+    // Uncollapse every node
+    root.each(d => {
+      if (d.collapsed_children) {
+        d.children = d.collapsed_children;
+        d.collapsed_children = null;
+      }
+      if (d.collapsed_parent) {
+        d.parent = d.collapsed_parent;
+        d.collapsed_parent = null;
+      }
     });
-  appendIcon(btnReset, "refresh", options.buttonSize, options.buttonPadding);
 
-  // Toggle Zoom/Pan button 
-  const btnToggleZoom = toolbarDiv.append("div")
-    .style("flex", "0 0 auto")
-    .append("svg")
-    .attr("width", options.buttonSize)
-    .attr("height", options.buttonSize)
-    .style("cursor", "pointer")
-    .on("click", () => {
-      manualZoomAndPanEnabled = !manualZoomAndPanEnabled;
-      updateToggleZoomAppearance();
-    });
-  appendIcon(btnToggleZoom, "outwardArrows", options.buttonSize, options.buttonPadding);
-  function updateToggleZoomAppearance() {
-    btnToggleZoom.select("rect").attr("fill", manualZoomAndPanEnabled ? "#CCC" : "#EEE");
-  }
-  updateToggleZoomAppearance();
+    // Restore original root, clear selections, reset view
+    displayedRoot = root;
+    selectedNode = null;
+    selectionRect.style("display", "none");
+    selectionBtns.style("display", "none");
 
-  // Toggle Circular Layout button
-  const btnToggleCircular = toolbarDiv.append("div")
-    .style("flex", "0 0 auto")
-    .append("svg")
-    .attr("width", options.buttonSize)
-    .attr("height", options.buttonSize)
-    .style("cursor", "pointer")
-    .on("click", () => {
-      isCircularLayout = !isCircularLayout;
-      updateToggleCircularAppearance();
-      update(null, false, true);
-    });
-  appendIcon(btnToggleCircular, "circle", options.buttonSize, options.buttonPadding);
-  function updateToggleCircularAppearance() {
-    btnToggleCircular.select("rect").attr("fill", isCircularLayout ? "#CCC" : "#EEE");
-  }
-  updateToggleCircularAppearance();
+    update();
+  });
+
+  // Create toggle zoom/pan button
+  const toggleZoomButton = initToggleZoomButton(toolbarDiv, options, () => {
+    manualZoomAndPanEnabled = !manualZoomAndPanEnabled;
+    toggleZoomButton.update(manualZoomAndPanEnabled);
+  });
+  toggleZoomButton.update(manualZoomAndPanEnabled);
+
+  // Create toggle circular layout button
+  const toggleCircularButton = initToggleCircularButton(toolbarDiv, options, () => {
+    isCircularLayout = !isCircularLayout;
+    toggleCircularButton.update(isCircularLayout);
+    update(null, false, true);
+  });
+  toggleCircularButton.update(isCircularLayout);
+
+  // Create zoom indicator
+  const zoomIndicator = initZoomIndicator(legendDiv, options);
+
+  // Create scale bar 
+  const scaleBar = initScaleBar(legendDiv, options);
 
   // group containing the rendered tree
   let treeSvg;
@@ -186,23 +180,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   // Reference to the outer <svg> (not zoomed) – used for UI overlays
   const overlaySvg = treeDiv.select("svg");
-
-  // Parse the Newick string
-  const treeData = parseNewick(newickStr);
-
-  // Create a D3 hierarchy from the tree data and sort by size of subtree and branch length
-  const root = hierarchy(treeData, d => d.children)
-    .sum(d => d.children ? 0 : 1)
-    .each(function(d) {
-      d.leafCount = d.value;
-      delete d.value;
-    })
-    .sort((a, b) => (a.leafCount - b.leafCount) || ascending(a.data.length, b.data.length));
-  let displayedRoot = root;
-
-  // Assign a stable, unique id to every node so D3 can track elements across updates
-  let nodeId = 0;
-  root.each(d => { d.id = ++nodeId; });
 
   // Visible bounding-box shown when a subtree is selected
   let selectionRect = treeSvg.append("rect")
