@@ -173,7 +173,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   outerSvg.call(treeZoom);
 
   // Group that holds all tree graphics (subject to zoom / pan)
-  treeSvg = outerSvg.append("g");
+  treeSvg = outerSvg.append("g").attr("class", "tree-elements");
+
+  // Group for links (branches)
+  const linksGroup = treeSvg.append("g").attr("class", "links-layer");
+
+  // Group for nodes
+  const nodesGroup = treeSvg.append("g").attr("class", "nodes-layer");
 
   // Layer for invisible hit-test rectangles (kept above links/nodes)
   const hitLayer = treeSvg.append("g").attr("class", "hit-layer");
@@ -363,7 +369,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       overlaySvg.call(treeZoom.transform, transform);
     }
 
-    // Infer window dimensions if needed, taking into account padding
+    //  Infer window dimensions if needed, taking into account padding
     let treeDivSize = treeDiv.select('svg').node().getBoundingClientRect();
 
     // Set the names for collapsed parents and children
@@ -513,7 +519,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     hitLayer.selectAll(".hit").sort((a, b) => a.depth - b.depth);
 
     // DATA JOIN for links (use stable target.id as key)
-    const link = treeSvg.selectAll(".link")
+    const link = linksGroup.selectAll(".link")
       .data(displayedRoot.links(), d => d.target.id);
 
     // Shared transition for this update
@@ -530,8 +536,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         const sy = d.source.previousY ?? d.source.y;
         const sx = d.source.previousX ?? d.source.x;
         return `M${sx},${sy}`;
-      })
-      .lower(); // make sure branches appear below selection hit layers
+      });
 
     // UPDATE + ENTER => one unified selection
     const linkUpdate = linkEnter.merge(link);
@@ -562,7 +567,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .remove();
 
     // DATA JOIN for nodes (use stable id)
-    const node = treeSvg.selectAll(".node")
+    const node = nodesGroup.selectAll(".node")
       .data(displayedRoot.descendants(), d => d.id);
     node.exit().remove();
     node.transition(t)
@@ -598,7 +603,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
     // Update collapsed-subtree labels visibility and text
-    treeSvg.selectAll(".collapsed-subtree")
+    nodesGroup.selectAll(".collapsed-subtree")
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", triangleHeight)
@@ -618,7 +623,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Update collapsed-root labels
-    treeSvg.selectAll(".collapsed-root")
+    nodesGroup.selectAll(".collapsed-root")
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", -triangleHeight)
@@ -651,7 +656,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("display", d => d.collapsed_children ? null : "none");
 
     // Update visibility and orientation of node-shapes (triangles)
-    const nodeShapes = treeSvg.selectAll(".node-shape")
+    const nodeShapes = nodesGroup.selectAll(".node-shape")
       // set translate offset immediately (no transition)
       .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -0.33 : 0.52) * triangleHeight})`)
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
@@ -675,7 +680,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     });
 
     // Update label font sizes and offsets according to the latest labelSize
-    treeSvg.selectAll(".node text")
+    nodesGroup.selectAll(".node text")
       .attr("dy", d => computeDy(d))
       .attr("transform", d => {
         if (isCircularLayout) {
@@ -686,7 +691,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       })
       .style("font-size", d => `${fontSizeForNode(d)}px`);
 
-    treeSvg.selectAll(".collapsed-root")
+    nodesGroup.selectAll(".collapsed-root")
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("transform", d => {
         if (isCircularLayout) {
@@ -697,7 +702,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       })
       .style("font-size", `${labelSizeToPxFactor}px`);
 
-    treeSvg.selectAll(".collapsed-subtree")
+    nodesGroup.selectAll(".collapsed-subtree")
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("transform", d => {
         if (isCircularLayout) {
