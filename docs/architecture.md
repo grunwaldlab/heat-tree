@@ -212,7 +212,7 @@ For small trees, scaling of branches and annotations is used to make them fit in
 ### Current zoom indicator
 
 There should be a widget on the legend panel that indicates the current zoom level as a percentage of 1-1 pixel size.
-This should change color when not 100%.
+This should change from grey to black when not 100%.
 
 ### Manual zooming and panning
 
