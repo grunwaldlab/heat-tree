@@ -15,7 +15,7 @@ export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options
 
     return {
       x: node.x, // x-axis position in branch length units
-      width: characterWidthProportion * nameLen * labelScale,
+      width: characterWidthProportion * nameLen * labelScale + options.nodeLabelOffset * labelScale,
       height: labelScale,
       labelScale: labelScale
     };
@@ -134,7 +134,6 @@ export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options
 // Calculate optimal scaling factors using constraint-based approach for circular layouts
 export function calculateCircularScalingFactors(root, viewWidthPx, viewHeightPx, options, characterWidthProportion = 0.65) {
   const leaves = root.leaves();
-  const tipCount = leaves.length;
 
   // Calculate leaf annotation dimensions for each node
   const leafData = leaves.map((node, i) => {
@@ -148,14 +147,13 @@ export function calculateCircularScalingFactors(root, viewWidthPx, viewHeightPx,
     }
 
     const labelScale = 1; // Unitless scaling factor (assuming 1 for now)
-    const angle = 2 * Math.PI * i / tipCount; // A_i in the architecture
 
     return {
       radius: node.radius, // x-axis position in branch length units (radius)
       angle: node.angle,
       cos: node.cos,
       sin: node.sin,
-      width: characterWidthProportion * nameLen * labelScale,
+      width: characterWidthProportion * nameLen * labelScale + options.nodeLabelOffset * labelScale,
       height: labelScale,
       labelScale: labelScale
     };
