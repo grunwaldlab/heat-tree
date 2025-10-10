@@ -7,16 +7,18 @@ import { niceNumber } from "./utils.js";
  * @returns {Object} Object containing the SVG and text elements, plus update function
  */
 export function initZoomIndicator(legendDiv, options) {
-  const zoomIndicatorDiv = legendDiv.append("div");
-  const zoomIndicatorSvg = zoomIndicatorDiv.append("svg")
+  const zoomIndicatorDiv = legendDiv.append("div")
     .attr("class", "ht-zoom-indicator")
+    .style("height", `${options.legendElementHeight}px`)
+    .style("flex", "0 0 auto");
+  const zoomIndicatorSvg = zoomIndicatorDiv.append("svg")
     .attr("width", 40)
     .attr("height", options.legendElementHeight);
   const zoomIndicatorText = zoomIndicatorSvg.append("text")
     .attr("x", "50%")
     .attr("y", "50%")
     .attr("text-anchor", "middle")
-    .attr("dominant-baseline", "middle")
+    .attr("dominant-baseline", "central")
     .style("font-size", "12px")
     .style("fill", "#999")
     .text("100%");
@@ -48,10 +50,12 @@ function updateZoomIndicator(zoomIndicatorText, zoomLevel) {
  */
 export function initScaleBar(legendDiv, options) {
   const scaleBarEdgeHeight = 6;
-  const scaleBarDiv = legendDiv.append("div");
-  const scaleBarSvg = scaleBarDiv.append("svg")
+  const scaleBarDiv = legendDiv.append("div")
     .attr("class", "ht-scale-bar")
-    .attr("width", "100%")
+    .style("height", `${options.legendElementHeight}px`)
+    .style("flex", "0 0 auto");
+  const scaleBarSvg = scaleBarDiv.append("svg")
+    .attr("width", options.scaleBarSize.max)
     .attr("height", options.legendElementHeight);
   const scaleBarGroup = scaleBarSvg.append("g")
     .attr("transform", `translate(1,${options.legendElementHeight - scaleBarEdgeHeight})`)
