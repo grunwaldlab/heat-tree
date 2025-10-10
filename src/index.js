@@ -1,6 +1,6 @@
 import { parseNewick } from "./parsers.js"
 import { appendIcon } from "./icons.js"
-import { triangleAreaFromSide } from "./utils.js"
+import { triangleAreaFromSide, calculateTreeBounds } from "./utils.js"
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
 import { initZoomIndicator, initScaleBar } from "./legends.js"
 import {
@@ -294,7 +294,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
           return labelSizeToPxFactor * 1.2;
         } else {
           const parentBelow = d.parent && d.parent.y > d.y;
-          return parentBelow ? - size * 0.3 : size * 1;
+          return parentBelow ?  - size * 0.3 : size * 1;
         }
       }
       return size / 2.5;
@@ -307,49 +307,18 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
 
       // Calculate bounds of all tree elements (branches + labels)
-      let minX = Infinity;
-      let maxX = -Infinity;
-      let minY = Infinity;
-      let maxY = -Infinity;
-
-      displayedRoot.each(d => {
-        const labelWidth = getLabelWidth(d);
-        const labelOffset = getLabelXOffset(d);
-        const fontSize = fontSizeForNode(d);
-
-        if (isCircularLayout) {
-          // For circular layout, calculate the x/y extent of label ends
-          const labelEndRadius = d.radius + labelOffset + labelWidth;
-          const labelEndX = labelEndRadius * d.cos;
-          const labelEndY = labelEndRadius * d.sin;
-
-          // Consider label end position
-          if (labelEndX < minX) minX = labelEndX;
-          if (labelEndX > maxX) maxX = labelEndX;
-          if (labelEndY < minY) minY = labelEndY;
-          if (labelEndY > maxY) maxY = labelEndY;
-        } else {
-          // For rectangular layout
-          // Consider collapsed root labels (point left)
-          const triangleHeight = labelSizeToPxFactor * 1.1;
-          const leftExtent = d.x - (d.collapsed_parent ? triangleHeight + labelWidth : 0);
-          if (leftExtent < minX) minX = leftExtent;
-
-          // Consider node position and right-pointing labels
-          const rightExtent = d.x + labelOffset + labelWidth;
-          if (rightExtent > maxX) maxX = rightExtent;
-
-          // Consider vertical extent (y ± fontSize)
-          const topExtent = d.y - fontSize;
-          const bottomExtent = d.y + fontSize;
-          if (topExtent < minY) minY = topExtent;
-          if (bottomExtent > maxY) maxY = bottomExtent;
-        }
-      });
+      const bounds = calculateTreeBounds(
+        displayedRoot,
+        isCircularLayout,
+        getLabelWidth,
+        getLabelXOffset,
+        fontSizeForNode,
+        labelSizeToPxFactor
+      );
 
       // Calculate tree dimensions
-      const treeWidth = maxX - minX;
-      const treeHeight = maxY - minY;
+      const treeWidth = bounds.maxX - bounds.minX;
+      const treeHeight = bounds.maxY - bounds.minY;
 
       // Left margin for control buttons
       const marginLeft = options.buttonSize + options.controlsMargin;
@@ -358,13 +327,18 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       const availableWidth = viewW - marginLeft;
       const availableHeight = viewH;
 
-      // Calculate translation to center tree (no scaling, k=1)
+      // Calculate scale to fit tree within available space
+      const scaleX = availableWidth / treeWidth;
+      const scaleY = availableHeight / treeHeight;
+      const scale = Math.min(scaleX, scaleY);
+
+      // Calculate translation to center tree with the calculated scale
       let tx, ty;
 
-      tx = marginLeft + availableWidth / 2 - (minX + maxX) / 2;
-      ty = availableHeight / 2 - (minY + maxY) / 2;
+      tx = marginLeft + availableWidth / 2 - (bounds.minX + bounds.maxX) / 2 * scale;
+      ty = availableHeight / 2 - (bounds.minY + bounds.maxY) / 2 * scale;
 
-      const transform = zoomIdentity.translate(tx, ty).scale(1);
+      const transform = zoomIdentity.translate(tx, ty).scale(scale);
       // Apply through zoom behaviour so internal state & listeners update
       overlaySvg.call(treeZoom.transform, transform);
     }

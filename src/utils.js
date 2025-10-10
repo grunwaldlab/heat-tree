@@ -19,3 +19,46 @@ export function triangleAreaFromSide(side) {
   return 0.4330127 * side * side; // 0.4330127 == sqrt(3) / 4
 }
 
+export function calculateTreeBounds(displayedRoot, isCircularLayout, getLabelWidth, getLabelXOffset, fontSizeForNode, labelSizeToPxFactor) {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+
+  displayedRoot.each(d => {
+    const labelWidth = getLabelWidth(d);
+    const labelOffset = getLabelXOffset(d);
+    const fontSize = fontSizeForNode(d);
+
+    if (isCircularLayout) {
+      // For circular layout, calculate the x/y extent of label ends
+      const labelEndRadius = d.radius + labelOffset + labelWidth;
+      const labelEndX = labelEndRadius * d.cos;
+      const labelEndY = labelEndRadius * d.sin;
+
+      // Consider label end position
+      if (labelEndX < minX) minX = labelEndX;
+      if (labelEndX > maxX) maxX = labelEndX;
+      if (labelEndY < minY) minY = labelEndY;
+      if (labelEndY > maxY) maxY = labelEndY;
+    } else {
+      // For rectangular layout
+      // Consider collapsed root labels (point left)
+      const triangleHeight = labelSizeToPxFactor * 1.1;
+      const leftExtent = d.x - (d.collapsed_parent ? triangleHeight + labelWidth : 0);
+      if (leftExtent < minX) minX = leftExtent;
+
+      // Consider node position and right-pointing labels
+      const rightExtent = d.x + labelOffset + labelWidth;
+      if (rightExtent > maxX) maxX = rightExtent;
+
+      // Consider vertical extent (y ± fontSize)
+      const topExtent = d.y - fontSize;
+      const bottomExtent = d.y + fontSize;
+      if (topExtent < minY) minY = topExtent;
+      if (bottomExtent > maxY) maxY = bottomExtent;
+    }
+  });
+
+  return { minX, maxX, minY, maxY };
+}
