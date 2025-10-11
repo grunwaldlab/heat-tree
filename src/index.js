@@ -135,7 +135,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   const toggleCircularButton = initToggleCircularButton(toolbarDiv, options, () => {
     isCircularLayout = !isCircularLayout;
     toggleCircularButton.update(isCircularLayout);
-    update(null, false, true);
+    update(false, true);
   });
   toggleCircularButton.update(isCircularLayout);
 
@@ -215,7 +215,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         selectedNode = null;
         selectionRect.style("display", "none");
         selectionBtns.style("display", "none");
-        update(null, false, false);
+        update(false, false);
       }
     });
   appendIcon(btnCollapseSelected, "compress", options.buttonSize, options.buttonPadding);
@@ -253,7 +253,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   }
 
 
-  function update(onEnd = null, expanding = false, fit = true) {
+  function update(expanding = false, fit = true, initial = false) {
 
     // The estimated width in pixels of the printed label
     function getLabelWidth(node) {
@@ -304,7 +304,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Ensure the full tree is visible with extra space on the left for
     // the floating selection buttons.  This is invoked after the very
     // first render and every time the user clicks the "reset" button.
-    function fitToView() {
+    function fitToView(transition = true) {
       const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
 
       // Calculate bounds of all tree elements (branches + labels)
@@ -340,8 +340,14 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       ty = availableHeight / 2 - (bounds.minY + bounds.maxY) / 2 * scale;
 
       const transform = zoomIdentity.translate(tx, ty).scale(scale);
-      // Apply through zoom behaviour so internal state & listeners update
-      overlaySvg.call(treeZoom.transform, transform);
+      // Apply through zoom behaviour with transition so internal state & listeners update
+      if (transition) {
+        overlaySvg.transition()
+          .duration(500 * options.transitionSpeedFactor)
+          .call(treeZoom.transform, transform);
+      } else {
+        overlaySvg.call(treeZoom.transform, transform);
+      }
     }
 
     //  Infer window dimensions if needed, taking into account padding
@@ -423,7 +429,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     let branchWidth = labelSizeToPxFactor * options.branchThicknessProp;
 
 
-    if (fit || !manualZoomAndPanEnabled) fitToView();
+    if (fit || !manualZoomAndPanEnabled) fitToView(!initial);
 
     // Compute bounding rectangles for every subtree node
     displayedRoot.eachAfter(d => {
@@ -554,14 +560,14 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         if (d.collapsed_children) {       // expand (delayed reveal)
           d.children = d.collapsed_children;
           d.collapsed_children = null;
-          update(null, true, false);
+          update(true, false);
         } else if (d === displayedRoot && d.collapsed_parent) { // un-collapse root
           selectedNode = null;
           selectionRect.style("display", "none");
           d.parent = d.collapsed_parent;
           d.collapsed_parent = null;
           displayedRoot = d.ancestors().find(d => d.parent === null || d.collapsed_parent);
-          update(null, true, true);
+          update(true, true);
         }
       });
 
@@ -698,7 +704,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   // Initial render then auto-fit so the whole tree is visible and
   // a margin is left on the left for the floating action buttons.
-  update();
+  update(false, true, true);
 
   return { root: displayedRoot, svg: treeSvg };
 }
