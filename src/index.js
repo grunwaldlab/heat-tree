@@ -588,6 +588,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", triangleHeight)
+      .attr("transform", d => {
+        if (isCircularLayout) {
+          return `rotate(${d.angle * (180 / Math.PI)})`;
+        } else {
+          return "rotate(0)";
+        }
+      })
       .text(d => d.collapsed_children ? d.collapsed_children_name : "")
       .style("font-weight", "bold")
       .style("display", d => d.collapsed_children ? null : "none");
@@ -597,6 +604,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("class", "collapsed-root")
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", -triangleHeight)
+      .attr("transform", d => {
+        if (isCircularLayout) {
+          return `rotate(${d.angle * (180 / Math.PI)})`;
+        } else {
+          return "rotate(0)";
+        }
+      })
       .style("text-anchor", "end")
       .style("font-size", `${labelSizeToPxFactor}px`)
       .style("font-weight", "bold")
@@ -608,6 +622,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", -triangleHeight)
+      .attr("transform", d => {
+        if (isCircularLayout) {
+          return `rotate(${d.angle * (180 / Math.PI)})`;
+        } else {
+          return "rotate(0)";
+        }
+      })
       .text(d => d.collapsed_parent ? d.collapsed_parent_name : "")
       .style("display", d => d.collapsed_parent ? null : "none");
 
@@ -631,6 +652,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("class", "collapsed-subtree")
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", triangleHeight)
+      .attr("transform", d => {
+        if (isCircularLayout) {
+          return `rotate(${d.angle * (180 / Math.PI)})`;
+        } else {
+          return "rotate(0)";
+        }
+      })
       .style("text-anchor", "start")
       .style("font-size", `${labelSizeToPxFactor}px`)
       .text(d => d.collapsed_children ? d.collapsed_children_name : "")
@@ -657,11 +685,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         linkEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
         nodeEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
       }
-      if (onEnd) onEnd();
     });
 
     // Update label font sizes and offsets according to the latest labelSize
     nodesGroup.selectAll(".node text")
+      .transition(t)
       .attr("dy", d => computeDy(d))
       .attr("transform", d => {
         if (isCircularLayout) {
@@ -673,6 +701,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("font-size", d => `${fontSizeForNode(d)}px`);
 
     nodesGroup.selectAll(".collapsed-root")
+      .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("transform", d => {
         if (isCircularLayout) {
@@ -684,6 +713,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("font-size", `${labelSizeToPxFactor}px`);
 
     nodesGroup.selectAll(".collapsed-subtree")
+      .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("transform", d => {
         if (isCircularLayout) {
