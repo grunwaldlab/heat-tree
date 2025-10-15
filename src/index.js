@@ -78,6 +78,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   // Toggle state for circular layout
   let isCircularLayout = options.circularLayoutEnabled;
 
+  // Track previous layout state to detect transitions
+  let wasCircularLayout = isCircularLayout;
+
   // Track the current zoom/pan transform so UI controls can keep a constant on-screen size.
   let currentTransform = { x: 0, y: 0, k: 1 };
 
@@ -255,9 +258,18 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   function update(expanding = false, fit = true, initial = false) {
 
+    // Detect if we're transitioning between layouts
+    const layoutChanged = wasCircularLayout !== isCircularLayout;
+
     // Helper to determine if a node is on the left side in circular layout
     function isLeftSide(d) {
       if (!isCircularLayout) return false;
+      return d.angle > Math.PI * 2.5 | d.angle < Math.PI * 1.5;
+    }
+
+    // Helper to determine if a node was on the left side in the previous layout
+    function wasLeftSide(d) {
+      if (!wasCircularLayout) return false;
       return d.angle > Math.PI * 2.5 | d.angle < Math.PI * 1.5;
     }
 
@@ -716,6 +728,34 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       }
     });
 
+    // Handle label rotation transitions with instant 180° flip for left-side labels
+    if (layoutChanged) {
+      // When transitioning between layouts, apply instant 180° flip for labels that need it
+      nodeLayer.selectAll(".node text").each(function(d) {
+        const textElement = select(this);
+
+        // Determine if this label needs an instant flip
+        let needsFlip = false;
+        if (isCircularLayout && !wasCircularLayout) {
+          // Transitioning to circular: flip labels that will be on the left
+          needsFlip = isLeftSide(d);
+        } else if (!isCircularLayout && wasCircularLayout) {
+          // Transitioning from circular: flip labels that were on the left
+          needsFlip = wasLeftSide(d);
+        }
+
+        if (needsFlip) {
+          // Get current rotation
+          const currentTransform = textElement.attr("transform") || "rotate(0)";
+          const currentRotation = parseFloat(currentTransform.match(/rotate\(([-\d.]+)\)/)?.[1] || 0);
+
+          // Apply instant 180° flip
+          const flippedRotation = currentRotation + 180;
+          textElement.attr("transform", `rotate(${flippedRotation})`);
+        }
+      });
+    }
+
     // Update label font sizes and offsets according to the latest labelSize
     nodeLayer.selectAll(".node text")
       .transition(t)
@@ -746,6 +786,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       d.previousX = d.x;
       d.previousY = d.y;
     });
+
+    // Update the previous layout state for next transition
+    wasCircularLayout = isCircularLayout;
   }
 
   // Initial render then auto-fit so the whole tree is visible and
