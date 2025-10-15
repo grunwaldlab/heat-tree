@@ -499,51 +499,83 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Deeper nodes (greater depth) rendered above shallower ones
     hitLayer.selectAll(".hit").sort((a, b) => a.depth - b.depth);
 
-    // DATA JOIN for branches (use stable target.id as key)
-    const branches = branchLayer.selectAll(".link")
-      .data(displayedRoot.links(), d => d.target.id);
-
     // Shared transition for this update
     const t = treeSvg.transition().duration(500 * options.transitionSpeedFactor);
 
-    // ENTER links – start at the parent's previous position
-    const branchEnter = branches.enter().append("path")
-      .attr("class", "link")
+    // DATA JOIN for branch groups (use stable target.id as key)
+    const branchGroups = branchLayer.selectAll(".branch-group")
+      .data(displayedRoot.links(), d => d.target.id);
+
+    // EXIT branch groups – collapse back to the parent's new position
+    branchGroups.exit().each(function() {
+      select(this).selectAll("path").transition(t)
+        .attr("stroke-width", branchWidth)
+        .attr("d", d => `M${d.source.x},${d.source.y}`);
+    }).transition(t).remove();
+
+    // ENTER branch groups – start at the parent's previous position
+    const branchGroupsEnter = branchGroups.enter().append("g")
+      .attr("class", "branch-group");
+
+    // Append offset path (the part that separates branches along y-axis or angle)
+    branchGroupsEnter.append("path")
+      .attr("class", "offset")
+      .attr("fill", "none")
+      .attr("stroke", "#000")
+      .attr("stroke-opacity", 1)
+      .attr("stroke-width", branchWidth);
+
+    // Append extension path (the part that extends along x-axis or radius)
+    branchGroupsEnter.append("path")
+      .attr("class", "extension")
       .attr("fill", "none")
       .attr("stroke", "#000")
       .attr("stroke-opacity", 1)
       .attr("stroke-width", branchWidth);
 
     // UPDATE + ENTER => one unified selection
-    const branchUpdate = branchEnter.merge(branches);
+    const branchGroupsUpdate = branchGroupsEnter.merge(branchGroups);
 
-    // UPDATE branches to new position
-    function radialBranch(d) {
+    // UPDATE offset and extension paths to new positions
+    function radialOffset(d) {
       const arcEnd = {
         x: d.source.radius * d.target.cos,
         y: d.source.radius * d.target.sin
       };
-      return `M${d.source.x},${d.source.y} A${d.source.radius},${d.source.radius} 0 0,${d.target.angle > d.source.angle ? 1 : 0} ${arcEnd.x},${arcEnd.y} L${d.target.x},${d.target.y}`;
+      return `M${d.source.x},${d.source.y} A${d.source.radius},${d.source.radius} 0 0,${d.target.angle > d.source.angle ? 1 : 0} ${arcEnd.x},${arcEnd.y}`;
     }
-    function rectangulartBranch(d) {
-      return `M${d.source.x},${d.source.y} V${d.target.y} H${d.target.x}`;
+
+    function radialExtension(d) {
+      const arcEnd = {
+        x: d.source.radius * d.target.cos,
+        y: d.source.radius * d.target.sin
+      };
+      return `M${arcEnd.x},${arcEnd.y} L${d.target.x},${d.target.y}`;
+    }
+
+    function rectangularOffset(d) {
+      return `M${d.source.x},${d.source.y} L${d.source.x},${d.target.y}`;
+    }
+
+    function rectangularExtension(d) {
+      return `M${d.source.x},${d.target.y} L${d.target.x},${d.target.y}`;
     }
 
     if (isCircularLayout) {
-      branchUpdate.transition(t)
+      branchGroupsUpdate.select(".offset").transition(t)
         .attr("stroke-width", branchWidth)
-        .attr("d", radialBranch);
+        .attr("d", radialOffset);
+      branchGroupsUpdate.select(".extension").transition(t)
+        .attr("stroke-width", branchWidth)
+        .attr("d", radialExtension);
     } else {
-      branchUpdate.transition(t)
+      branchGroupsUpdate.select(".offset").transition(t)
         .attr("stroke-width", branchWidth)
-        .attr("d", rectangulartBranch);
+        .attr("d", rectangularOffset);
+      branchGroupsUpdate.select(".extension").transition(t)
+        .attr("stroke-width", branchWidth)
+        .attr("d", rectangularExtension);
     }
-
-    // EXIT links – collapse back to the parent's new position
-    branches.exit().transition(t)
-      .attr("stroke-width", branchWidth)
-      .attr("d", d => `M${d.source.x},${d.source.y}`)
-      .remove();
 
     // DATA JOIN for nodes (use stable id)
     const node = nodeLayer.selectAll(".node")
@@ -674,13 +706,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // Delay the appearance of newly-entered subtree when expanding
     if (expanding) {
-      branchEnter.attr("opacity", 0);
+      branchGroupsEnter.attr("opacity", 0);
       nodeEnter.attr("opacity", 0);
     }
 
     t.on("end", () => {
       if (expanding) {
-        branchEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
+        branchGroupsEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
         nodeEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
       }
     });
