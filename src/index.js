@@ -554,7 +554,12 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     }
 
     function rectangularOffset(d) {
-      return `M${d.source.x},${d.source.y} L${d.source.x},${d.target.y}`;
+      const arcEnd = {
+        x: d.source.radius * d.target.cos,
+        y: d.source.radius * d.target.sin
+      };
+      return `M${d.source.x},${d.source.y} A100000,100000 0 0,${d.target.angle > d.source.angle ? 1 : 0} ${d.source.x},${d.target.y}`;
+      // return `M${d.source.x},${d.source.y} L${d.source.x},${d.target.y}`;
     }
 
     function rectangularExtension(d) {
