@@ -176,13 +176,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   // Group that holds all tree graphics (subject to zoom / pan)
   treeSvg = outerSvg.append("g").attr("class", "tree-elements");
 
-  // Group for links (branches)
-  const linksGroup = treeSvg.append("g").attr("class", "links-layer");
+  // Group for branches
+  const branchLayer = treeSvg.append("g").attr("class", "branch-layer");
 
   // Group for nodes
-  const nodesGroup = treeSvg.append("g").attr("class", "nodes-layer");
+  const nodeLayer = treeSvg.append("g").attr("class", "node-layer");
 
-  // Layer for invisible hit-test rectangles (kept above links/nodes)
+  // Layer for invisible hit-test rectangles (kept above branches/nodes)
   const hitLayer = treeSvg.append("g").attr("class", "hit-layer");
 
   // Reference to the outer <svg> (not zoomed) – used for UI overlays
@@ -499,30 +499,25 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Deeper nodes (greater depth) rendered above shallower ones
     hitLayer.selectAll(".hit").sort((a, b) => a.depth - b.depth);
 
-    // DATA JOIN for links (use stable target.id as key)
-    const link = linksGroup.selectAll(".link")
+    // DATA JOIN for branches (use stable target.id as key)
+    const branches = branchLayer.selectAll(".link")
       .data(displayedRoot.links(), d => d.target.id);
 
     // Shared transition for this update
     const t = treeSvg.transition().duration(500 * options.transitionSpeedFactor);
 
     // ENTER links – start at the parent's previous position
-    const linkEnter = link.enter().append("path")
+    const branchEnter = branches.enter().append("path")
       .attr("class", "link")
       .attr("fill", "none")
       .attr("stroke", "#000")
       .attr("stroke-opacity", 1)
-      .attr("stroke-width", branchWidth)
-      .attr("d", d => {
-        const sy = d.source.previousY ?? d.source.y;
-        const sx = d.source.previousX ?? d.source.x;
-        return `M${sx},${sy}`;
-      });
+      .attr("stroke-width", branchWidth);
 
     // UPDATE + ENTER => one unified selection
-    const linkUpdate = linkEnter.merge(link);
+    const branchUpdate = branchEnter.merge(branches);
 
-    // UPDATE links to new position
+    // UPDATE branches to new position
     function radialBranch(d) {
       const arcEnd = {
         x: d.source.radius * d.target.cos,
@@ -530,25 +525,28 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       };
       return `M${d.source.x},${d.source.y} A${d.source.radius},${d.source.radius} 0 0,${d.target.angle > d.source.angle ? 1 : 0} ${arcEnd.x},${arcEnd.y} L${d.target.x},${d.target.y}`;
     }
+    function rectangulartBranch(d) {
+      return `M${d.source.x},${d.source.y} V${d.target.y} H${d.target.x}`;
+    }
 
     if (isCircularLayout) {
-      linkUpdate.transition(t)
+      branchUpdate.transition(t)
         .attr("stroke-width", branchWidth)
         .attr("d", radialBranch);
     } else {
-      linkUpdate.transition(t)
+      branchUpdate.transition(t)
         .attr("stroke-width", branchWidth)
-        .attr("d", d => `M${d.source.x},${d.source.y} V${d.target.y} H${d.target.x} `);
+        .attr("d", rectangulartBranch);
     }
 
     // EXIT links – collapse back to the parent's new position
-    link.exit().transition(t)
+    branches.exit().transition(t)
       .attr("stroke-width", branchWidth)
       .attr("d", d => `M${d.source.x},${d.source.y}`)
       .remove();
 
     // DATA JOIN for nodes (use stable id)
-    const node = nodesGroup.selectAll(".node")
+    const node = nodeLayer.selectAll(".node")
       .data(displayedRoot.descendants(), d => d.id);
     node.exit().remove();
     node.transition(t)
@@ -584,7 +582,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
 
     // Update collapsed-subtree labels visibility and text
-    nodesGroup.selectAll(".collapsed-subtree")
+    nodeLayer.selectAll(".collapsed-subtree")
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", triangleHeight)
@@ -618,7 +616,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Update collapsed-root labels
-    nodesGroup.selectAll(".collapsed-root")
+    nodeLayer.selectAll(".collapsed-root")
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", -triangleHeight)
@@ -665,7 +663,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("display", d => d.collapsed_children ? null : "none");
 
     // Update visibility and orientation of node-shapes (triangles)
-    const nodeShapes = nodesGroup.selectAll(".node-shape")
+    const nodeShapes = nodeLayer.selectAll(".node-shape")
       // set translate offset immediately (no transition)
       .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -0.33 : 0.52) * triangleHeight})`)
       .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
@@ -676,19 +674,19 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // Delay the appearance of newly-entered subtree when expanding
     if (expanding) {
-      linkEnter.attr("opacity", 0);
+      branchEnter.attr("opacity", 0);
       nodeEnter.attr("opacity", 0);
     }
 
     t.on("end", () => {
       if (expanding) {
-        linkEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
+        branchEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
         nodeEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
       }
     });
 
     // Update label font sizes and offsets according to the latest labelSize
-    nodesGroup.selectAll(".node text")
+    nodeLayer.selectAll(".node text")
       .transition(t)
       .attr("dy", d => computeDy(d))
       .attr("transform", d => {
@@ -700,7 +698,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       })
       .style("font-size", d => `${fontSizeForNode(d)}px`);
 
-    nodesGroup.selectAll(".collapsed-root")
+    nodeLayer.selectAll(".collapsed-root")
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("transform", d => {
@@ -712,7 +710,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       })
       .style("font-size", `${labelSizeToPxFactor}px`);
 
-    nodesGroup.selectAll(".collapsed-subtree")
+    nodeLayer.selectAll(".collapsed-subtree")
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("transform", d => {
