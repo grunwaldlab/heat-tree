@@ -19,7 +19,7 @@ export function initZoomIndicator(legendDiv, options) {
     .attr("y", "50%")
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "central")
-    .style("font-size", "12px")
+    .style("font-size", "16px")
     .style("fill", "#999")
     .text("100%");
 
@@ -70,7 +70,7 @@ export function initScaleBar(legendDiv, options) {
     .attr("class", "label")
     .attr("dy", -scaleBarEdgeHeight)
     .attr("text-anchor", "middle")
-    .style("font-size", "12px");
+    .style("font-size", "14px");
 
   return {
     svg: scaleBarSvg,
@@ -125,4 +125,56 @@ function updateScaleBar(scaleBarSvg, scaleBarGroup, pxPerUnit, options) {
   scaleBarSvg.select(".label")
     .attr("x", barPx / 2)
     .text(units.toPrecision(3));
+}
+
+/**
+ * Initialize the leaf count legend element
+ * @param {Selection} legendDiv - D3 selection of the legend container
+ * @param {Object} options - Configuration options
+ * @returns {Object} Object containing the SVG and text elements, plus update function
+ */
+export function initLeafCount(legendDiv, options) {
+  const leafCountDiv = legendDiv.append("div")
+    .attr("class", "ht-leaf-count")
+    .style("height", `${options.legendElementHeight}px`)
+    .style("flex", "0 0 auto");
+  const leafCountSvg = leafCountDiv.append("svg")
+    .attr("width", 100)
+    .attr("height", options.legendElementHeight);
+  const leafCountText = leafCountSvg.append("text")
+    .attr("x", "50%")
+    .attr("y", "50%")
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "central")
+    .style("font-size", "16px")
+    .style("fill", "#000")
+    .text("0 leaves");
+
+  return {
+    svg: leafCountSvg,
+    text: leafCountText,
+    update: (visibleLeaves, totalLeaves) => updateLeafCount(leafCountSvg, leafCountText, visibleLeaves, totalLeaves)
+  };
+}
+
+/**
+ * Update the leaf count text
+ * @param {Selection} leafCountSvg - D3 selection of the SVG element
+ * @param {Selection} leafCountText - D3 selection of the text element
+ * @param {number} visibleLeaves - Number of currently visible leaves (excluding collapsed placeholders)
+ * @param {number} totalLeaves - Total number of leaves in the full tree
+ */
+function updateLeafCount(leafCountSvg, leafCountText, visibleLeaves, totalLeaves) {
+  let text;
+  if (visibleLeaves === totalLeaves) {
+    text = `${totalLeaves} leaves`;
+  } else {
+    text = `${visibleLeaves}/${totalLeaves} leaves`;
+  }
+
+  leafCountText.text(text);
+
+  // Adjust SVG width to fit text
+  const bbox = leafCountText.node().getBBox();
+  leafCountSvg.attr("width", bbox.width + 20);
 }

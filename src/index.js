@@ -2,7 +2,7 @@ import { parseNewick } from "./parsers.js"
 import { appendIcon } from "./icons.js"
 import { triangleAreaFromSide, calculateTreeBounds } from "./utils.js"
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
-import { initZoomIndicator, initScaleBar } from "./legends.js"
+import { initZoomIndicator, initScaleBar, initLeafCount } from "./legends.js"
 import {
   initResetButton,
   initToggleZoomButton,
@@ -147,6 +147,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   // Create scale bar 
   const scaleBar = initScaleBar(legendDiv, options);
+
+  // Create leaf count indicator
+  const leafCount = initLeafCount(legendDiv, options);
 
   // group containing the rendered tree
   let treeSvg;
@@ -464,6 +467,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // Update scale bar to reflect new scaling factors
     scaleBar.update(branchLenToPxFactor * currentTransform.k);
+
+    // Calculate visible leaf count (excluding collapsed placeholders)
+    const visibleLeaves = displayedRoot.leaves().filter(d => !d.collapsed_children && !d.collapsed_parent).length;
+    const totalLeaves = root.leafCount;
+    leafCount.update(visibleLeaves, totalLeaves);
 
     // Branch thickness proportional to label font size
     let branchWidth = labelSizeToPxFactor * options.branchThicknessProp;
