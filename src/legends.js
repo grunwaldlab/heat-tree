@@ -53,6 +53,7 @@ export function initScaleBar(legendDiv, options) {
   const scaleBarDiv = legendDiv.append("div")
     .attr("class", "ht-scale-bar")
     .style("height", `${options.legendElementHeight}px`)
+    .style("margin-right", "auto")     // keep following widgets right-aligned
     .style("flex", "0 0 auto");
   const scaleBarSvg = scaleBarDiv.append("svg")
     .attr("width", options.scaleBarSize.max)

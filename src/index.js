@@ -5,6 +5,7 @@ import { calculateScalingFactors, calculateCircularScalingFactors } from "./scal
 import { initZoomIndicator, initScaleBar, initLeafCount } from "./legends.js"
 import {
   initResetButton,
+  initExpandRootButton,
   initToggleZoomButton,
   initToggleCircularButton
 } from "./controls.js"
@@ -31,7 +32,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     maxLabelWidthProportion: 0.03,
     branchThicknessProp: 0.15,
     circularLayoutEnabled: false,
-    minFontPx: 10,
+    minFontPx: 11,
     idealFontPx: 16,
     maxFontPx: 32,
     minBranchThicknessPx: 1,
@@ -127,6 +128,20 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     update();
   });
 
+  // Create expand root button
+  const expandRootButton = initExpandRootButton(toolbarDiv, options, () => {
+    if (displayedRoot.collapsed_parent) {
+      selectedNode = null;
+      selectionRect.style("display", "none");
+      selectionBtns.style("display", "none");
+      displayedRoot.parent = displayedRoot.collapsed_parent;
+      displayedRoot.collapsed_parent = null;
+      displayedRoot = displayedRoot.ancestors().find(d => d.parent === null || d.collapsed_parent);
+      update(true, true);
+    }
+  });
+  expandRootButton.update(false);
+
   // Create toggle zoom/pan button
   const toggleZoomButton = initToggleZoomButton(toolbarDiv, options, () => {
     manualZoomAndPanEnabled = !manualZoomAndPanEnabled;
@@ -142,11 +157,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   });
   toggleCircularButton.update(isCircularLayout);
 
-  // Create zoom indicator
-  const zoomIndicator = initZoomIndicator(legendDiv, options);
-
-  // Create scale bar 
+  // Create scale bar (left-aligned)
   const scaleBar = initScaleBar(legendDiv, options);
+
+  // Create zoom indicator (right-aligned group starts here)
+  const zoomIndicator = initZoomIndicator(legendDiv, options);
 
   // Create leaf count indicator
   const leafCount = initLeafCount(legendDiv, options);
@@ -472,6 +487,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     const visibleLeaves = displayedRoot.leaves().filter(d => !d.collapsed_children && !d.collapsed_parent).length;
     const totalLeaves = root.leafCount;
     leafCount.update(visibleLeaves, totalLeaves);
+
+    // Update expand root button state
+    expandRootButton.update(displayedRoot.collapsed_parent !== null && displayedRoot.collapsed_parent !== undefined);
 
     // Branch thickness proportional to label font size
     let branchWidth = labelSizeToPxFactor * options.branchThicknessProp;
