@@ -207,6 +207,7 @@ export function calculateCircularScalingFactors(root, viewWidthPx, viewHeightPx,
 
   const minLabelScale = Math.min(...leafData.map(a => a.labelScale));
   const maxBranchX = Math.max(...leafData.map(a => a.radius));
+  const minBranchX = Math.min(...leafData.map(a => a.radius));
   const nonZeroBranches = root.descendants().filter(a => a.data.length > 0 && a.children);
   const minBranchLength = nonZeroBranches.length > 0 ? Math.min(...nonZeroBranches.map(a => a.data.length)) : Infinity;
 
@@ -248,9 +249,9 @@ export function calculateCircularScalingFactors(root, viewWidthPx, viewHeightPx,
 
   // Leaf annotations should not overlap when used in a circular layout
   const totalAnnotationHeight = leafData.reduce((sum, a) => sum + a.height, 0);
-  if (totalAnnotationHeight > 0 && maxBranchX > 0) {
+  if (totalAnnotationHeight > 0 && minBranchX > 0) {
     if (branchLenToPxFactor_min !== branchLenToPxFactor_max) {
-      applyBranchMin((totalAnnotationHeight * labelSizeToPxFactor_min) / (maxBranchX * 2 * Math.PI));
+      applyBranchMin((totalAnnotationHeight * labelSizeToPxFactor_min) / (minBranchX * 2 * Math.PI));
     }
     if (labelSizeToPxFactor_min !== labelSizeToPxFactor_max) {
       applyLabelMax((maxBranchX * branchLenToPxFactor_max * 2 * Math.PI) / totalAnnotationHeight);
