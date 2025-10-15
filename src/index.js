@@ -255,6 +255,34 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   function update(expanding = false, fit = true, initial = false) {
 
+    // Helper to determine if a node is on the left side in circular layout
+    function isLeftSide(d) {
+      if (!isCircularLayout) return false;
+      return d.angle > Math.PI * 2.5 | d.angle < Math.PI * 1.5;
+    }
+
+    // Helper to get the rotation angle for labels in circular layout
+    function getLabelRotation(d) {
+      if (!isCircularLayout) return 0;
+      const angleDeg = d.angle * (180 / Math.PI);
+      // Flip labels on the left side so they're readable
+      return isLeftSide(d) ? angleDeg + 180 : angleDeg;
+    }
+
+    // Helper to get text anchor based on node type and position
+    function getTextAnchor(d) {
+      const isInterior = d.children || d.collapsed_children;
+      if (!isCircularLayout) {
+        return isInterior ? "end" : "start";
+      }
+      // In circular layout, flip the anchor for left-side nodes
+      if (isLeftSide(d)) {
+        return isInterior ? "start" : "end";
+      } else {
+        return isInterior ? "end" : "start";
+      }
+    }
+
     // The estimated width in pixels of the printed label
     function getLabelWidth(node) {
       let nameLen;
@@ -555,7 +583,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     function rectangularOffset(d) {
       return `M${d.source.x},${d.source.y} A2000,2000 0 0,${d.target.angle > d.source.angle ? 1 : 0} ${d.source.x},${d.target.y}`;
-      // return `M${d.source.x},${d.source.y} L${d.source.x},${d.target.y}`;
     }
 
     function rectangularExtension(d) {
@@ -619,13 +646,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", triangleHeight)
-      .attr("transform", d => {
-        if (isCircularLayout) {
-          return `rotate(${d.angle * (180 / Math.PI)})`;
-        } else {
-          return "rotate(0)";
-        }
-      })
       .text(d => d.collapsed_children ? d.collapsed_children_name : "")
       .style("font-weight", "bold")
       .style("display", d => d.collapsed_children ? null : "none");
@@ -635,13 +655,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("class", "collapsed-root")
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", -triangleHeight)
-      .attr("transform", d => {
-        if (isCircularLayout) {
-          return `rotate(${d.angle * (180 / Math.PI)})`;
-        } else {
-          return "rotate(0)";
-        }
-      })
       .style("text-anchor", "end")
       .style("font-size", `${labelSizeToPxFactor}px`)
       .style("font-weight", "bold")
@@ -653,28 +666,20 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", -triangleHeight)
-      .attr("transform", d => {
-        if (isCircularLayout) {
-          return `rotate(${d.angle * (180 / Math.PI)})`;
-        } else {
-          return "rotate(0)";
-        }
-      })
       .text(d => d.collapsed_parent ? d.collapsed_parent_name : "")
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Append text labels for nodes
     nodeEnter.append("text")
       .attr("dy", d => computeDy(d))
-      .attr("x", d => (d.children || d.collapsed_children ? -getLabelXOffset(d) : getLabelXOffset(d)))
-      .attr("transform", d => {
-        if (isCircularLayout) {
-          return `rotate(${d.angle * (180 / Math.PI)})`;
-        } else {
-          return "rotate(0)";
-        }
+      .attr("x", d => {
+        const isInterior = d.children || d.collapsed_children;
+        const offset = isInterior ? -getLabelXOffset(d) : getLabelXOffset(d);
+        // In circular layout, flip the offset for left-side nodes
+        return isCircularLayout && isLeftSide(d) ? -offset : offset;
       })
-      .style("text-anchor", d => (d.children || d.collapsed_children ? "end" : "start"))
+      .attr("transform", d => `rotate(${getLabelRotation(d)})`)
+      .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", d => `${fontSizeForNode(d)}px`)
       .text(d => d.data.name || "");
 
@@ -683,13 +688,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("class", "collapsed-subtree")
       .attr("dy", labelSizeToPxFactor / 2.5)
       .attr("x", triangleHeight)
-      .attr("transform", d => {
-        if (isCircularLayout) {
-          return `rotate(${d.angle * (180 / Math.PI)})`;
-        } else {
-          return "rotate(0)";
-        }
-      })
       .style("text-anchor", "start")
       .style("font-size", `${labelSizeToPxFactor}px`)
       .text(d => d.collapsed_children ? d.collapsed_children_name : "")
@@ -722,37 +720,24 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     nodeLayer.selectAll(".node text")
       .transition(t)
       .attr("dy", d => computeDy(d))
-      .attr("transform", d => {
-        if (isCircularLayout) {
-          return `rotate(${d.angle * (180 / Math.PI)})`;
-        } else {
-          return "rotate(0)";
-        }
+      .attr("x", d => {
+        const isInterior = d.children || d.collapsed_children;
+        const offset = isInterior ? -getLabelXOffset(d) : getLabelXOffset(d);
+        // In circular layout, flip the offset for left-side nodes
+        return isCircularLayout && isLeftSide(d) ? -offset : offset;
       })
+      .attr("transform", d => `rotate(${getLabelRotation(d)})`)
+      .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", d => `${fontSizeForNode(d)}px`);
 
     nodeLayer.selectAll(".collapsed-root")
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
-      .attr("transform", d => {
-        if (isCircularLayout) {
-          return `rotate(${d.angle * (180 / Math.PI)})`;
-        } else {
-          return "rotate(0)";
-        }
-      })
       .style("font-size", `${labelSizeToPxFactor}px`);
 
     nodeLayer.selectAll(".collapsed-subtree")
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
-      .attr("transform", d => {
-        if (isCircularLayout) {
-          return `rotate(${d.angle * (180 / Math.PI)})`;
-        } else {
-          return "rotate(0)";
-        }
-      })
       .style("font-size", `${labelSizeToPxFactor}px`);
 
     // Store current positions for the next update so every branch has
