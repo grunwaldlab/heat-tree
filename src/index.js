@@ -7,12 +7,13 @@ import {
   initResetButton,
   initExpandRootButton,
   initToggleZoomButton,
-  initToggleCircularButton
+  initToggleCircularButton,
+  initLabelColoringDropdown
 } from "./controls.js"
 
 import {
   hierarchy, select, zoom, zoomIdentity, cluster, ascending,
-  symbol, symbolTriangle
+  symbol, symbolTriangle, scaleLinear, scaleOrdinal, interpolateViridis
 } from "d3";
 
 
@@ -47,6 +48,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   // Parse metadata TSV if provided
   let metadataMap = new Map();
+  let metadataColumns = [];
+  let columnTypes = new Map(); // Track whether each column is continuous or categorical
+  
   if (options.metadata) {
     const lines = options.metadata.trim().split('\n');
     if (lines.length > 1) {
@@ -56,6 +60,14 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       if (nodeIdIndex === -1) {
         console.warn('Metadata TSV must contain a "node_id" column');
       } else {
+        // Get column names (excluding node_id)
+        metadataColumns = headers.filter((h, i) => i !== nodeIdIndex);
+        
+        // Initialize column type detection
+        const columnValues = new Map();
+        metadataColumns.forEach(col => columnValues.set(col, []));
+        
+        // Parse metadata rows
         for (let i = 1; i < lines.length; i++) {
           const values = lines[i].split('\t');
           const nodeId = values[nodeIdIndex];
@@ -63,13 +75,110 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
           for (let j = 0; j < headers.length; j++) {
             if (j !== nodeIdIndex) {
-              metadata[headers[j]] = values[j];
+              const colName = headers[j];
+              const value = values[j];
+              metadata[colName] = value;
+              columnValues.get(colName).push(value);
             }
           }
 
           metadataMap.set(nodeId, metadata);
         }
+        
+        // Determine column types (continuous vs categorical)
+        metadataColumns.forEach(col => {
+          const values = columnValues.get(col);
+          const numericValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
+          
+          // If all non-empty values can be converted to numbers, treat as continuous
+          const isContinuous = numericValues.length > 0 && 
+                               numericValues.length === values.filter(v => v !== '').length;
+          
+          columnTypes.set(col, isContinuous ? 'continuous' : 'categorical');
+        });
       }
+    }
+  }
+
+  // Current label coloring state
+  let currentColorColumn = null;
+  let colorScale = null;
+
+  // Function to create color scale for a given column
+  function createColorScale(columnName) {
+    if (!columnName) {
+      return null;
+    }
+    
+    const columnType = columnTypes.get(columnName);
+    const values = [];
+    
+    // Collect all values for this column
+    metadataMap.forEach(metadata => {
+      if (metadata[columnName] !== undefined && metadata[columnName] !== '') {
+        values.push(metadata[columnName]);
+      }
+    });
+    
+    if (values.length === 0) {
+      return null;
+    }
+    
+    if (columnType === 'continuous') {
+      // Continuous scale using viridis
+      const numericValues = values.map(v => parseFloat(v));
+      const minVal = Math.min(...numericValues);
+      const maxVal = Math.max(...numericValues);
+      
+      return scaleLinear()
+        .domain([minVal, maxVal])
+        .range([0, 1])
+        .interpolate(() => interpolateViridis);
+    } else {
+      // Categorical scale using colors sampled from viridis
+      const uniqueValues = [...new Set(values)];
+      const numCategories = uniqueValues.length;
+      
+      // Sample colors evenly from viridis palette
+      const colors = [];
+      for (let i = 0; i < numCategories; i++) {
+        const t = i / Math.max(1, numCategories - 1);
+        colors.push(interpolateViridis(t));
+      }
+      
+      return scaleOrdinal()
+        .domain(uniqueValues)
+        .range(colors);
+    }
+  }
+
+  // Function to get color for a node
+  function getNodeColor(node) {
+    if (!currentColorColumn || !colorScale) {
+      return "#000"; // Default black
+    }
+    
+    const nodeName = node.data.name;
+    if (!nodeName || !metadataMap.has(nodeName)) {
+      return "#000";
+    }
+    
+    const metadata = metadataMap.get(nodeName);
+    const value = metadata[currentColorColumn];
+    
+    if (value === undefined || value === '') {
+      return "#000";
+    }
+    
+    const columnType = columnTypes.get(currentColorColumn);
+    if (columnType === 'continuous') {
+      const numericValue = parseFloat(value);
+      if (isNaN(numericValue)) {
+        return "#000";
+      }
+      return colorScale(numericValue);
+    } else {
+      return colorScale(value);
     }
   }
 
@@ -194,6 +303,20 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     update(false, true);
   });
   toggleCircularButton.update(isCircularLayout);
+
+  // Create label coloring dropdown (only if metadata is provided)
+  if (metadataColumns.length > 0) {
+    const labelColoringDropdown = initLabelColoringDropdown(
+      toolbarDiv, 
+      options, 
+      metadataColumns, 
+      (columnName) => {
+        currentColorColumn = columnName || null;
+        colorScale = createColorScale(currentColorColumn);
+        update(false, false);
+      }
+    );
+  }
 
   // Create scale bar (left-aligned)
   const scaleBar = initScaleBar(legendDiv, options);
@@ -820,6 +943,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("transform", d => `rotate(${getLabelRotation(d)})`)
       .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", d => `${fontSizeForNode(d)}px`)
+      .style("fill", d => getNodeColor(d))
       .style("display", d => d.collapsed_children ? "none" : null)
       .text(d => d.data.name || "");
 
@@ -901,7 +1025,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", d => `${fontSizeForNode(d)}px`);
 
+    // Update label colors
     nodeLayer.selectAll(".node-label")
+      .style("fill", d => getNodeColor(d))
       .style("display", d => d.collapsed_children ? "none" : null);
 
     nodeLayer.selectAll(".collapsed-subtree")
