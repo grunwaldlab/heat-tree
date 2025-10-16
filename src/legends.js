@@ -1,4 +1,4 @@
-import { niceNumber } from "./utils.js";
+import { niceNumber, columnToHeader } from "./utils.js";
 import { interpolateViridis } from "d3";
 
 /**
@@ -54,7 +54,6 @@ export function initScaleBar(legendDiv, options) {
   const scaleBarDiv = legendDiv.append("div")
     .attr("class", "ht-scale-bar")
     .style("height", `${options.legendElementHeight}px`)
-    .style("margin-right", "auto")     // keep following widgets right-aligned
     .style("flex", "0 0 auto");
   const scaleBarSvg = scaleBarDiv.append("svg")
     .attr("width", options.scaleBarSize.max)
@@ -192,6 +191,7 @@ export function initColorLegend(legendDiv, options) {
     .attr("class", "ht-color-legend")
     .style("height", `${options.legendElementHeight}px`)
     .style("flex", "0 0 auto")
+    .style("margin-right", "auto")
     .style("display", "none")
     .style("align-items", "center")
     .style("gap", "5px");
@@ -226,7 +226,7 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
   colorLegendDiv.append("span")
     .style("font-size", "14px")
     .style("font-weight", "bold")
-    .text(columnName + ":");
+    .text(columnToHeader(columnName) + ":");
 
   if (columnType === 'continuous') {
     // Create continuous gradient legend

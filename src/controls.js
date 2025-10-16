@@ -1,5 +1,5 @@
 import { appendIcon } from "./icons.js";
-import { niceNumber } from "./utils.js";
+import { niceNumber, columnToHeader } from "./utils.js";
 
 /**
  * Initialize the reset button
@@ -153,7 +153,7 @@ export function initLabelColoringDropdown(toolbarDiv, options, columns, onChange
   columns.forEach(col => {
     dropdown.append("option")
       .attr("value", col)
-      .text(col);
+      .text(columnToHeader(col));
   });
 
   return {

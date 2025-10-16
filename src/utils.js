@@ -80,3 +80,28 @@ export function createDashArray(repeatLen, width, nDash) {
   }
   return pattern.join(',');
 }
+
+export function columnToHeader(columnName, options = {}) {
+  const {
+    capitalizeFirstOnly = true,
+    preserveAcronyms = true
+  } = options;
+
+  let result = columnName;
+  result = result.replace(/[_]/g, ' ');
+
+  if (preserveAcronyms) {
+    result = result.replace(/([a-z])([A-Z])/g, '$1 $2');
+  } else {
+    result = result.replace(/([A-Z])/g, ' $1');
+  }
+
+  if (capitalizeFirstOnly) {
+    result = result.charAt(0).toUpperCase() + result.slice(1).toLowerCase();
+  } else {
+    result = result.replace(/\b\w/g, char => char.toUpperCase());
+  }
+
+  return result.trim().replace(/\s+/g, ' ');
+}
+

@@ -326,6 +326,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   // Create color legend (appears after scale bar when active)
   const colorLegend = initColorLegend(legendDiv, options);
 
+  // Create spacer to push right-aligned elements to the right
+  const spacer = legendDiv.append("div")
+    .attr("class", "ht-legend-spacer")
+    .style("flex", "1 1 auto");
+
   // Create zoom indicator (right-aligned group starts here)
   const zoomIndicator = initZoomIndicator(legendDiv, options);
 
