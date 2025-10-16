@@ -300,6 +300,12 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       return isLeftSide(d) ? angleDeg + 180 : angleDeg;
     }
 
+    // Helper to get the rotation angle for triangles in circular layout
+    function getTriangleRotation(d) {
+      if (!isCircularLayout) return -90;
+      return d.angle * (180 / Math.PI) - 90;
+    }
+
     // Helper to get text anchor based on node type and position
     function getTextAnchor(d) {
       const isInterior = d.children;
@@ -795,12 +801,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Update visibility and orientation of node-shapes (triangles)
     const nodeShapes = nodeLayer.selectAll(".node-shape")
       // set translate offset immediately (no transition)
-      .attr("transform", d => `rotate(-90) translate(0, ${0.52 * triangleHeight})`)
+      .attr("transform", d => `rotate(${getTriangleRotation(d)}) translate(0, ${0.52 * triangleHeight})`)
       .style("display", d => d.collapsed_children ? null : "none");
 
     // animate only the shape/path changes (e.g., rotation)
     nodeShapes.transition(t)
-      .attr("d", d => d.collapsed_children ? trianglePath : null);
+      .attr("d", d => d.collapsed_children ? trianglePath : null)
+      .attr("transform", d => `rotate(${getTriangleRotation(d)}) translate(0, ${0.52 * triangleHeight})`);
 
     // Delay the appearance of newly-entered subtree when expanding
     if (expanding) {
