@@ -19,7 +19,7 @@ export function triangleAreaFromSide(side) {
   return 0.4330127 * side * side; // 0.4330127 == sqrt(3) / 4
 }
 
-export function calculateTreeBounds(displayedRoot, isCircularLayout, getLabelWidth, getLabelXOffset, fontSizeForNode, labelSizeToPxFactor) {
+export function calculateTreeBounds(displayedRoot, isCircularLayout, getLabelWidth, getLabelXOffset, fontSizeForNode, collapsedRootLineLength = 0) {
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
@@ -43,9 +43,8 @@ export function calculateTreeBounds(displayedRoot, isCircularLayout, getLabelWid
       if (labelEndY > maxY) maxY = labelEndY;
     } else {
       // For rectangular layout
-      // Consider collapsed root labels (point left)
-      const triangleHeight = labelSizeToPxFactor * 1.1;
-      const leftExtent = d.x - (d.collapsed_parent ? triangleHeight + labelWidth : 0);
+      // Consider collapsed root line (extends left)
+      const leftExtent = d.x - (d.collapsed_parent ? collapsedRootLineLength : 0);
       if (leftExtent < minX) minX = leftExtent;
 
       // Consider node position and right-pointing labels
@@ -61,4 +60,23 @@ export function calculateTreeBounds(displayedRoot, isCircularLayout, getLabelWid
   });
 
   return { minX, maxX, minY, maxY };
+}
+
+export function createDashArray(repeatLen, width, nDash) {
+  const totalUnits = (nDash * 2) - 1; // This works for the 3-dash case
+  const summedDashLength = repeatLen - (nDash - 1) * width
+  let sum = 0;
+  for (let i = 1; i <= nDash; i++) {
+    sum += i;
+  }
+  const smallestDashLength = summedDashLength / sum
+  const pattern = [];
+  for (let i = 0; i < totalUnits; i++) {
+    if (i % 2 === 0) {
+      pattern.push(smallestDashLength * (nDash - i / 2));
+    } else {
+      pattern.push(width);
+    }
+  }
+  return pattern.join(',');
 }

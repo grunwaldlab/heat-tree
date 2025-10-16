@@ -1,6 +1,6 @@
 import { parseNewick } from "./parsers.js"
 import { appendIcon } from "./icons.js"
-import { triangleAreaFromSide, calculateTreeBounds } from "./utils.js"
+import { triangleAreaFromSide, calculateTreeBounds, createDashArray } from "./utils.js"
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
 import { initZoomIndicator, initScaleBar, initLeafCount } from "./legends.js"
 import {
@@ -38,6 +38,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     minBranchThicknessPx: 1,
     minBranchLenProp: 0.5,
     transitionSpeedFactor: 1,
+    collapsedRootLineProp: 0.04,
     ...options
   };
 
@@ -319,7 +320,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       if (node.collapsed_children) {
         nameLen = node.collapsed_children_name ? node.collapsed_children_name.length : 0;
       } else if (node.collapsed_parent) {
-        nameLen = node.collapsed_parent_name ? node.collapsed_parent_name.length : 0;
+        nameLen = 0; // No label for collapsed parent
       } else {
         nameLen = node.data.name ? node.data.name.length : 0;
       }
@@ -372,7 +373,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         getLabelWidth,
         getLabelXOffset,
         fontSizeForNode,
-        labelSizeToPxFactor
+        collapsedRootLineLength
       );
 
       // Calculate tree dimensions
@@ -482,6 +483,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // Update scale bar to reflect new scaling factors
     scaleBar.update(branchLenToPxFactor * currentTransform.k);
+
+    // Calculate the max root-to-tip distance for collapsed root line length
+    let maxRootToTip = 0;
+    displayedRoot.leaves().forEach(leaf => {
+      maxRootToTip = Math.max(maxRootToTip, leaf.x);
+    });
+    const collapsedRootLineLength = maxRootToTip * options.collapsedRootLineProp * (isCircularLayout ? 3 : 1);
 
     // Calculate visible leaf count (excluding collapsed placeholders)
     const visibleLeaves = displayedRoot.leaves().filter(d => !d.collapsed_children && !d.collapsed_parent).length;
@@ -675,9 +683,21 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Append a path that will show a triangle only when subtree is collapsed
     nodeEnter.append("path")
       .attr("class", "node-shape")
-      .attr("d", d => (d.collapsed_children || d.collapsed_parent) ? trianglePath : null)
+      .attr("d", d => d.collapsed_children ? trianglePath : null)
       .attr("fill", "#000")
-      .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
+      .style("display", d => d.collapsed_children ? null : "none");
+
+    // Append line for collapsed root
+    nodeEnter.append("line")
+      .attr("class", "collapsed-root-line")
+      .attr("x1", 0)
+      .attr("y1", 0)
+      .attr("x2", d => d.collapsed_parent ? -collapsedRootLineLength : 0)
+      .attr("y2", 0)
+      .attr("stroke", "#999")
+      .attr("stroke-width", branchWidth)
+      .attr("stroke-dasharray", createDashArray(collapsedRootLineLength, branchWidth, 5))
+      .style("display", d => d.collapsed_parent ? null : "none");
 
     // Update collapsed-subtree labels visibility and text
     nodeLayer.selectAll(".collapsed-subtree")
@@ -688,23 +708,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("font-weight", "bold")
       .style("display", d => d.collapsed_children ? null : "none");
 
-    // Append label for collapsed root
-    nodeEnter.append("text")
-      .attr("class", "collapsed-root")
-      .attr("dy", labelSizeToPxFactor / 2.5)
-      .attr("x", -triangleHeight)
-      .style("text-anchor", "end")
-      .style("font-size", `${labelSizeToPxFactor}px`)
-      .style("font-weight", "bold")
-      .text(d => d.collapsed_parent ? d.collapsed_parent_name : "")
-      .style("display", d => d.collapsed_parent ? null : "none");
-
-    // Update collapsed-root labels
-    nodeLayer.selectAll(".collapsed-root")
+    // Update collapsed-root lines
+    nodeLayer.selectAll(".collapsed-root-line")
       .transition(t)
-      .attr("dy", labelSizeToPxFactor / 2.5)
-      .attr("x", -triangleHeight)
-      .text(d => d.collapsed_parent ? d.collapsed_parent_name : "")
+      .attr("x2", d => d.collapsed_parent ? -collapsedRootLineLength : 0)
+      .attr("stroke-width", branchWidth)
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Append text labels for nodes
@@ -734,12 +742,12 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Update visibility and orientation of node-shapes (triangles)
     const nodeShapes = nodeLayer.selectAll(".node-shape")
       // set translate offset immediately (no transition)
-      .attr("transform", d => `rotate(-90) translate(0, ${(d.collapsed_parent ? -0.33 : 0.52) * triangleHeight})`)
-      .style("display", d => (d.collapsed_children || d.collapsed_parent) ? null : "none");
+      .attr("transform", d => `rotate(-90) translate(0, ${0.52 * triangleHeight})`)
+      .style("display", d => d.collapsed_children ? null : "none");
 
     // animate only the shape/path changes (e.g., rotation)
     nodeShapes.transition(t)
-      .attr("d", d => (d.collapsed_children || d.collapsed_parent) ? trianglePath : null);
+      .attr("d", d => d.collapsed_children ? trianglePath : null);
 
     // Delay the appearance of newly-entered subtree when expanding
     if (expanding) {
@@ -795,11 +803,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("transform", d => `rotate(${getLabelRotation(d)})`)
       .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", d => `${fontSizeForNode(d)}px`);
-
-    nodeLayer.selectAll(".collapsed-root")
-      .transition(t)
-      .attr("dy", labelSizeToPxFactor / 2.5)
-      .style("font-size", `${labelSizeToPxFactor}px`);
 
     nodeLayer.selectAll(".collapsed-subtree")
       .transition(t)
