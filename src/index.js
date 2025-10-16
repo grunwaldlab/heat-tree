@@ -302,7 +302,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // Helper to get text anchor based on node type and position
     function getTextAnchor(d) {
-      const isInterior = d.children || d.collapsed_children;
+      const isInterior = d.children;
       if (!isCircularLayout) {
         return isInterior ? "end" : "start";
       }
@@ -766,6 +766,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // Append text labels for nodes
     nodeEnter.append("text")
+      .attr("class", "node-label")
       .attr("dy", d => computeDy(d))
       .attr("x", d => {
         const isInterior = d.children || d.collapsed_children;
@@ -776,14 +777,17 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("transform", d => `rotate(${getLabelRotation(d)})`)
       .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", d => `${fontSizeForNode(d)}px`)
+      .style("display", d => d.collapsed_children ? "none" : null)
       .text(d => d.data.name || "");
 
     // Append label showing number of tips in collapsed subtree
     nodeEnter.append("text")
       .attr("class", "collapsed-subtree")
       .attr("dy", labelSizeToPxFactor / 2.5)
-      .attr("x", triangleHeight)
-      .style("text-anchor", "start")
+      .attr("x", d => {
+        return isCircularLayout && isLeftSide(d) ? -triangleHeight : triangleHeight;
+      })
+      .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", `${labelSizeToPxFactor}px`)
       .text(d => d.collapsed_children ? d.collapsed_children_name : "")
       .style("display", d => d.collapsed_children ? null : "none");
@@ -853,9 +857,16 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", d => `${fontSizeForNode(d)}px`);
 
+    nodeLayer.selectAll(".node-label")
+      .style("display", d => d.collapsed_children ? "none" : null);
+
     nodeLayer.selectAll(".collapsed-subtree")
       .transition(t)
       .attr("dy", labelSizeToPxFactor / 2.5)
+      .attr("x", d => {
+        return isCircularLayout && isLeftSide(d) ? -triangleHeight : triangleHeight;
+      })
+      .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", `${labelSizeToPxFactor}px`);
 
     // Store current positions for the next update so every branch has
