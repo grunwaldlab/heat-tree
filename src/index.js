@@ -39,10 +39,40 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     minBranchLenProp: 0.5,
     transitionSpeedFactor: 1,
     collapsedRootLineProp: 0.04,
+    metadata: null,
     ...options
   };
 
   const characterWidthProportion = 0.65;
+
+  // Parse metadata TSV if provided
+  let metadataMap = new Map();
+  if (options.metadata) {
+    const lines = options.metadata.trim().split('\n');
+    if (lines.length > 1) {
+      const headers = lines[0].split('\t');
+      const nodeIdIndex = headers.indexOf('node_id');
+
+      if (nodeIdIndex === -1) {
+        console.warn('Metadata TSV must contain a "node_id" column');
+      } else {
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split('\t');
+          const nodeId = values[nodeIdIndex];
+          const metadata = {};
+
+          for (let j = 0; j < headers.length; j++) {
+            if (j !== nodeIdIndex) {
+              metadata[headers[j]] = values[j];
+            }
+          }
+
+          metadataMap.set(nodeId, metadata);
+        }
+      }
+    }
+  }
+
   // Initalize main divs where components are placed
   const parentContainer = select(containerSelector);
   const widgetDiv = parentContainer
@@ -105,6 +135,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   // Assign a stable, unique id to every node so D3 can track elements across updates
   let nodeId = 0;
   root.each(d => { d.id = ++nodeId; });
+
+  // Attach metadata to nodes
+  root.each(d => {
+    if (d.data.name && metadataMap.has(d.data.name)) {
+      d.metadata = metadataMap.get(d.data.name);
+    }
+  });
 
   // Create reset button
   const resetButton = initResetButton(toolbarDiv, options, () => {
