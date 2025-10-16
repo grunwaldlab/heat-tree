@@ -160,3 +160,46 @@ export function initLabelColoringDropdown(toolbarDiv, options, columns, onChange
     dropdown: dropdown
   };
 }
+
+/**
+ * Initialize the export to SVG button
+ * @param {Selection} toolbarDiv - D3 selection of the toolbar container
+ * @param {Object} options - Configuration options
+ * @param {Function} onClick - Callback function when button is clicked
+ * @returns {Object} Object containing the button element
+ */
+export function initExportSvgButton(toolbarDiv, options, onClick) {
+  const btnContainer = toolbarDiv.append("div")
+    .style("flex", "0 0 auto")
+    .style("display", "flex")
+    .style("align-items", "center");
+
+  const btn = btnContainer.append("svg")
+    .attr("width", options.buttonSize * 2)
+    .attr("height", options.buttonSize)
+    .style("cursor", "pointer")
+    .on("click", onClick);
+
+  // Background rectangle
+  btn.append("rect")
+    .attr("width", "100%")
+    .attr("height", "100%")
+    .attr("rx", "5px")
+    .attr("ry", "5px")
+    .attr("fill", "#CCC");
+
+  // Text label
+  btn.append("text")
+    .attr("x", "50%")
+    .attr("y", "50%")
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .attr("fill", "#555")
+    .attr("font-size", "12px")
+    .attr("font-weight", "bold")
+    .text("SVG");
+
+  return {
+    button: btn
+  };
+}

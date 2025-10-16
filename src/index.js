@@ -3,12 +3,15 @@ import { appendIcon } from "./icons.js"
 import { triangleAreaFromSide, calculateTreeBounds, createDashArray, interpolateViridisSubset } from "./utils.js"
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
 import { initZoomIndicator, initScaleBar, initLeafCount, initColorLegend } from "./legends.js"
+import { exportToSvg } from './exporter.js'
+
 import {
   initResetButton,
   initExpandRootButton,
   initToggleZoomButton,
   initToggleCircularButton,
-  initLabelColoringDropdown
+  initLabelColoringDropdown,
+  initExportSvgButton
 } from "./controls.js"
 
 import {
@@ -321,6 +324,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     );
   }
 
+  // Create export to SVG button
+  const exportSvgButton = initExportSvgButton(toolbarDiv, options, () => exportToSvg(treeSvg, currentBounds));
+
   // Create scale bar (left-aligned)
   const scaleBar = initScaleBar(legendDiv, options);
 
@@ -445,6 +451,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("display", "block");
   }
 
+  let currentBounds = null;
 
   function update(expanding = false, fit = true, initial = false) {
 
@@ -523,7 +530,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // Return the appropriate vertical offset (dy) so interior node
     // labels stay on the opposite side of the branch line from
-    // their parent to avoid overlap.
+    //  their parent to avoid overlap.
     function computeDy(d) {
       const size = fontSizeForNode(d);
       if (d.children || d.collapsed_children) {
@@ -544,18 +551,10 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
 
       // Calculate bounds of all tree elements (branches + labels)
-      const bounds = calculateTreeBounds(
-        displayedRoot,
-        isCircularLayout,
-        getLabelWidth,
-        getLabelXOffset,
-        fontSizeForNode,
-        collapsedRootLineLength
-      );
 
       // Calculate tree dimensions
-      const treeWidth = bounds.maxX - bounds.minX;
-      const treeHeight = bounds.maxY - bounds.minY;
+      const treeWidth = currentBounds.maxX - currentBounds.minX;
+      const treeHeight = currentBounds.maxY - currentBounds.minY;
 
       // Left margin for control buttons
       const marginLeft = options.buttonSize + options.controlsMargin;
@@ -572,8 +571,8 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       // Calculate translation to center tree with the calculated scale
       let tx, ty;
 
-      tx = marginLeft + availableWidth / 2 - (bounds.minX + bounds.maxX) / 2 * scale;
-      ty = availableHeight / 2 - (bounds.minY + bounds.maxY) / 2 * scale;
+      tx = marginLeft + availableWidth / 2 - (currentBounds.minX + currentBounds.maxX) / 2 * scale;
+      ty = availableHeight / 2 - (currentBounds.minY + currentBounds.maxY) / 2 * scale;
 
       const transform = zoomIdentity.translate(tx, ty).scale(scale);
       // Apply through zoom behaviour with transition so internal state & listeners update
@@ -679,6 +678,14 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Branch thickness proportional to label font size
     let branchWidth = labelSizeToPxFactor * options.branchThicknessProp;
 
+    currentBounds = calculateTreeBounds(
+      displayedRoot,
+      isCircularLayout,
+      getLabelWidth,
+      getLabelXOffset,
+      fontSizeForNode,
+      collapsedRootLineLength
+    );
 
     if (fit || !manualZoomAndPanEnabled) fitToView(!initial);
 
