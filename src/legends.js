@@ -13,7 +13,7 @@ export function initZoomIndicator(legendDiv, options) {
     .style("height", `${options.legendElementHeight}px`)
     .style("flex", "0 0 auto");
   const zoomIndicatorSvg = zoomIndicatorDiv.append("svg")
-    .attr("width", 40)
+    .attr("width", 100)
     .attr("height", options.legendElementHeight);
   const zoomIndicatorText = zoomIndicatorSvg.append("text")
     .attr("x", "50%")
@@ -39,7 +39,7 @@ export function initZoomIndicator(legendDiv, options) {
 function updateZoomIndicator(zoomIndicatorText, zoomLevel) {
   const percentage = Math.round(zoomLevel * 100);
   zoomIndicatorText
-    .text(`${percentage}%`)
+    .text(`Zoom: ${percentage}%`)
     .style("fill", percentage === 100 ? "#999" : "#000");
 }
 
@@ -149,7 +149,7 @@ export function initLeafCount(legendDiv, options) {
     .attr("dominant-baseline", "central")
     .style("font-size", "16px")
     .style("fill", "#000")
-    .text("0 leaves");
+    .text("Leaves: 0");
 
   return {
     svg: leafCountSvg,
@@ -168,9 +168,9 @@ export function initLeafCount(legendDiv, options) {
 function updateLeafCount(leafCountSvg, leafCountText, visibleLeaves, totalLeaves) {
   let text;
   if (visibleLeaves === totalLeaves) {
-    text = `${totalLeaves} leaves`;
+    text = `Leaves: ${totalLeaves}`;
   } else {
-    text = `${visibleLeaves}/${totalLeaves} leaves`;
+    text = `Leaves: ${visibleLeaves}/${totalLeaves}`;
   }
 
   leafCountText.text(text);
@@ -224,8 +224,7 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
 
   // Add column name label
   colorLegendDiv.append("span")
-    .style("font-size", "14px")
-    .style("font-weight", "bold")
+    .style("font-size", "16px")
     .text(columnToHeader(columnName) + ":");
 
   if (columnType === 'continuous') {
