@@ -1,5 +1,5 @@
 import { appendIcon } from "./icons.js";
-import { niceNumber, columnToHeader } from "./utils.js";
+import { columnToHeader } from "./utils.js";
 
 /**
  * Initialize the reset button

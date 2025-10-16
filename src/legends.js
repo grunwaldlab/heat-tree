@@ -1,4 +1,4 @@
-import { niceNumber, columnToHeader } from "./utils.js";
+import { niceNumber, columnToHeader, generateNiceTicks, formatTickLabel } from "./utils.js";
 import { interpolateViridis } from "d3";
 
 /**
@@ -175,7 +175,7 @@ function updateLeafCount(leafCountSvg, leafCountText, visibleLeaves, totalLeaves
 
   leafCountText.text(text);
 
-  // Adjust SVG width to fit text
+  //Adjust SVG width to fit text
   const bbox = leafCountText.node().getBBox();
   leafCountSvg.attr("width", bbox.width + 20);
 }
@@ -231,11 +231,23 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
   if (columnType === 'continuous') {
     // Create continuous gradient legend
     const legendWidth = 150;
-    const legendHeight = options.legendElementHeight - 4;
+    const tickHeight = 4;
+    const labelFontSize = 10;
+    const labelPadding = 2;
+    const barHeight = options.legendElementHeight - tickHeight - labelFontSize - labelPadding;
+    const leftMargin = 15;
 
     const svg = colorLegendDiv.append("svg")
-      .attr("width", legendWidth + 60)
+      .attr("width", legendWidth + leftMargin * 2)
       .attr("height", options.legendElementHeight);
+
+    // Get domain values
+    const domain = colorScale.domain();
+    const minVal = domain[0];
+    const maxVal = domain[1];
+
+    // Generate nice tick values
+    const ticks = generateNiceTicks(minVal, maxVal, 4);
 
     // Create gradient definition
     const defs = svg.append("defs");
@@ -255,32 +267,38 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
 
     // Draw gradient rectangle
     svg.append("rect")
-      .attr("x", 5)
-      .attr("y", 2)
+      .attr("x", leftMargin)
+      .attr("y", 0)
       .attr("width", legendWidth)
-      .attr("height", legendHeight)
+      .attr("height", barHeight)
       .style("fill", "url(#color-gradient)")
       .style("stroke", "#000")
       .style("stroke-width", 1);
 
-    // Add min/max labels
-    const domain = colorScale.domain();
-    const minVal = domain[0];
-    const maxVal = domain[1];
+    // Add tick marks and labels
+    ticks.forEach(tickValue => {
+      // Calculate position along the bar (0 to 1)
+      const t = (tickValue - minVal) / (maxVal - minVal);
+      const x = leftMargin + t * legendWidth;
 
-    svg.append("text")
-      .attr("x", 5)
-      .attr("y", options.legendElementHeight - 2)
-      .attr("text-anchor", "start")
-      .style("font-size", "10px")
-      .text(minVal.toPrecision(3));
+      // Draw tick mark
+      svg.append("line")
+        .attr("x1", x)
+        .attr("y1", barHeight)
+        .attr("x2", x)
+        .attr("y2", barHeight + tickHeight)
+        .attr("stroke", "#000")
+        .attr("stroke-width", 1);
 
-    svg.append("text")
-      .attr("x", legendWidth + 5)
-      .attr("y", options.legendElementHeight - 2)
-      .attr("text-anchor", "end")
-      .style("font-size", "10px")
-      .text(maxVal.toPrecision(3));
+      // Draw label
+      svg.append("text")
+        .attr("x", x)
+        .attr("y", barHeight + tickHeight + labelPadding)
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "hanging")
+        .style("font-size", `${labelFontSize}px`)
+        .text(formatTickLabel(tickValue, ticks));
+    });
 
   } else {
     // Create categorical legend
