@@ -692,8 +692,32 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("class", "collapsed-root-line")
       .attr("x1", 0)
       .attr("y1", 0)
-      .attr("x2", d => d.collapsed_parent ? -collapsedRootLineLength : 0)
-      .attr("y2", 0)
+      .attr("x2", d => {
+        if (!d.collapsed_parent) return 0;
+        if (isCircularLayout) {
+          // Calculate average angle of children
+          const children = d.children || [];
+          if (children.length === 0) return -collapsedRootLineLength;
+          const avgAngle = children.reduce((sum, child) => sum + child.angle, 0) / children.length;
+          // Line perpendicular to average angle
+          const perpAngle = avgAngle;
+          return -collapsedRootLineLength * Math.cos(perpAngle);
+        }
+        return -collapsedRootLineLength;
+      })
+      .attr("y2", d => {
+        if (!d.collapsed_parent) return 0;
+        if (isCircularLayout) {
+          // Calculate average angle of children
+          const children = d.children || [];
+          if (children.length === 0) return 0;
+          const avgAngle = children.reduce((sum, child) => sum + child.angle, 0) / children.length;
+          // Line perpendicular to average angle
+          const perpAngle = avgAngle;
+          return -collapsedRootLineLength * Math.sin(perpAngle);
+        }
+        return 0;
+      })
       .attr("stroke", "#999")
       .attr("stroke-width", branchWidth)
       .attr("stroke-dasharray", createDashArray(collapsedRootLineLength, branchWidth, 5))
@@ -711,7 +735,32 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Update collapsed-root lines
     nodeLayer.selectAll(".collapsed-root-line")
       .transition(t)
-      .attr("x2", d => d.collapsed_parent ? -collapsedRootLineLength : 0)
+      .attr("x2", d => {
+        if (!d.collapsed_parent) return 0;
+        if (isCircularLayout) {
+          // Calculate average angle of children
+          const children = d.children || [];
+          if (children.length === 0) return -collapsedRootLineLength;
+          const avgAngle = children.reduce((sum, child) => sum + child.angle, 0) / children.length;
+          // Line perpendicular to average angle
+          const perpAngle = avgAngle;
+          return -collapsedRootLineLength * Math.cos(perpAngle);
+        }
+        return -collapsedRootLineLength;
+      })
+      .attr("y2", d => {
+        if (!d.collapsed_parent) return 0;
+        if (isCircularLayout) {
+          // Calculate average angle of children
+          const children = d.children || [];
+          if (children.length === 0) return 0;
+          const avgAngle = children.reduce((sum, child) => sum + child.angle, 0) / children.length;
+          // Line perpendicular to average angle
+          const perpAngle = avgAngle;
+          return -collapsedRootLineLength * Math.sin(perpAngle);
+        }
+        return 0;
+      })
       .attr("stroke-width", branchWidth)
       .style("display", d => d.collapsed_parent ? null : "none");
 
