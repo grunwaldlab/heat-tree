@@ -1,4 +1,5 @@
 import { niceNumber } from "./utils.js";
+import { interpolateViridis } from "d3";
 
 /**
  * Initialize the zoom indicator legend element
@@ -178,4 +179,146 @@ function updateLeafCount(leafCountSvg, leafCountText, visibleLeaves, totalLeaves
   // Adjust SVG width to fit text
   const bbox = leafCountText.node().getBBox();
   leafCountSvg.attr("width", bbox.width + 20);
+}
+
+/**
+ * Initialize the color legend element
+ * @param {Selection} legendDiv - D3 selection of the legend container
+ * @param {Object} options - Configuration options
+ * @returns {Object} Object containing the container div and update function
+ */
+export function initColorLegend(legendDiv, options) {
+  const colorLegendDiv = legendDiv.append("div")
+    .attr("class", "ht-color-legend")
+    .style("height", `${options.legendElementHeight}px`)
+    .style("flex", "0 0 auto")
+    .style("display", "none")
+    .style("align-items", "center")
+    .style("gap", "5px");
+
+  return {
+    div: colorLegendDiv,
+    update: (colorScale, columnName, columnType) => updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, options)
+  };
+}
+
+/**
+ * Update the color legend based on the current color scale
+ * @param {Selection} colorLegendDiv - D3 selection of the legend container
+ * @param {Function} colorScale - D3 color scale (linear or ordinal)
+ * @param {string} columnName - Name of the metadata column being visualized
+ * @param {string} columnType - Type of column ('continuous' or 'categorical')
+ * @param {Object} options - Configuration options
+ */
+function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, options) {
+  // Clear existing content
+  colorLegendDiv.selectAll("*").remove();
+
+  // Hide if no color scale
+  if (!colorScale || !columnName) {
+    colorLegendDiv.style("display", "none");
+    return;
+  }
+
+  colorLegendDiv.style("display", "flex");
+
+  // Add column name label
+  colorLegendDiv.append("span")
+    .style("font-size", "14px")
+    .style("font-weight", "bold")
+    .text(columnName + ":");
+
+  if (columnType === 'continuous') {
+    // Create continuous gradient legend
+    const legendWidth = 150;
+    const legendHeight = options.legendElementHeight - 4;
+
+    const svg = colorLegendDiv.append("svg")
+      .attr("width", legendWidth + 60)
+      .attr("height", options.legendElementHeight);
+
+    // Create gradient definition
+    const defs = svg.append("defs");
+    const gradient = defs.append("linearGradient")
+      .attr("id", "color-gradient")
+      .attr("x1", "0%")
+      .attr("x2", "100%");
+
+    // Add color stops
+    const numStops = 10;
+    for (let i = 0; i <= numStops; i++) {
+      const t = i / numStops;
+      gradient.append("stop")
+        .attr("offset", `${t * 100}%`)
+        .attr("stop-color", interpolateViridis(t));
+    }
+
+    // Draw gradient rectangle
+    svg.append("rect")
+      .attr("x", 5)
+      .attr("y", 2)
+      .attr("width", legendWidth)
+      .attr("height", legendHeight)
+      .style("fill", "url(#color-gradient)")
+      .style("stroke", "#000")
+      .style("stroke-width", 1);
+
+    // Add min/max labels
+    const domain = colorScale.domain();
+    const minVal = domain[0];
+    const maxVal = domain[1];
+
+    svg.append("text")
+      .attr("x", 5)
+      .attr("y", options.legendElementHeight - 2)
+      .attr("text-anchor", "start")
+      .style("font-size", "10px")
+      .text(minVal.toPrecision(3));
+
+    svg.append("text")
+      .attr("x", legendWidth + 5)
+      .attr("y", options.legendElementHeight - 2)
+      .attr("text-anchor", "end")
+      .style("font-size", "10px")
+      .text(maxVal.toPrecision(3));
+
+  } else {
+    // Create categorical legend
+    const categories = colorScale.domain();
+    const maxCategoriesToShow = 10;
+    const categoriesToShow = categories.slice(0, maxCategoriesToShow);
+    const hasMore = categories.length > maxCategoriesToShow;
+
+    const legendContainer = colorLegendDiv.append("div")
+      .style("display", "flex")
+      .style("gap", "8px")
+      .style("align-items", "center")
+      .style("flex-wrap", "wrap");
+
+    categoriesToShow.forEach(category => {
+      const itemDiv = legendContainer.append("div")
+        .style("display", "flex")
+        .style("align-items", "center")
+        .style("gap", "3px");
+
+      // Color square
+      itemDiv.append("div")
+        .style("width", "12px")
+        .style("height", "12px")
+        .style("background-color", colorScale(category))
+        .style("border", "1px solid #000");
+
+      // Category label
+      itemDiv.append("span")
+        .style("font-size", "12px")
+        .text(category);
+    });
+
+    if (hasMore) {
+      legendContainer.append("span")
+        .style("font-size", "12px")
+        .style("font-style", "italic")
+        .text(`(+${categories.length - maxCategoriesToShow} more)`);
+    }
+  }
 }
