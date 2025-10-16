@@ -1,4 +1,4 @@
-import { niceNumber, columnToHeader, generateNiceTicks, formatTickLabel } from "./utils.js";
+import { niceNumber, columnToHeader, generateNiceTicks, formatTickLabel, interpolateViridisSubset } from "./utils.js";
 import { interpolateViridis } from "d3";
 
 /**
@@ -262,7 +262,7 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
       const t = i / numStops;
       gradient.append("stop")
         .attr("offset", `${t * 100}%`)
-        .attr("stop-color", interpolateViridis(t));
+        .attr("stop-color", interpolateViridisSubset(t));
     }
 
     // Draw gradient rectangle

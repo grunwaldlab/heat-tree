@@ -1,6 +1,6 @@
 import { parseNewick } from "./parsers.js"
 import { appendIcon } from "./icons.js"
-import { triangleAreaFromSide, calculateTreeBounds, createDashArray } from "./utils.js"
+import { triangleAreaFromSide, calculateTreeBounds, createDashArray, interpolateViridisSubset } from "./utils.js"
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
 import { initZoomIndicator, initScaleBar, initLeafCount, initColorLegend } from "./legends.js"
 import {
@@ -130,10 +130,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       const minVal = Math.min(...numericValues);
       const maxVal = Math.max(...numericValues);
 
+      // Usage with scale
       return scaleLinear()
         .domain([minVal, maxVal])
         .range([0, 1])
-        .interpolate(() => interpolateViridis);
+        .interpolate(() => (t) => interpolateViridisSubset(t));
     } else {
       // Categorical scale using colors sampled from viridis
       const uniqueValues = [...new Set(values)];
@@ -143,7 +144,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       const colors = [];
       for (let i = 0; i < numCategories; i++) {
         const t = i / Math.max(1, numCategories - 1);
-        colors.push(interpolateViridis(t));
+        colors.push(interpolateViridisSubset(t));
       }
 
       return scaleOrdinal()

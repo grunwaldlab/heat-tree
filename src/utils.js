@@ -1,3 +1,4 @@
+import { interpolateViridis } from "d3";
 
 // helper to choose a "nice" rounded scale bar length
 export function niceNumber(n) {
@@ -107,20 +108,20 @@ export function columnToHeader(columnName, options = {}) {
 
 export function generateNiceTicks(min, max, targetCount = 5) {
   const range = max - min;
-  
+
   if (range === 0) {
     return [min];
   }
-  
+
   // Calculate rough step size
   const roughStep = range / (targetCount - 1);
-  
+
   // Find the magnitude (power of 10)
   const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
-  
+
   // Normalize the step to be between 1 and 10
   const normalizedStep = roughStep / magnitude;
-  
+
   // Choose a nice step size (1, 2, 5, or 10)
   let niceStep;
   if (normalizedStep <= 1) {
@@ -132,17 +133,17 @@ export function generateNiceTicks(min, max, targetCount = 5) {
   } else {
     niceStep = 10;
   }
-  
+
   // Scale back to original magnitude
   const step = niceStep * magnitude;
-  
+
   // Find the first tick (round down to nearest step)
   const firstTick = Math.floor(min / step) * step;
-  
+
   // Generate ticks
   const ticks = [];
   let tick = firstTick;
-  
+
   // Include ticks from before min to after max
   while (tick <= max + step * 0.001) { // small epsilon for floating point
     if (tick >= min - step * 0.001) {
@@ -150,7 +151,7 @@ export function generateNiceTicks(min, max, targetCount = 5) {
     }
     tick += step;
   }
-  
+
   // Ensure we have at least min and max
   if (ticks.length === 0 || ticks[0] > min) {
     ticks.unshift(min);
@@ -158,7 +159,7 @@ export function generateNiceTicks(min, max, targetCount = 5) {
   if (ticks[ticks.length - 1] < max) {
     ticks.push(max);
   }
-  
+
   return ticks;
 }
 
@@ -166,14 +167,14 @@ export function formatTickLabel(value, allTicks) {
   // Determine appropriate precision based on the range and step size
   const range = Math.max(...allTicks) - Math.min(...allTicks);
   const step = allTicks.length > 1 ? Math.abs(allTicks[1] - allTicks[0]) : range;
-  
+
   if (range === 0) {
     return value.toPrecision(3);
   }
-  
+
   // Calculate how many significant figures we need
   const magnitude = Math.floor(Math.log10(Math.abs(step)));
-  
+
   if (magnitude >= 0) {
     // For large numbers, use no decimal places
     return Math.round(value).toString();
@@ -183,3 +184,8 @@ export function formatTickLabel(value, allTicks) {
     return value.toFixed(decimals);
   }
 }
+
+export function interpolateViridisSubset(t, start = 0.1, end = 0.9) {
+  return interpolateViridis(start + t * (end - start));
+}
+
