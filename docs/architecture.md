@@ -50,6 +50,16 @@
 
 - **Export to SVG**: A button that exports the tree to a SVG file that the user can download
 
+#### Label coloring dropdown
+
+A dropdown that controls which metadata column is used to color labels.
+Present if a metadata file is supplied.
+The currently selected column is used to infer the color of labels.
+Numeric data is plotted on a continuous palette using the viridis color scale.
+Categorical data (i.e. strings that cannot be converted to numbers), is plotted on a categorical color palette using colors sampled from the viridis palette.
+Wether a column is continuous or categorical is determined when the metadata is parsed.
+In both cases a legend is placed in the legend section at the bottom of the widget.
+
 ## Label/tree sizing rules
 
 Variables used in equations below:
