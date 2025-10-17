@@ -1,0 +1,435 @@
+---
+title: "Lab meeting 2025-10-16"
+format:
+    revealjs:
+      fontsize: "20pt"
+editor: visual
+---
+
+## `heat-tree`: Javascript library for interactive tree widgets
+
+We need an interactive tree viewer than can be embedded in offline reports that can:
+
+* Pan/zoom to explore large trees
+* Collapse/expand subtrees
+* Color tips based on metadata and include legends
+* Export the tree to SVG or PNG
+* Support circular layouts
+* Display branch length and bootstrap values
+
+
+## Existing tools
+
+### Phylocanvas.gl (https://www.phylocanvas.gl/)
+
+* Cannot collapse/expand subtrees
+* No user-accessible controls
+* No legends
+* No SVG export
+
+### Phylotree (http://phylotree.hyphy.org/)
+
+* Cannot expand subtrees
+* No zoom/pan
+* No coloring of branches/nodes with legends
+
+### iTOL (https://itol.embl.de/)
+
+* Not embeddedable or open source
+* Requires account for custom trees
+
+
+## The challenge
+
+- Trees vary widely in structure and size
+- Label and branch lengths vary between tips
+- Phylogenetic information must be balanced with text readability
+- Everything should fit into the viewing window when possible
+- Should have legible text and visible branches when printed at full size
+- Rectangular and circular layouts should be supported
+
+We need a method to plot trees that takes all this into consideration
+
+## The foundational problem to solve
+
+#### What we have
+
+- $W_{\text{view}}$, $H_{\text{view}}$ = The dimensions of the viewing window in pixels
+- The branch lengths of the tree in unknown units
+
+#### What we need
+
+We need factors that can be used to convert branch length units to pixels:
+
+- $\alpha$ = Branch length to pixels factor
+- $\beta$ = Label size (in units of branch length) to pixels factor
+
+The ideal $\alpha$ and $\beta$ must be solved for simultaneously
+
+## A constraint-based strategy
+
+1. Initialized acceptable ranges for $\alpha$ and $\beta$ as 0 to infinity.
+2. Apply a series of **constraints** to limit these ranges
+1. Constraints that are more important are applied first
+3. If constraint would invert a range (max < min), set boundaries equal and stop
+
+If there is a range of acceptable values after this (max != min), pick the largest $\alpha$ and smallest $\beta$
+
+
+## Constraints for rectangular layouts
+
+### Priority 1: Text must be readable
+
+:::: {.columns}
+::: {.column width="30%"}
+$$
+\beta \geq \frac{f_{\text{min}}}{\min(s_i)}
+$$
+:::
+::: {.column width="70%"}
+- $\beta$ = label size to pixels factor
+- $f_{\text{min}}$ = minimum font size in pixels (default: 10)
+- $s_i$ = font scaling factor for leaf $i$
+:::
+::::
+
+## Constraints for rectangular layouts
+
+### Priority 2: Branches should occupy minimum proportion of tree width
+
+:::: {.columns}
+::: {.column width="50%"}
+$$
+\frac{\max_i(x_i) \cdot \alpha}{\max_i(x_i \cdot \alpha + w \cdot n_i \cdot s_i \cdot \beta)} \geq p_{\text{min}}
+$$
+
+Rearranging:
+
+$$
+\beta \leq \min_i\left(\frac{\alpha \cdot (\max_j(x_j) - p_{\text{min}} \cdot x_i)}{p_{\text{min}} \cdot w \cdot n_i \cdot s_i}\right)
+$$
+
+$$
+\alpha \geq \max_i\left(\frac{w \cdot n_i \cdot s_i \cdot \beta}{\frac{\max_j(x_j)}{p_{\text{min}}} - x_i}\right)
+$$
+:::
+::: {.column width="50%"}
+- $p_{\text{min}}$ = minimum proportion of width for branches (default: 0.5)
+- $\alpha$ = branch length to pixels factor
+- $\beta$ = label size to pixels factor
+- $x_i$ = distance from root to leaf $i$
+- $w$ = character width proportion (0.65)
+- $n_i$ = characters in label $i$
+- $s_i$ = font scaling factor for leaf $i$
+:::
+::::
+
+## Constraints for rectangular layouts
+
+### Priority 3: Tree should fit in viewing window width
+
+:::: {.columns}
+::: {.column width="50%"}
+$$
+W_{\text{view}} \geq \max_i(x_i \cdot \alpha + w \cdot n_i \cdot s_i \cdot \beta)
+$$
+
+Rearranging:
+
+$$
+\alpha \leq \min_i\left(\frac{W_{\text{view}} - w \cdot n_i \cdot s_i \cdot \beta}{x_i}\right)
+$$
+
+$$
+\beta \leq \min_i\left(\frac{W_{\text{view}} - x_i \cdot \alpha}{w \cdot n_i \cdot s_i}\right)
+$$
+:::
+::: {.column width="50%"}
+- $W_{\text{view}}$ = viewing window width in pixels
+- $\alpha$ = branch length to pixels factor
+- $\beta$ = label size to pixels factor
+- $x_i$ = distance from root to leaf $i$
+- $w$ = character width proportion
+- $n_i$ = characters in label $i$
+- $s_i$ = font scaling factor for leaf $i$
+:::
+::::
+
+## Constraints for rectangular layouts
+
+### Priority 4: Tree should fit in viewing window height
+
+:::: {.columns}
+::: {.column width="50%"}
+$$
+H_{\text{view}} \geq \sum_i \max(s_i, t_{\text{min}}) \cdot \beta
+$$
+
+Rearranging:
+
+$$
+\beta \leq \frac{H_{\text{view}}}{\sum_i \max(s_i, t_{\text{min}})}
+$$
+:::
+::: {.column width="50%"}
+- $H_{\text{view}}$ = viewing window height in pixels
+- $\beta$ = label size to pixels factor
+- $s_i$ = font scaling factor for leaf $i$
+- $t_{\text{min}}$ = minimum branch thickness in pixels
+:::
+::::
+
+## Constraints for rectangular layouts
+
+### Priority 5: Text should be easily readable
+
+:::: {.columns}
+::: {.column width="50%"}
+$$
+\beta \geq \frac{f_{\text{ideal}}}{\min_i(s_i)}
+$$
+:::
+::: {.column width="50%"}
+- $\beta$ = label size to pixels factor
+- $f_{\text{ideal}}$ = ideal font size in pixels (default: 18)
+- $s_i$ = font scaling factor for leaf $i$
+:::
+::::
+
+
+## Constraints for rectangular layouts
+
+### Priority 6: Shortest branches should be visible
+
+:::: {.columns}
+::: {.column width="50%"}
+$$
+\alpha \geq \frac{t_{\text{min}}}{\min_{b_i > 0}(b_i)}
+$$
+:::
+::: {.column width="50%"}
+- $\alpha$ = branch length to pixels factor
+- $t_{\text{min}}$ = minimum branch thickness in pixels
+- $b_i$ = branch length between node $i$ and its parent
+:::
+::::
+
+
+## Constraints for rectangular layouts
+
+### Priority 7: Text should not be too large
+
+:::: {.columns}
+::: {.column width="50%"}
+$$
+\beta \leq \frac{f_{\text{max}}}{\min_i(s_i)}
+$$
+:::
+::: {.column width="50%"}
+- $\beta$ = label size to pixels factor
+- $f_{\text{max}}$ = maximum font size in pixels (default: 32)
+- $s_i$ = font scaling factor for leaf $i$
+:::
+::::
+
+
+
+## Changes for circular layouts
+
+### Priority 2: Prevent label overlap
+
+Circular trees cannot grow in a single dimension to accommodate labels.
+
+:::: {.columns}
+::: {.column width="50%"}
+$$
+\beta \cdot \sum_i s_i \leq \min(x_i) \cdot \alpha \cdot 2\pi
+$$
+
+Rearranging:
+
+$$
+\beta \leq \frac{\min(x_i) \cdot \alpha \cdot 2\pi}{\sum_i s_i}
+$$
+
+$$
+\alpha \geq \frac{\beta \cdot \sum_i s_i}{\min(x_i) \cdot 2\pi}
+$$
+:::
+::: {.column width="50%"}
+- $\alpha$ = branch length to pixels factor
+- $\beta$ = label size to pixels factor
+- $s_i$ = font scaling factor for leaf $i$
+- $x_i$ = distance from root to leaf $i$
+:::
+::::
+
+## Changes for circular layouts
+
+### Priority 3: Tree should fit in viewing window width
+
+:::: {.columns}
+::: {.column width="50%"}
+
+$$
+\alpha \leq \min\left(\frac{W_{\text{view}}/2 - w n_i s_i |\cos\theta_i| \cdot \beta}{x_i |\cos\theta_i|}\right)
+$$
+
+$$
+\beta \leq \min\left(\frac{W_{\text{view}}/2 - x_i |\cos\theta_i| \cdot \alpha}{w n_i s_i |\cos\theta_i|}\right)
+$$
+
+:::
+::: {.column width="50%"}
+- $W_{\text{view}}$ = viewing window width in pixels
+- $\alpha$ = branch length to pixels factor
+- $\beta$ = label size to pixels factor
+- $x_i$ = distance from root to leaf $i$
+- $\theta_i$ = angle for leaf $i$
+- $w$ = character width proportion
+- $n_i$ = characters in label $i$
+- $s_i$ = font scaling factor for leaf $i$
+:::
+::::
+
+## Changes for circular layouts
+
+### Priority 4: Tree should fit in viewing window height
+
+:::: {.columns}
+::: {.column width="50%"}
+
+$$
+\alpha \leq \min\left(\frac{H_{\text{view}}/2 - w n_i s_i |\sin\theta_i| \cdot \beta}{x_i |\sin\theta_i|}\right)
+$$
+
+$$
+\beta \leq \min\left(\frac{W_{\text{view}}/2 - x_i |\sin\theta_i| \cdot \alpha}{w n_i s_i |\sin\theta_i|}\right)
+$$
+
+:::
+::: {.column width="50%"}
+- $H_{\text{view}}$ = viewing window height in pixels
+- $\alpha$ = branch length to pixels factor
+- $\beta$ = label size to pixels factor
+- $x_i$ = distance from root to leaf $i$
+- $\theta_i$ = angle for leaf $i$
+- $w$ = character width proportion
+- $n_i$ = characters in label $i$
+- $s_i$ = font scaling factor for leaf $i$
+:::
+::::
+
+
+## Summary
+
+- Mathematical framework for automatic scaling
+- Priority-based constraint system
+- Adapts to tree characteristics
+- Balances phylogenetic information with readability
+- Handles both rectangular and circular layouts
+
+
+
+## AI-Assisted Development
+
+### How this project was built
+
+- Most of the code was originally written by Claude 4.5 Sonnet
+- Extensive manual edits were required
+- Git was used extensively to manage AI edits
+- Development time: 3-4 weeks
+
+## Chat vs Agentic Coding
+
+### Chat-based coding (e.g. ChatGPT)
+
+- Copy/paste code snippets
+- Manual file management
+- Good for: small changes, learning, prototyping
+- Limitations: context switching, file juggling, no direct file access
+
+### Agentic coding (Aider, Cursor, Windsurf)
+
+- AI reads/writes files directly
+- Maintains context across multiple files
+- Can run tests and see results
+- Good for: full projects, refactoring, complex changes
+
+## Examples of Agentic Coding Tools
+
+### Aider (https://aider.chat)
+
+- Command-line tool
+- Works with any editor
+- Excellent git integration
+- Bring your own API keys
+
+### Cursor (https://cursor.sh)
+
+- VS Code fork with AI built-in
+- Inline suggestions and chat
+- $20/month subscription
+
+## Choosing the Right Model
+
+### Expensive: Claude Sonnet, GPT-4o, o3:
+
+- Complex algorithms and logic
+- Architectural decisions
+- Debugging difficult issues
+- Multi-file refactoring
+
+### Cheap: Claude Haiku, GPT-4o-mini:
+
+- Simple edits (typos, formatting)
+- Documentation updates
+- Repetitive changes
+- Code comments
+- Test data generation
+
+
+## What Influences Cost
+
+### Input tokens (what you send)
+
+- Your prompts and questions
+- **All files in context** (biggest factor!)
+- Conversation history
+- System prompts
+
+### Output tokens (what AI generates)
+
+- Code changes
+- Explanations
+
+## Cost optimization strategies
+
+1. Keep context focused (only relevant files)
+2. Use read-only files for reference
+3. Clear chat history periodically
+4. Use cheaper models for simple tasks
+5. Batch related changes together
+
+
+## Structuring Projects for AI
+
+### 1. Architecture documentation
+
+Create `docs/architecture.md`:
+
+- Design philosophy and goals
+- Tools used
+- File organization
+- Important constraints and rules
+
+### 2. Task files
+
+Create `docs/tasks.md` or similar:
+
+- Stores specific prompts
+- Can be reused if something needs to redone with a different model
+- A record of what was done when extra context is needed for models
+- The "highlights" of the chat history
+
+
