@@ -661,11 +661,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     scaleBar.update(branchLenToPxFactor * currentTransform.k);
 
     // Calculate the max root-to-tip distance for collapsed root line length
-    let maxRootToTip = 0;
-    displayedRoot.leaves().forEach(leaf => {
-      maxRootToTip = Math.max(maxRootToTip, leaf.x);
-    });
-    const collapsedRootLineLength = maxRootToTip * options.collapsedRootLineProp * (isCircularLayout ? 3 : 1);
+
+    let collapsedRootLineLength;
+    if (isCircularLayout) {
+      collapsedRootLineLength = Math.max(...displayedRoot.leaves().map(d => d.radius)) * options.collapsedRootLineProp * 2;
+    } else {
+      collapsedRootLineLength = Math.max(...displayedRoot.leaves().map(d => d.x)) * options.collapsedRootLineProp;
+    }
 
     // Calculate visible leaf count (excluding collapsed placeholders)
     const visibleLeaves = displayedRoot.leaves().filter(d => !d.collapsed_children && !d.collapsed_parent).length;
@@ -875,37 +877,8 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Append line for collapsed root
     nodeEnter.append("line")
       .attr("class", "collapsed-root-line")
-      .attr("x1", 0)
-      .attr("y1", 0)
-      .attr("x2", d => {
-        if (!d.collapsed_parent) return 0;
-        if (isCircularLayout) {
-          // Calculate average angle of children
-          const children = d.children || [];
-          if (children.length === 0) return -collapsedRootLineLength;
-          const avgAngle = children.reduce((sum, child) => sum + child.angle, 0) / children.length;
-          // Line perpendicular to average angle
-          const perpAngle = avgAngle;
-          return -collapsedRootLineLength * Math.cos(perpAngle);
-        }
-        return -collapsedRootLineLength;
-      })
-      .attr("y2", d => {
-        if (!d.collapsed_parent) return 0;
-        if (isCircularLayout) {
-          // Calculate average angle of children
-          const children = d.children || [];
-          if (children.length === 0) return 0;
-          const avgAngle = children.reduce((sum, child) => sum + child.angle, 0) / children.length;
-          // Line perpendicular to average angle
-          const perpAngle = avgAngle;
-          return -collapsedRootLineLength * Math.sin(perpAngle);
-        }
-        return 0;
-      })
       .attr("stroke", "#000")
       .attr("stroke-width", branchWidth)
-      .attr("stroke-dasharray", createDashArray(collapsedRootLineLength, branchWidth, 5))
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Update collapsed-subtree labels visibility and text
@@ -947,6 +920,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         return 0;
       })
       .attr("stroke-width", branchWidth)
+      .attr("stroke-dasharray", createDashArray(collapsedRootLineLength, branchWidth, 5))
       .style("display", d => d.collapsed_parent ? null : "none");
 
     // Append text labels for nodes
