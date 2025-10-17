@@ -781,6 +781,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("fill", "none")
       .attr("stroke", "#000")
       .attr("stroke-opacity", 1)
+      .attr("stroke-linecap", "round")
       .attr("stroke-width", branchWidth);
 
     // Append extension path (the part that extends along x-axis or radius)
@@ -902,7 +903,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         }
         return 0;
       })
-      .attr("stroke", "#999")
+      .attr("stroke", "#000")
       .attr("stroke-width", branchWidth)
       .attr("stroke-dasharray", createDashArray(collapsedRootLineLength, branchWidth, 5))
       .style("display", d => d.collapsed_parent ? null : "none");
