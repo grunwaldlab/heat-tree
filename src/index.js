@@ -4,6 +4,7 @@ import { triangleAreaFromSide, calculateTreeBounds, createDashArray, interpolate
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
 import { initZoomIndicator, initScaleBar, initLeafCount, initColorLegend } from "./legends.js"
 import { exportToSvg } from './exporter.js'
+import { TextSizeEstimator } from './textAspectRatioPrediction.js'
 
 import {
   initResetButton,
@@ -46,8 +47,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     metadata: null,
     ...options
   };
-
-  const characterWidthProportion = 0.65;
 
   // Parse metadata TSV if provided
   let metadataMap = new Map();
@@ -232,6 +231,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   // Currently selected subtree root
   let selectedNode = null;
 
+  // Initialize estimator of text dimensions relative to font size with cache
+  const textSizeEstimator = new TextSizeEstimator();
+
   // Parse the Newick string
   const treeData = parseNewick(newickStr);
 
@@ -388,7 +390,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   const overlaySvg = treeDiv.select("svg");
 
   // Visible bounding-box shown when a subtree is selected
-  let selectionRect = treeSvg.append("rect")
+  let selectionRect = treeSvg.append("path")
     .attr("class", "selection-rect")
     .attr("fill", "none")
     .attr("stroke", "grey")
@@ -444,8 +446,16 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       selectionBtns.style("display", "none");
       return;
     }
-    const screenX = selectedNode.x * currentTransform.k + currentTransform.x - options.buttonSize - options.controlsMargin;
-    const screenY = selectedNode.y0bbox * currentTransform.k + currentTransform.y - options.controlsMargin;
+    let x, y;
+    if (isCircularLayout) {
+      x = selectedNode.bounds.minRadius * Math.cos(selectedNode.bounds.minAngle);
+      y = selectedNode.bounds.minRadius * Math.sin(selectedNode.bounds.minAngle);
+    } else {
+      x = selectedNode.bounds.minX;
+      y = selectedNode.bounds.minY;
+    }
+    const screenX = x * currentTransform.k + currentTransform.x - options.buttonSize - options.controlsMargin;
+    const screenY = y * currentTransform.k + currentTransform.y - options.controlsMargin;
     selectionBtns
       .attr("transform", `translate(${screenX},${screenY})`)
       .style("display", "block");
@@ -500,15 +510,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // The estimated width in pixels of the printed label
     function getLabelWidth(node) {
-      let nameLen;
-      if (node.collapsed_children) {
-        nameLen = node.collapsed_children_name ? node.collapsed_children_name.length : 0;
-      } else if (node.collapsed_parent) {
-        nameLen = 0; // No label for collapsed parent
-      } else {
-        nameLen = node.data.name ? node.data.name.length : 0;
-      }
-      return nameLen * labelSizeToPxFactor * characterWidthProportion;
+      return node.labelWidthRatio * labelSizeToPxFactor;
     }
 
     // The width in pixels of how far the begining of labels are moved right
@@ -518,7 +520,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // The width in pixels of how far the begining of labels are moved down
     function getLabelYOffset(node) {
-      return fontSizeForNode(node) / 2.5
+      return fontSizeForNode(node) * node.labelHeightRatio / 2
     }
 
     // Helper functions for node label sizing & positioning
@@ -632,12 +634,30 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       d.y = d.y - displayedRoot.y;
     })
 
+    // Set displayed label
+    displayedRoot.each(d => {
+      if (d.collapsed_children) {
+        d.label = d.collapsed_children_name;
+      } else if (d.collapsed_parent) {
+        d.label = d.collapsed_parent_name;
+      } else {
+        d.label = d.data.name;
+      }
+    })
+
+    // Estimate realtionship between font size and dimensions for labels
+    displayedRoot.each(d => {
+      const size = textSizeEstimator.getRelativeTextSize(d.label)
+      d.labelWidthRatio = size.width;
+      d.labelHeightRatio = size.height;
+    })
+
     // Determine how to convert unitless branch lengths and relative text sizes to pixels
     let scalingFactors;
     if (isCircularLayout) {
-      scalingFactors = calculateCircularScalingFactors(displayedRoot, treeDivSize.width, treeDivSize.height, options, characterWidthProportion);
+      scalingFactors = calculateCircularScalingFactors(displayedRoot, treeDivSize.width, treeDivSize.height, options);
     } else {
-      scalingFactors = calculateScalingFactors(displayedRoot, treeDivSize.width, treeDivSize.height, options, characterWidthProportion);
+      scalingFactors = calculateScalingFactors(displayedRoot, treeDivSize.width, treeDivSize.height, options);
     }
     branchLenToPxFactor = scalingFactors.branchLenToPxFactor_max;
     labelSizeToPxFactor = scalingFactors.labelSizeToPxFactor_min;
@@ -661,7 +681,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     scaleBar.update(branchLenToPxFactor * currentTransform.k);
 
     // Calculate the max root-to-tip distance for collapsed root line length
-
     let collapsedRootLineLength;
     if (isCircularLayout) {
       collapsedRootLineLength = Math.max(...displayedRoot.leaves().map(d => d.radius)) * options.collapsedRootLineProp * 2;
@@ -692,18 +711,88 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     if (fit || !manualZoomAndPanEnabled) fitToView(!initial);
 
     // Compute bounding rectangles for every subtree node
-    displayedRoot.eachAfter(d => {
-      if (d.children) {
-        const kids = d.children;
-        d.y0bbox = Math.min(...kids.map(k => k.y0bbox));
-        d.y1bbox = Math.max(...kids.map(k => k.y1bbox));
-        d.x1bbox = Math.max(...kids.map(k => k.x1bbox));
+    if (isCircularLayout) {
+      displayedRoot.eachAfter(d => {
+        if (d.children) {
+          d.bounds = {
+            minRadius: d.radius,
+            maxRadius: Math.max(...d.children.map(k => k.bounds.maxRadius)),
+            minAngle: Math.min(...d.children.map(k => k.bounds.minAngle)),
+            maxAngle: Math.max(...d.children.map(k => k.bounds.maxAngle))
+          }
+        } else {
+          const angleLabelOffset = Math.atan(getLabelYOffset(d) / d.radius);
+          d.bounds = {
+            minRadius: d.radius,
+            maxRadius: d.radius + getLabelXOffset(d) + getLabelWidth(d),
+            minAngle: d.angle - angleLabelOffset,
+            maxAngle: d.angle + angleLabelOffset
+          }
+        }
+      });
+    } else {
+      displayedRoot.eachAfter(d => {
+        if (d.children) {
+          d.bounds = {
+            minX: d.x,
+            maxX: Math.max(...d.children.map(k => k.bounds.maxX)),
+            minY: Math.min(...d.children.map(k => k.bounds.minY)),
+            maxY: Math.max(...d.children.map(k => k.bounds.maxY))
+          }
+        } else {
+          d.bounds = {
+            minX: d.x,
+            maxX: d.x + getLabelXOffset(d) + getLabelWidth(d),
+            minY: d.y - getLabelYOffset(d),
+            maxY: d.y + getLabelYOffset(d)
+          }
+        }
+      });
+    }
+
+    // Function to generate selection rectangle path
+    function generateSelectionPath(node) {
+      if (!node || !node.children) return "";
+
+      if (isCircularLayout) {
+        // Calculate corner points
+        const innerStart = {
+          x: node.bounds.minRadius * Math.cos(node.bounds.minAngle),
+          y: node.bounds.minRadius * Math.sin(node.bounds.minAngle)
+        };
+        const innerEnd = {
+          x: node.bounds.minRadius * Math.cos(node.bounds.maxAngle),
+          y: node.bounds.minRadius * Math.sin(node.bounds.maxAngle)
+        };
+        const outerStart = {
+          x: node.bounds.maxRadius * Math.cos(node.bounds.minAngle),
+          y: node.bounds.maxRadius * Math.sin(node.bounds.minAngle)
+        };
+        const outerEnd = {
+          x: node.bounds.maxRadius * Math.cos(node.bounds.maxAngle),
+          y: node.bounds.maxRadius * Math.sin(node.bounds.maxAngle)
+        };
+
+        // Determine sweep direction
+        const largeArcFlag = (node.bounds.maxAngle - node.bounds.minAngle) > Math.PI ? 1 : 0;
+
+        // Build path: start at inner start, radial line to outer start, arc to outer end, radial line to inner end, arc back to start
+        return `M${innerStart.x},${innerStart.y} L${outerStart.x},${outerStart.y} A${node.bounds.maxRadius},${node.bounds.maxRadius} 0 ${largeArcFlag},1 ${outerEnd.x},${outerEnd.y} L${innerEnd.x},${innerEnd.y} A${node.bounds.minRadius},${node.bounds.minRadius} 0 ${largeArcFlag},0 ${innerStart.x},${innerStart.y} Z`;
       } else {
-        d.y0bbox = d.y - getLabelYOffset(d);
-        d.y1bbox = d.y + getLabelYOffset(d);
-        d.x1bbox = d.x + getLabelXOffset(d) + getLabelWidth(d);
+        // For rectangular layout, use large radius arcs to appear straight
+        const arcRadius = 10000;
+        const sweepFlag = 1;
+
+        // Four corners: top-left, top-right, bottom-right, bottom-left
+        const topLeft = { x: node.bounds.minX, y: node.bounds.minY };
+        const topRight = { x: node.bounds.maxX, y: node.bounds.minY };
+        const bottomRight = { x: node.bounds.maxX, y: node.bounds.maxY };
+        const bottomLeft = { x: node.bounds.minX, y: node.bounds.maxY };
+
+        // Build path with arcs on left/right sides and straight lines on top/bottom
+        return `M${topLeft.x},${topLeft.y} L${topRight.x},${topRight.y} A${arcRadius},${arcRadius} 0 0,${sweepFlag} ${bottomRight.x},${bottomRight.y} L${bottomLeft.x},${bottomLeft.y} A${arcRadius},${arcRadius} 0 0,${sweepFlag} ${topLeft.x},${topLeft.y} Z`;
       }
-    });
+    }
 
     // Hide selection rectangle if the node was collapsed, otherwise reposition it with the updated layout.
     if (selectedNode && !selectedNode.children) {
@@ -711,14 +800,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       selectionRect.style("display", "none");
     } else if (selectedNode) {
       selectionRect
-        .attr("x", selectedNode.x)
-        .attr("y", selectedNode.y0bbox)
-        .attr("width", selectedNode.x1bbox - selectedNode.x)
-        .attr("height", selectedNode.y1bbox - selectedNode.y0bbox);
+        .attr("d", generateSelectionPath(selectedNode));
       updateSelectionButtons();
     }
 
-    // Update invisible hit rectangles for every subtree
+    // Update invisible hit areas for every subtree
     const hits = hitLayer.selectAll(".hit")
       .data(displayedRoot.descendants().filter(d => d.children), d => d.id);
     hits.exit().remove();
@@ -732,16 +818,13 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       } else {
         selectedNode = node;
         selectionRect
-          .attr("x", node.x)
-          .attr("y", node.y0bbox)
-          .attr("width", node.x1bbox - node.x)
-          .attr("height", node.y1bbox - node.y0bbox)
+          .attr("d", generateSelectionPath(node))
           .style("display", "block");
         updateSelectionButtons();
       }
     }
 
-    const hitsEnter = hits.enter().append("rect")
+    const hitsEnter = hits.enter().append("path")
       .attr("class", "hit")
       .attr("fill", "transparent")
       .style("cursor", "pointer")
@@ -751,16 +834,19 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       });
 
     hitsEnter.merge(hits)
-      .attr("x", d => d.x)
-      .attr("y", d => d.y0bbox)
-      .attr("width", d => d.x1bbox - d.x)
-      .attr("height", d => d.y1bbox - d.y0bbox);
+      .attr("d", d => generateSelectionPath(d));
 
     // Deeper nodes (greater depth) rendered above shallower ones
     hitLayer.selectAll(".hit").sort((a, b) => a.depth - b.depth);
 
     // Shared transition for this update
     const t = treeSvg.transition().duration(500 * options.transitionSpeedFactor);
+
+    // Transition selection rectangle if it's visible
+    if (selectedNode) {
+      selectionRect.transition(t)
+        .attr("d", generateSelectionPath(selectedNode));
+    }
 
     // DATA JOIN for branch groups (use stable target.id as key)
     const branchGroups = branchLayer.selectAll(".branch-group")

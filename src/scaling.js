@@ -1,22 +1,12 @@
 // Calculate optimal scaling factors using constraint-based approach for rectangular layouts
-export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options, characterWidthProportion = 0.65) {
+export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options) {
   // Calculate leaf annotation dimensions for each node
   const leafData = root.leaves().map(node => {
-    let nameLen;
-    if (node.collapsed_children) {
-      nameLen = node.collapsed_children_name ? node.collapsed_children_name.length : 0;
-    } else if (node.collapsed_parent) {
-      nameLen = node.collapsed_parent_name ? node.collapsed_parent_name.length : 0;
-    } else {
-      nameLen = node.data.name ? node.data.name.length : 0;
-    }
-
     const labelScale = 1; // Unitless scaling factor (assuming 1 for now)
-
     return {
       x: node.x, // x-axis position in branch length units
-      width: characterWidthProportion * nameLen * labelScale + options.nodeLabelOffset * labelScale,
-      height: labelScale,
+      width: (node.labelWidthRatio + options.nodeLabelOffset) * labelScale,
+      height: node.labelHeightRatio * labelScale,
       labelScale: labelScale
     };
   });
@@ -132,7 +122,7 @@ export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options
 }
 
 // Calculate optimal scaling factors using constraint-based approach for circular layouts
-export function calculateCircularScalingFactors(root, viewWidthPx, viewHeightPx, options, characterWidthProportion = 0.65) {
+export function calculateCircularScalingFactors(root, viewWidthPx, viewHeightPx, options) {
   const leaves = root.leaves();
 
   // Calculate leaf annotation dimensions for each node
@@ -153,8 +143,8 @@ export function calculateCircularScalingFactors(root, viewWidthPx, viewHeightPx,
       angle: node.angle,
       cos: node.cos,
       sin: node.sin,
-      width: characterWidthProportion * nameLen * labelScale + options.nodeLabelOffset * labelScale,
-      height: labelScale,
+      width: (node.labelWidthRatio + options.nodeLabelOffset) * labelScale,
+      height: node.labelHeightRatio * labelScale,
       labelScale: labelScale
     };
   });
