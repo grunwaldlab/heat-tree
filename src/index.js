@@ -448,14 +448,55 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     }
     let x, y;
     if (isCircularLayout) {
-      x = selectedNode.bounds.minRadius * Math.cos(selectedNode.bounds.minAngle);
-      y = selectedNode.bounds.minRadius * Math.sin(selectedNode.bounds.minAngle);
+      // For circular layout, find the leftmost point of the selection
+      // by sampling points along the arc and finding minimum x
+      const minAngle = selectedNode.bounds.minAngle;
+      const maxAngle = selectedNode.bounds.maxAngle;
+      const minRadius = selectedNode.bounds.minRadius;
+      const maxRadius = selectedNode.bounds.maxRadius;
+
+      // Sample angles to find leftmost point
+      const numSamples = 20;
+      let minX = Infinity;
+      let minXY = 0;
+
+      for (let i = 0; i <= numSamples; i++) {
+        const angle = minAngle + (maxAngle - minAngle) * i / numSamples;
+
+        // Check both inner and outer radius at this angle
+        const innerX = minRadius * Math.cos(angle);
+        const innerY = minRadius * Math.sin(angle);
+        const outerX = maxRadius * Math.cos(angle);
+        const outerY = maxRadius * Math.sin(angle);
+
+        if (innerX < minX) {
+          minX = innerX;
+          minXY = innerY;
+        }
+        if (outerX < minX) {
+          minX = outerX;
+          minXY = outerY;
+        }
+      }
+
+      x = minX;
+      y = minXY;
     } else {
       x = selectedNode.bounds.minX;
       y = selectedNode.bounds.minY;
     }
-    const screenX = x * currentTransform.k + currentTransform.x - options.buttonSize - options.controlsMargin;
-    const screenY = y * currentTransform.k + currentTransform.y - options.controlsMargin;
+
+    // Calculate screen position
+    let screenX = x * currentTransform.k + currentTransform.x - options.buttonSize - options.controlsMargin;
+    let screenY = y * currentTransform.k + currentTransform.y - options.controlsMargin;
+
+    // Limit how far left the buttons can go (keep them within viewable area)
+    const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
+    screenX = Math.max(screenX, 0);
+    screenX = Math.min(screenX, viewW - options.buttonSize);
+    screenY = Math.max(screenY, 0);
+    screenY = Math.min(screenY, viewH - options.buttonSize * 2 - options.controlsMargin); //TODO: make based on the current number of buttons
+
     selectionBtns
       .attr("transform", `translate(${screenX},${screenY})`)
       .style("display", "block");
