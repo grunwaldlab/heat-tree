@@ -880,6 +880,42 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Deeper nodes (greater depth) rendered above shallower ones
     hitLayer.selectAll(".hit").sort((a, b) => a.depth - b.depth);
 
+    // Pre-computed symbol paths used for node icons
+    let triangleHeight = labelSizeToPxFactor * 1.1;
+    let triangleArea = triangleAreaFromSide(triangleHeight);
+    let trianglePath = symbol().type(symbolTriangle).size(triangleArea)();
+
+    // Update invisible hit areas for collapsed subtrees (rendered after subtree hits for precedence)
+    const collapsedHits = hitLayer.selectAll(".collapsed-hit")
+      .data(displayedRoot.descendants().filter(d => d.collapsed_children), d => d.id);
+    collapsedHits.exit().remove();
+
+    const collapsedHitsEnter = collapsedHits.enter().append("rect")
+      .attr("class", "collapsed-hit")
+      .attr("fill", "transparent")
+      .style("cursor", "pointer")
+      .on("click", (event, d) => {
+        if (d.collapsed_children) {
+          d.children = d.collapsed_children;
+          d.collapsed_children = null;
+          update(true, false);
+        }
+        event.stopPropagation();
+      });
+
+    collapsedHitsEnter.merge(collapsedHits)
+      .attr("transform", d => {
+        // Position at node location
+        return `translate(${d.x}, ${d.y}) rotate(${getLabelRotation(d)})`;
+      })
+      .attr("x", d => {
+        // Start at the triangle position
+        return isCircularLayout && isLeftSide(d) ? -(triangleHeight + getLabelWidth(d)) : 0;
+      })
+      .attr("y", d => -getLabelYOffset(d) * 1.5)
+      .attr("width", d => triangleHeight + getLabelWidth(d))
+      .attr("height", d => getLabelYOffset(d) * 3);
+
     // Shared transition for this update
     const t = treeSvg.transition().duration(500 * options.transitionSpeedFactor);
 
@@ -975,11 +1011,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("class", "node")
       .attr("transform", d => `translate(${d.x}, ${d.y})`)
       .on("click", (event, d) => {
-        if (d.collapsed_children) {       // expand (delayed reveal)
-          d.children = d.collapsed_children;
-          d.collapsed_children = null;
-          update(true, false);
-        } else if (d === displayedRoot && d.collapsed_parent) { // un-collapse root
+        if (d === displayedRoot && d.collapsed_parent) { // un-collapse root
           selectedNode = null;
           selectionRect.style("display", "none");
           d.parent = d.collapsed_parent;
@@ -988,11 +1020,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
           update(true, true);
         }
       });
-
-    // Pre-computed symbol paths used for node icons
-    let triangleHeight = labelSizeToPxFactor * 1.1;
-    let triangleArea = triangleAreaFromSide(triangleHeight);
-    let trianglePath = symbol().type(symbolTriangle).size(triangleArea)();
 
     // Append a path that will show a triangle only when subtree is collapsed
     nodeEnter.append("path")
