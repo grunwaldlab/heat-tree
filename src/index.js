@@ -916,6 +916,49 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("width", d => triangleHeight + getLabelWidth(d))
       .attr("height", d => getLabelYOffset(d) * 3);
 
+    // Update invisible hit areas for collapsed roots (rendered after collapsed subtree hits for precedence)
+    const collapsedRootHits = hitLayer.selectAll(".collapsed-root-hit")
+      .data(displayedRoot.collapsed_parent ? [displayedRoot] : [], d => d.id);
+    collapsedRootHits.exit().remove();
+
+    const collapsedRootHitsEnter = collapsedRootHits.enter().append("rect")
+      .attr("class", "collapsed-root-hit")
+      .attr("fill", "transparent")
+      .style("cursor", "pointer")
+      .on("click", (event, d) => {
+        if (d.collapsed_parent) {
+          selectedNode = null;
+          selectionRect.style("display", "none");
+          selectionBtns.style("display", "none");
+          d.parent = d.collapsed_parent;
+          d.collapsed_parent = null;
+          displayedRoot = d.ancestors().find(d => d.parent === null || d.collapsed_parent);
+          update(true, true);
+        }
+        event.stopPropagation();
+      });
+
+    collapsedRootHitsEnter.merge(collapsedRootHits)
+      .attr("transform", d => {
+        if (!d.collapsed_parent) return `translate(${d.x}, ${d.y})`;
+
+        // Calculate rotation angle based on average angle of children
+        let rotationAngle = 0;
+        if (isCircularLayout) {
+          const children = d.children || [];
+          if (children.length > 0) {
+            const avgAngle = children.reduce((sum, child) => sum + child.angle, 0) / children.length;
+            rotationAngle = avgAngle * (180 / Math.PI);
+          }
+        }
+
+        return `translate(${d.x}, ${d.y}) rotate(${rotationAngle})`;
+      })
+      .attr("x", d => -collapsedRootLineLength)
+      .attr("y", d => -branchWidth * 5)
+      .attr("width", collapsedRootLineLength)
+      .attr("height", branchWidth * 10);
+
     // Shared transition for this update
     const t = treeSvg.transition().duration(500 * options.transitionSpeedFactor);
 
@@ -1009,17 +1052,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .attr("transform", d => `translate(${d.x}, ${d.y})`);
     const nodeEnter = node.enter().append("g")
       .attr("class", "node")
-      .attr("transform", d => `translate(${d.x}, ${d.y})`)
-      .on("click", (event, d) => {
-        if (d === displayedRoot && d.collapsed_parent) { // un-collapse root
-          selectedNode = null;
-          selectionRect.style("display", "none");
-          d.parent = d.collapsed_parent;
-          d.collapsed_parent = null;
-          displayedRoot = d.ancestors().find(d => d.parent === null || d.collapsed_parent);
-          update(true, true);
-        }
-      });
+      .attr("transform", d => `translate(${d.x}, ${d.y})`);
 
     // Append a path that will show a triangle only when subtree is collapsed
     nodeEnter.append("path")
