@@ -509,6 +509,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Detect if we're transitioning between layouts
     const layoutChanged = wasCircularLayout !== isCircularLayout;
 
+    // Hide selection rectangle at the start of layout transitions
+    if (layoutChanged && selectedNode) {
+      selectionRect.style("display", "none");
+    }
+
     // Helper to determine if a node is on the left side in circular layout
     function isLeftSide(d) {
       if (!isCircularLayout) return false;
@@ -820,10 +825,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         // Build path: start at inner start, radial line to outer start, arc to outer end, radial line to inner end, arc back to start
         return `M${innerStart.x},${innerStart.y} L${outerStart.x},${outerStart.y} A${node.bounds.maxRadius},${node.bounds.maxRadius} 0 ${largeArcFlag},1 ${outerEnd.x},${outerEnd.y} L${innerEnd.x},${innerEnd.y} A${node.bounds.minRadius},${node.bounds.minRadius} 0 ${largeArcFlag},0 ${innerStart.x},${innerStart.y} Z`;
       } else {
-        // For rectangular layout, use large radius arcs to appear straight
-        const arcRadius = 10000;
-        const sweepFlag = 1;
-
         // Four corners: top-left, top-right, bottom-right, bottom-left
         const topLeft = { x: node.bounds.minX, y: node.bounds.minY };
         const topRight = { x: node.bounds.maxX, y: node.bounds.minY };
@@ -839,7 +840,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     if (selectedNode && !selectedNode.children) {
       selectedNode = null;
       selectionRect.style("display", "none");
-    } else if (selectedNode) {
+    } else if (selectedNode && !layoutChanged) {
       selectionRect
         .attr("d", generateSelectionPath(selectedNode));
       updateSelectionButtons();
@@ -962,8 +963,8 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     // Shared transition for this update
     const t = treeSvg.transition().duration(500 * options.transitionSpeedFactor);
 
-    // Transition selection rectangle if it's visible
-    if (selectedNode) {
+    // Transition selection rectangle if it's visible and not during a layout change
+    if (selectedNode && !layoutChanged) {
       selectionRect.transition(t)
         .attr("d", generateSelectionPath(selectedNode));
     }
@@ -1160,6 +1161,14 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       if (expanding) {
         branchGroupsEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
         nodeEnter.transition().duration(150 * options.transitionSpeedFactor).attr("opacity", 1);
+      }
+
+      // Show selection rectangle at the end of layout transitions
+      if (layoutChanged && selectedNode && selectedNode.children) {
+        selectionRect
+          .attr("d", generateSelectionPath(selectedNode))
+          .style("display", "block");
+        updateSelectionButtons();
       }
     });
 
