@@ -11,6 +11,7 @@ import {
   initExpandRootButton,
   initToggleZoomButton,
   initToggleCircularButton,
+  initLabelTextDropdown,
   initLabelColoringDropdown,
   initExportSvgButton
 } from "./controls.js"
@@ -102,6 +103,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     }
   }
 
+  // Current label text state
+  let currentLabelTextColumn = null;
+
   // Current label coloring state
   let currentColorColumn = null;
   let colorScale = null;
@@ -153,6 +157,29 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         .domain(uniqueValues)
         .range(colors);
     }
+  }
+
+  // Function to get label text for a node
+  function getNodeLabelText(node) {
+    // If no custom column is selected, use default name
+    if (!currentLabelTextColumn) {
+      return node.data.name || "";
+    }
+
+    // Try to get value from metadata
+    const nodeName = node.data.name;
+    if (!nodeName || !metadataMap.has(nodeName)) {
+      return node.data.name || "";
+    }
+
+    const metadata = metadataMap.get(nodeName);
+    const value = metadata[currentLabelTextColumn];
+
+    if (value === undefined || value === '') {
+      return node.data.name || "";
+    }
+
+    return value;
   }
 
   // Function to get color for a node
@@ -309,6 +336,19 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     update(false, true);
   });
   toggleCircularButton.update(isCircularLayout);
+
+  // Create label text dropdown (only if metadata is provided)
+  if (metadataColumns.length > 0) {
+    const labelTextDropdown = initLabelTextDropdown(
+      toolbarDiv,
+      options,
+      metadataColumns,
+      (columnName) => {
+        currentLabelTextColumn = columnName || null;
+        update(false, false);
+      }
+    );
+  }
 
   // Create label coloring dropdown (only if metadata is provided)
   if (metadataColumns.length > 0) {
@@ -724,7 +764,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       } else if (d.collapsed_parent) {
         d.label = d.collapsed_parent_name;
       } else {
-        d.label = d.data.name;
+        d.label = getNodeLabelText(d);
       }
     })
 
@@ -1181,7 +1221,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("font-size", d => `${fontSizeForNode(d)}px`)
       .style("fill", d => getNodeColor(d))
       .style("display", d => d.collapsed_children ? "none" : null)
-      .text(d => d.data.name || "");
+      .text(d => getNodeLabelText(d));
 
     // Append label showing number of tips in collapsed subtree
     nodeEnter.append("text")
@@ -1269,10 +1309,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       .style("text-anchor", d => getTextAnchor(d))
       .style("font-size", d => `${fontSizeForNode(d)}px`);
 
-    // Update label colors
+    // Update label colors and text
     nodeLayer.selectAll(".node-label")
       .style("fill", d => getNodeColor(d))
-      .style("display", d => d.collapsed_children ? "none" : null);
+      .style("display", d => d.collapsed_children ? "none" : null)
+      .text(d => getNodeLabelText(d));
 
     nodeLayer.selectAll(".collapsed-subtree")
       .transition(t)

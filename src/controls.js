@@ -122,6 +122,46 @@ function updateToggleCircularAppearance(btnToggleCircular, enabled) {
 }
 
 /**
+ * Initialize the label text dropdown
+ * @param {Selection} toolbarDiv - D3 selection of the toolbar container
+ * @param {Object} options - Configuration options
+ * @param {Array} columns - Array of column names from metadata
+ * @param {Function} onChange - Callback function when selection changes
+ * @returns {Object} Object containing the dropdown element
+ */
+export function initLabelTextDropdown(toolbarDiv, options, columns, onChange) {
+  const dropdownContainer = toolbarDiv.append("div")
+    .style("flex", "0 0 auto")
+    .style("display", "flex")
+    .style("align-items", "center");
+
+  const dropdown = dropdownContainer.append("select")
+    .style("height", `${options.buttonSize}px`)
+    .style("cursor", "pointer")
+    .style("font-size", "12px")
+    .style("padding", "0 5px")
+    .on("change", function() {
+      onChange(this.value);
+    });
+
+  // Add "Default" option
+  dropdown.append("option")
+    .attr("value", "")
+    .text("Default");
+
+  // Add options for each metadata column
+  columns.forEach(col => {
+    dropdown.append("option")
+      .attr("value", col)
+      .text(columnToHeader(col));
+  });
+
+  return {
+    dropdown: dropdown
+  };
+}
+
+/**
  * Initialize the label coloring dropdown
  * @param {Selection} toolbarDiv - D3 selection of the toolbar container
  * @param {Object} options - Configuration options
