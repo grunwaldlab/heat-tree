@@ -49,41 +49,29 @@ function updateZoomIndicator(zoomIndicatorText, zoomLevel) {
  * @param {Object} options - Configuration options
  * @returns {Object} Object containing the SVG and group elements, plus update function
  */
-export function initScaleBar(scaleBarDiv, options) {
+export function initScaleBar(scaleBarSvg, options) {
   const scaleBarEdgeHeight = 6;
-  const scaleBarSvg = scaleBarDiv.append("svg")
-    .attr("width", options.scaleBarSize.max)
-    .attr("height", options.legendElementHeight);
   const scaleBarGroup = scaleBarSvg.append("g")
-    .attr("transform", `translate(1,${options.legendElementHeight - scaleBarEdgeHeight})`)
+  const scaleBarLineGroup = scaleBarGroup.append("g")
     .attr("stroke", "#000")
     .attr("stroke-width", 2)
     .attr("fill", "none");
-  scaleBarGroup.append("line").attr("class", "bar");
-  scaleBarGroup.append("line").attr("class", "left-tick");
-  scaleBarGroup.append("line").attr("class", "right-tick");
-  scaleBarSvg.append("text")
-    .attr("transform", `translate(1,${options.legendElementHeight - scaleBarEdgeHeight})`)
+  scaleBarLineGroup.append("line").attr("class", "bar");
+  scaleBarLineGroup.append("line").attr("class", "left-tick");
+  scaleBarLineGroup.append("line").attr("class", "right-tick");
+  scaleBarGroup.append("text")
     .attr("class", "label")
     .attr("dy", -scaleBarEdgeHeight)
     .attr("text-anchor", "middle")
     .style("font-size", "14px");
 
   return {
-    svg: scaleBarSvg,
     group: scaleBarGroup,
-    update: (pxPerUnit) => updateScaleBar(scaleBarSvg, scaleBarGroup, pxPerUnit, options)
+    update: (pxPerUnit) => updateScaleBar(scaleBarGroup, pxPerUnit, options)
   };
 }
 
-/**
- * Update the scale bar graphics according to current pixel-per-unit scale
- * @param {Selection} scaleBarSvg - D3 selection of the scale bar SVG
- * @param {Selection} scaleBarGroup - D3 selection of the scale bar group
- * @param {number} pxPerUnit - Current pixels per unit of branch length
- * @param {Object} options - Configuration options
- */
-function updateScaleBar(scaleBarSvg, scaleBarGroup, pxPerUnit, options) {
+function updateScaleBar(scaleBarGroup, pxPerUnit, options) {
   if (!isFinite(pxPerUnit) || pxPerUnit <= 0) return;
 
   // choose an initial "nice" distance then adjust to keep bar within limits
@@ -119,7 +107,92 @@ function updateScaleBar(scaleBarSvg, scaleBarGroup, pxPerUnit, options) {
     .attr("x2", barPx).attr("y2", 5);
 
   // centre label
-  scaleBarSvg.select(".label")
+  scaleBarGroup.select(".label")
+    .attr("x", barPx / 2)
+    .text(units.toPrecision(3));
+}
+
+/**
+ * Initialize the scale bar in the tree SVG (for export)
+ * @param {Selection} treeSvg - D3 selection of the tree SVG group
+ * @param {Object} options - Configuration options
+ * @returns {Object} Object containing the group element and update function
+ */
+export function initTreeScaleBar(treeSvg, options) {
+  const scaleBarEdgeHeight = 6;
+  const scaleBarGroup = treeSvg.append("g")
+    .attr("class", "tree-scale-bar")
+    .attr("stroke", "#000")
+    .attr("stroke-width", 2)
+    .attr("fill", "none");
+
+  scaleBarGroup.append("line").attr("class", "bar");
+  scaleBarGroup.append("line").attr("class", "left-tick");
+  scaleBarGroup.append("line").attr("class", "right-tick");
+  scaleBarGroup.append("text")
+    .attr("class", "label")
+    .attr("dy", -scaleBarEdgeHeight)
+    .attr("text-anchor", "middle")
+    .style("font-size", "14px");
+
+  return {
+    group: scaleBarGroup,
+    update: (pxPerUnit, bounds, options) => updateTreeScaleBar(scaleBarGroup, pxPerUnit, bounds, options)
+  };
+}
+
+/**
+ * Update the tree scale bar graphics and position
+ * @param {Selection} scaleBarGroup - D3 selection of the scale bar group
+ * @param {number} pxPerUnit - Current pixels per unit of branch length
+ * @param {Object} bounds - Tree bounds object with minX, maxX, minY, maxY
+ * @param {Object} options - Configuration options
+ */
+function updateTreeScaleBar(scaleBarGroup, pxPerUnit, bounds, options) {
+  if (!isFinite(pxPerUnit) || pxPerUnit <= 0) return;
+
+  const scaleBarEdgeHeight = 6;
+  const padding = 20;
+
+  // choose an initial "nice" distance then adjust to keep bar within limits
+  let units = niceNumber(1);
+  let barPx = units * pxPerUnit;
+
+  // expand / shrink until within [min,max] pixels
+  if (barPx < options.scaleBarSize.min || barPx > options.scaleBarSize.max) {
+    units = niceNumber(options.scaleBarSize.min / pxPerUnit);
+    barPx = units * pxPerUnit;
+  }
+  while (barPx < options.scaleBarSize.min) {
+    units *= 2;
+    barPx = units * pxPerUnit;
+  }
+  while (barPx > options.scaleBarSize.max) {
+    units /= 2;
+    barPx = units * pxPerUnit;
+  }
+
+  // Position scale bar below and to the left of the tree
+  const xPos = bounds.minX + padding;
+  const yPos = bounds.maxY + padding + options.legendElementHeight;
+
+  scaleBarGroup.attr("transform", `translate(${xPos}, ${yPos})`);
+
+  // bar & ticks
+  scaleBarGroup.select(".bar")
+    .attr("x1", 0).attr("y1", 0)
+    .attr("x2", barPx).attr("y2", 0);
+
+  scaleBarGroup.select(".left-tick")
+    .attr("x1", 0).attr("y1", -5)
+    .attr("x2", 0).attr("y2", 5);
+
+  scaleBarGroup.select(".right-tick")
+    .attr("x1", barPx).attr("y1", -5)
+    .attr("x2", barPx).attr("y2", 5);
+
+  // centre label
+  scaleBarGroup.select(".label")
     .attr("x", barPx / 2)
     .text(units.toPrecision(3));
 }

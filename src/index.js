@@ -2,7 +2,7 @@ import { parseNewick } from "./parsers.js"
 import { appendIcon } from "./icons.js"
 import { triangleAreaFromSide, calculateTreeBounds, createDashArray, interpolateViridisSubset } from "./utils.js"
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
-import { initZoomIndicator, initScaleBar, initLeafCount, initColorLegend } from "./legends.js"
+import { initZoomIndicator, initScaleBar, initLeafCount, initColorLegend, initTreeScaleBar } from "./legends.js"
 import { exportToSvg } from './exporter.js'
 import { TextSizeEstimator } from './textAspectRatioPrediction.js'
 
@@ -327,14 +327,18 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   }
 
   // Create export to SVG button
-  const exportSvgButton = initExportSvgButton(toolbarDiv, options, () => exportToSvg(treeSvg, currentBounds));
+  const exportSvgButton = initExportSvgButton(toolbarDiv, options, () => exportToSvg(treeSvg, currentBounds, options));
 
   // Create scale bar (left-aligned)
   const scaleBarDiv = legendDiv.append("div")
     .attr("class", "ht-scale-bar")
     .style("height", `${options.legendElementHeight}px`)
     .style("flex", "0 0 auto");
-  const scaleBar = initScaleBar(scaleBarDiv, options);
+  const scaleBarSvg = scaleBarDiv.append("svg")
+    .attr("width", options.scaleBarSize.max)
+    .attr("height", options.legendElementHeight);
+  const scaleBar = initScaleBar(scaleBarSvg, options);
+  scaleBar.group.attr("transform", `translate(1,${options.legendElementHeight - 6})`);
 
   // Create color legend (appears after scale bar when active)
   const colorLegend = initColorLegend(legendDiv, options);
@@ -373,6 +377,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       updateSelectionButtons();                    // reposition buttons
       scaleBar.update(branchLenToPxFactor * currentTransform.k); // rescale bar
       zoomIndicator.update(currentTransform.k);     // update zoom indicator
+      updateScaleBarVisibility();                   // check if tree scale bar is visible
     });
 
   // Attach zoom behaviour to the outer SVG
@@ -389,6 +394,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   // Layer for invisible hit-test rectangles (kept above branches/nodes)
   const hitLayer = treeSvg.append("g").attr("class", "hit-layer");
+
+  // Initialize scale bar in tree SVG
+  const treeScaleBar = initScaleBar(treeSvg, options);
 
   // Reference to the outer <svg> (not zoomed) – used for UI overlays
   const overlaySvg = treeDiv.select("svg");
@@ -504,6 +512,31 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     selectionBtns
       .attr("transform", `translate(${screenX},${screenY})`)
       .style("display", "block");
+  }
+
+  // Helper to check if tree scale bar is visible in current view
+  function updateScaleBarVisibility() {
+    if (!currentBounds) {
+      scaleBarDiv.style("display", "none");
+      return;
+    }
+
+    const padding = 20;
+    const scaleBarY = currentBounds.maxY + padding + options.legendElementHeight;
+    const scaleBarX = currentBounds.minX + padding;
+
+    // Transform scale bar position to screen coordinates
+    const screenX = scaleBarX * currentTransform.k + currentTransform.x;
+    const screenY = scaleBarY * currentTransform.k + currentTransform.y;
+
+    // Get viewport dimensions
+    const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
+
+    // Check if scale bar is visible in viewport
+    const isVisible = screenX >= 0 && screenX <= viewW && screenY >= 0 && screenY <= viewH;
+
+    // Hide legend scale bar if tree scale bar is visible
+    scaleBarDiv.style("display", isVisible ? "none" : "flex");
   }
 
   let currentBounds = null;
@@ -758,6 +791,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       collapsedRootLineLength
     );
 
+
     if (fit || !manualZoomAndPanEnabled) fitToView(!initial);
 
     // Compute bounding rectangles for every subtree node
@@ -799,6 +833,23 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         }
       });
     }
+
+    // Update tree scale bar
+    treeScaleBar.update(branchLenToPxFactor);
+    if (isCircularLayout) {
+      const minX = Math.min(...displayedRoot.descendants().filter(d => !d.children).map(d =>
+        d.bounds.maxRadius * d.cos
+      ));
+      const maxY = Math.max(...displayedRoot.descendants().filter(d => !d.children).map(d =>
+        d.bounds.maxRadius * d.sin
+      ));
+      treeScaleBar.group.attr("transform", `translate(${minX}, ${maxY + options.legendElementHeight})`);
+    } else {
+      treeScaleBar.group.attr("transform", `translate(${displayedRoot.bounds.minX}, ${displayedRoot.bounds.maxY + options.legendElementHeight})`);
+    }
+
+    // Update scale bar visibility
+    updateScaleBarVisibility();
 
     // Function to generate selection rectangle path
     function generateSelectionPath(node) {

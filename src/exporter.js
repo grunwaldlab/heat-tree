@@ -3,7 +3,7 @@ import {
 } from "d3";
 
 // Function to export the entire tree to SVG
-export function exportToSvg(treeSvg, bounds) {
+export function exportToSvg(treeSvg, bounds, options) {
   // Clone the tree SVG group
   const treeClone = treeSvg.node().cloneNode(true);
 
@@ -16,7 +16,7 @@ export function exportToSvg(treeSvg, bounds) {
 
   // Calculate bounds of the entire tree
   const treeWidth = bounds.maxX - bounds.minX;
-  const treeHeight = bounds.maxY - bounds.minY;
+  const treeHeight = bounds.maxY - bounds.minY + options.legendElementHeight;
   const padding = 20;
 
   // Create a new SVG element with appropriate dimensions
