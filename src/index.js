@@ -330,7 +330,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   const exportSvgButton = initExportSvgButton(toolbarDiv, options, () => exportToSvg(treeSvg, currentBounds));
 
   // Create scale bar (left-aligned)
-  const scaleBar = initScaleBar(legendDiv, options);
+  const scaleBarDiv = legendDiv.append("div")
+    .attr("class", "ht-scale-bar")
+    .style("height", `${options.legendElementHeight}px`)
+    .style("flex", "0 0 auto");
+  const scaleBar = initScaleBar(scaleBarDiv, options);
 
   // Create color legend (appears after scale bar when active)
   const colorLegend = initColorLegend(legendDiv, options);

@@ -49,12 +49,8 @@ function updateZoomIndicator(zoomIndicatorText, zoomLevel) {
  * @param {Object} options - Configuration options
  * @returns {Object} Object containing the SVG and group elements, plus update function
  */
-export function initScaleBar(legendDiv, options) {
+export function initScaleBar(scaleBarDiv, options) {
   const scaleBarEdgeHeight = 6;
-  const scaleBarDiv = legendDiv.append("div")
-    .attr("class", "ht-scale-bar")
-    .style("height", `${options.legendElementHeight}px`)
-    .style("flex", "0 0 auto");
   const scaleBarSvg = scaleBarDiv.append("svg")
     .attr("width", options.scaleBarSize.max)
     .attr("height", options.legendElementHeight);
