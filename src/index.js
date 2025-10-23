@@ -37,8 +37,8 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     maxLabelWidthProportion: 0.03,
     branchThicknessProp: 0.15,
     circularLayoutEnabled: false,
-    minFontPx: 11,
-    idealFontPx: 16,
+    minFontPx: 12,
+    idealFontPx: 18,
     maxFontPx: 32,
     minBranchThicknessPx: 1,
     minBranchLenProp: 0.5,
@@ -490,7 +490,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     let screenX = x * currentTransform.k + currentTransform.x - options.buttonSize - options.controlsMargin;
     let screenY = y * currentTransform.k + currentTransform.y - options.controlsMargin;
 
-    // Limit how far left the buttons can go (keep them within viewable area)
+    // Keep them within viewable area
     const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
     screenX = Math.max(screenX, 0);
     screenX = Math.min(screenX, viewW - options.buttonSize);
@@ -831,7 +831,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         const bottomLeft = { x: node.bounds.minX, y: node.bounds.maxY };
 
         // Build path with arcs on left/right sides and straight lines on top/bottom
-        return `M${topLeft.x},${topLeft.y} L${topRight.x},${topRight.y} A${arcRadius},${arcRadius} 0 0,${sweepFlag} ${bottomRight.x},${bottomRight.y} L${bottomLeft.x},${bottomLeft.y} A${arcRadius},${arcRadius} 0 0,${sweepFlag} ${topLeft.x},${topLeft.y} Z`;
+        return `M${topLeft.x},${topLeft.y} L${topRight.x},${topRight.y} L${bottomRight.x},${bottomRight.y} L${bottomLeft.x},${bottomLeft.y} L${topLeft.x},${topLeft.y} Z`;
       }
     }
 
