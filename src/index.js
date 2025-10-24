@@ -360,7 +360,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
         currentColorColumn = columnName || null;
         colorScale = createColorScale(currentColorColumn);
         const columnType = currentColorColumn ? columnTypes.get(currentColorColumn) : null;
-        colorLegend.update(colorScale, currentColorColumn, columnType);
+        updateColorLegendVisibility();
+        treeColorLegend.update(colorScale, currentColorColumn, columnType);
+        legendColorLegend.update(colorScale, currentColorColumn, columnType);
         update(false, false);
       }
     );
@@ -372,7 +374,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   // Create scale bar (left-aligned)
   const scaleBarDiv = legendDiv.append("div")
     .attr("class", "ht-scale-bar")
-    .style("height", `${options.legendElementHeight}px`)
+    .style("display", "flex")
     .style("flex", "0 0 auto");
   const scaleBarSvg = scaleBarDiv.append("svg")
     .attr("width", options.scaleBarSize.max)
@@ -380,15 +382,15 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   const scaleBar = initScaleBar(scaleBarSvg, options);
   scaleBar.group.attr("transform", `translate(1,${options.legendElementHeight - 6})`);
 
-  // Create color legend (appears after scale bar when active)
+  // Create color legend for legend div
   const labelColorLegendDiv = legendDiv.append("div")
     .attr("class", "ht-color-legend")
-    .style("height", `${options.legendElementHeight}px`)
+    .style("display", "flex")
     .style("flex", "0 0 auto");
   const labelColorLegendSvg = labelColorLegendDiv.append("svg")
-    // .attr("width", options.scaleBarSize.max)
-    .attr("height", options.legendElementHeight);
-  const colorLegend = initColorLegend(labelColorLegendSvg, options);
+    .attr('width', 0)
+    .attr('height', 0);
+  const legendColorLegend = initColorLegend(labelColorLegendSvg, options);
 
   // Create spacer to push right-aligned elements to the right
   const spacer = legendDiv.append("div")
@@ -422,9 +424,10 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       currentTransform = event.transform;          // keep latest zoom
       treeSvg.attr("transform", currentTransform); // move tree
       updateSelectionButtons();                    // reposition buttons
+      updateScaleBarVisibility();                   // check if tree scale bar is visible
+      updateColorLegendVisibility();                // check if tree color legend is visible
       scaleBar.update(branchLenToPxFactor * currentTransform.k); // rescale bar
       zoomIndicator.update(currentTransform.k);     // update zoom indicator
-      updateScaleBarVisibility();                   // check if tree scale bar is visible
     });
 
   // Attach zoom behaviour to the outer SVG
@@ -444,6 +447,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   // Initialize scale bar in tree SVG
   const treeScaleBar = initScaleBar(treeSvg, options);
+
+  // Initialize color legend in tree SVG
+  const treeColorLegend = initColorLegend(treeSvg, options);
 
   // Reference to the outer <svg> (not zoomed) – used for UI overlays
   const overlaySvg = treeDiv.select("svg");
@@ -584,6 +590,41 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
     // Hide legend scale bar if tree scale bar is visible
     scaleBarDiv.style("display", isVisible ? "none" : "flex");
+  }
+
+  // Helper to check if tree color legend is visible in current view
+  function updateColorLegendVisibility() {
+    if (!currentBounds || !currentColorColumn) {
+      labelColorLegendDiv.style("display", "none");
+      return;
+    }
+
+    const padding = 20;
+    const colorLegendY = currentBounds.maxY + padding + options.legendElementHeight * 2;
+    const colorLegendX = currentBounds.minX + padding;
+
+    // Transform color legend position to screen coordinates
+    const screenX = colorLegendX * currentTransform.k + currentTransform.x;
+    const screenY = colorLegendY * currentTransform.k + currentTransform.y;
+
+    // Get viewport dimensions
+    const { width: viewW, height: viewH } = treeDiv.select('svg').node().getBoundingClientRect();
+
+    // Check if color legend is visible in viewport
+    const isVisible = screenX >= 0 && screenX <= viewW && screenY >= 0 && screenY <= viewH;
+
+    // Show/hide legend color legend based on tree color legend visibility
+    if (isVisible) {
+      labelColorLegendDiv.style("display", "none");
+    } else if (currentColorColumn) {
+      labelColorLegendDiv.style("display", "flex");
+      const columnType = currentColorColumn ? columnTypes.get(currentColorColumn) : null;
+      legendColorLegend.update(colorScale, currentColorColumn, columnType);
+      const bbox = labelColorLegendSvg.node().getBBox();
+      labelColorLegendSvg.attr('viewBox', `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
+      labelColorLegendSvg.attr('width', bbox.width);
+      labelColorLegendSvg.attr('height', bbox.height);
+    }
   }
 
   let currentBounds = null;
@@ -890,13 +931,34 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       const maxY = Math.max(...displayedRoot.descendants().filter(d => !d.children).map(d =>
         d.bounds.maxRadius * d.sin
       ));
-      treeScaleBar.group.attr("transform", `translate(${minX}, ${maxY + options.legendElementHeight})`);
+      let currentX = minX;
+      treeScaleBar.group.attr("transform", `translate(${currentX}, ${maxY + options.legendElementHeight})`);
+      currentX += treeScaleBar.group.node().getBBox().width + 10;
+      treeColorLegend.group.attr("transform", `translate(${currentX}, ${maxY})`);
     } else {
-      treeScaleBar.group.attr("transform", `translate(${displayedRoot.bounds.minX}, ${displayedRoot.bounds.maxY + options.legendElementHeight})`);
+      let currentX = displayedRoot.bounds.minX;
+      treeScaleBar.group.attr("transform", `translate(${currentX}, ${displayedRoot.bounds.maxY + options.legendElementHeight})`);
+      currentX += treeScaleBar.group.node().getBBox().width + 10;
+      treeColorLegend.group.attr("transform", `translate(${currentX}, ${displayedRoot.bounds.maxY})`);
+    }
+
+    // Update tree color legend
+    if (isCircularLayout) {
+      const minX = Math.min(...displayedRoot.descendants().filter(d => !d.children).map(d =>
+        d.bounds.maxRadius * d.cos
+      ));
+      const maxY = Math.max(...displayedRoot.descendants().filter(d => !d.children).map(d =>
+        d.bounds.maxRadius * d.sin
+      ));
+      treeColorLegend.group.attr("transform", `translate(${minX}, ${maxY + options.legendElementHeight * 2})`);
+    } else {
     }
 
     // Update scale bar visibility
     updateScaleBarVisibility();
+
+    // Update color legend visibility
+    updateColorLegendVisibility();
 
     // Function to generate selection rectangle path
     function generateSelectionPath(node) {

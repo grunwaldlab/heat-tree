@@ -377,16 +377,18 @@ function updateColorLegend(colorLegendGroup, colorScale, columnName, columnType,
     const categories = colorScale.domain();
     const maxCategoriesToShow = 10;
     const categoriesToShow = categories.slice(0, maxCategoriesToShow);
-    const hasMore = categories.length > maxCategoriesToShow;
 
     const itemGap = 8;
     const squareSize = 12;
     const itemLabelGap = 3;
     const itemFontSize = 12;
+    const maxWidth = 500;
+
+    let currentY = verticalCenter;
 
     categoriesToShow.forEach(category => {
       const itemGroup = colorLegendGroup.append("g")
-        .attr("transform", `translate(${currentX}, ${verticalCenter})`);
+        .attr("transform", `translate(${currentX}, ${currentY})`);
 
       // Color square
       itemGroup.append("rect")
@@ -406,18 +408,31 @@ function updateColorLegend(colorLegendGroup, colorScale, columnName, columnType,
         .style("font-size", `${itemFontSize}px`)
         .text(category);
 
-      const labelBBox = label.node().getBBox();
-      currentX += squareSize + itemLabelGap + labelBBox.width + itemGap;
+      const itemGroupExtent = itemGroup.node().getBBox().width + itemGap;
+
+      if (itemGroupExtent + currentX > maxWidth) {
+        currentX = columnLabelBBox.width + 5;
+        currentY = currentY + options.legendElementHeight;
+      }
+
+      itemGroup.attr("transform", `translate(${currentX}, ${currentY})`);
+      currentX += itemGroupExtent;
     });
 
-    if (hasMore) {
-      colorLegendGroup.append("text")
-        .attr("x", currentX)
-        .attr("y", verticalCenter)
+    if (categories.length > maxCategoriesToShow) {
+      const moreText = colorLegendGroup.append("text")
         .attr("dominant-baseline", "central")
         .style("font-size", `${itemFontSize}px`)
         .style("font-style", "italic")
         .text(`(+${categories.length - maxCategoriesToShow} more)`);
+
+      const moreTextExtent = moreText.node().getBBox().width + itemGap;
+      if (moreTextExtent + currentX > maxWidth) {
+        currentX = columnLabelBBox.width + 5;
+        currentY = currentY + options.legendElementHeight;
+      }
+
+      moreText.attr("transform", `translate(${currentX}, ${currentY})`);
     }
   }
 }
