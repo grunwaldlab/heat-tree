@@ -135,6 +135,10 @@ export function initLabelTextDropdown(toolbarDiv, options, columns, onChange) {
     .style("display", "flex")
     .style("align-items", "center");
 
+  dropdownContainer.append('span')
+    .text('Label:  ')
+    .style('margin-right', "3px")
+
   const dropdown = dropdownContainer.append("select")
     .style("height", `${options.buttonSize}px`)
     .style("cursor", "pointer")
@@ -174,6 +178,10 @@ export function initLabelColoringDropdown(toolbarDiv, options, columns, onChange
     .style("flex", "0 0 auto")
     .style("display", "flex")
     .style("align-items", "center");
+
+  dropdownContainer.append('span')
+    .text('Color:  ')
+    .style('margin-right', "3px")
 
   const dropdown = dropdownContainer.append("select")
     .style("height", `${options.buttonSize}px`)
