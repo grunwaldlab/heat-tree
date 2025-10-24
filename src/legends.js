@@ -251,63 +251,67 @@ function updateLeafCount(leafCountSvg, leafCountText, visibleLeaves, totalLeaves
 
 /**
  * Initialize the color legend element
- * @param {Selection} legendDiv - D3 selection of the legend container
+ * @param {Selection} parentSvg - D3 selection of the parent SVG
  * @param {Object} options - Configuration options
- * @returns {Object} Object containing the container div and update function
+ * @returns {Object} Object containing the group element and update function
  */
-export function initColorLegend(legendDiv, options) {
-  const colorLegendDiv = legendDiv.append("div")
+export function initColorLegend(parentSvg, options) {
+  const colorLegendGroup = parentSvg.append("g")
     .attr("class", "ht-color-legend")
-    .style("height", `${options.legendElementHeight}px`)
-    .style("flex", "0 0 auto")
-    .style("margin-right", "auto")
-    .style("display", "none")
-    .style("align-items", "center")
-    .style("gap", "5px");
+    .style("display", "none");
 
   return {
-    div: colorLegendDiv,
-    update: (colorScale, columnName, columnType) => updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, options)
+    group: colorLegendGroup,
+    update: (colorScale, columnName, columnType) => updateColorLegend(colorLegendGroup, colorScale, columnName, columnType, options)
   };
 }
 
 /**
  * Update the color legend based on the current color scale
- * @param {Selection} colorLegendDiv - D3 selection of the legend container
+ * @param {Selection} colorLegendGroup - D3 selection of the legend group
  * @param {Function} colorScale - D3 color scale (linear or ordinal)
  * @param {string} columnName - Name of the metadata column being visualized
  * @param {string} columnType - Type of column ('continuous' or 'categorical')
  * @param {Object} options - Configuration options
  */
-function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, options) {
+function updateColorLegend(colorLegendGroup, colorScale, columnName, columnType, options) {
   // Clear existing content
-  colorLegendDiv.selectAll("*").remove();
+  colorLegendGroup.selectAll("*").remove();
 
   // Hide if no color scale
   if (!colorScale || !columnName) {
-    colorLegendDiv.style("display", "none");
+    colorLegendGroup.style("display", "none");
     return;
   }
 
-  colorLegendDiv.style("display", "flex");
+  colorLegendGroup.style("display", "block");
+
+  let currentX = 0;
+  const labelFontSize = 16;
+  const verticalCenter = options.legendElementHeight / 2;
 
   // Add column name label
-  colorLegendDiv.append("span")
-    .style("font-size", "16px")
+  const columnLabel = colorLegendGroup.append("text")
+    .attr("x", currentX)
+    .attr("y", verticalCenter)
+    .attr("dominant-baseline", "central")
+    .style("font-size", `${labelFontSize}px`)
     .text(columnToHeader(columnName) + ":");
+
+  const columnLabelBBox = columnLabel.node().getBBox();
+  currentX += columnLabelBBox.width + 5;
 
   if (columnType === 'continuous') {
     // Create continuous gradient legend
     const legendWidth = 150;
     const tickHeight = 4;
-    const labelFontSize = 10;
+    const tickLabelFontSize = 10;
     const labelPadding = 2;
-    const barHeight = options.legendElementHeight - tickHeight - labelFontSize - labelPadding;
+    const barHeight = options.legendElementHeight - tickHeight - tickLabelFontSize - labelPadding;
     const leftMargin = 15;
 
-    const svg = colorLegendDiv.append("svg")
-      .attr("width", legendWidth + leftMargin * 2)
-      .attr("height", options.legendElementHeight);
+    const legendGroup = colorLegendGroup.append("g")
+      .attr("transform", `translate(${currentX}, 0)`);
 
     // Get domain values
     const domain = colorScale.domain();
@@ -318,7 +322,7 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
     const ticks = generateNiceTicks(minVal, maxVal, 4);
 
     // Create gradient definition
-    const defs = svg.append("defs");
+    const defs = colorLegendGroup.append("defs");
     const gradient = defs.append("linearGradient")
       .attr("id", "color-gradient")
       .attr("x1", "0%")
@@ -334,7 +338,7 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
     }
 
     // Draw gradient rectangle
-    svg.append("rect")
+    legendGroup.append("rect")
       .attr("x", leftMargin)
       .attr("y", 0)
       .attr("width", legendWidth)
@@ -350,7 +354,7 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
       const x = leftMargin + t * legendWidth;
 
       // Draw tick mark
-      svg.append("line")
+      legendGroup.append("line")
         .attr("x1", x)
         .attr("y1", barHeight)
         .attr("x2", x)
@@ -359,12 +363,12 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
         .attr("stroke-width", 1);
 
       // Draw label
-      svg.append("text")
+      legendGroup.append("text")
         .attr("x", x)
         .attr("y", barHeight + tickHeight + labelPadding)
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "hanging")
-        .style("font-size", `${labelFontSize}px`)
+        .style("font-size", `${tickLabelFontSize}px`)
         .text(formatTickLabel(tickValue, ticks));
     });
 
@@ -375,34 +379,43 @@ function updateColorLegend(colorLegendDiv, colorScale, columnName, columnType, o
     const categoriesToShow = categories.slice(0, maxCategoriesToShow);
     const hasMore = categories.length > maxCategoriesToShow;
 
-    const legendContainer = colorLegendDiv.append("div")
-      .style("display", "flex")
-      .style("gap", "8px")
-      .style("align-items", "center")
-      .style("flex-wrap", "wrap");
+    const itemGap = 8;
+    const squareSize = 12;
+    const itemLabelGap = 3;
+    const itemFontSize = 12;
 
     categoriesToShow.forEach(category => {
-      const itemDiv = legendContainer.append("div")
-        .style("display", "flex")
-        .style("align-items", "center")
-        .style("gap", "3px");
+      const itemGroup = colorLegendGroup.append("g")
+        .attr("transform", `translate(${currentX}, ${verticalCenter})`);
 
       // Color square
-      itemDiv.append("div")
-        .style("width", "12px")
-        .style("height", "12px")
-        .style("background-color", colorScale(category))
-        .style("border", "1px solid #000");
+      itemGroup.append("rect")
+        .attr("x", 0)
+        .attr("y", -squareSize / 2)
+        .attr("width", squareSize)
+        .attr("height", squareSize)
+        .style("fill", colorScale(category))
+        .style("stroke", "#000")
+        .style("stroke-width", 1);
 
       // Category label
-      itemDiv.append("span")
-        .style("font-size", "12px")
+      const label = itemGroup.append("text")
+        .attr("x", squareSize + itemLabelGap)
+        .attr("y", 0)
+        .attr("dominant-baseline", "central")
+        .style("font-size", `${itemFontSize}px`)
         .text(category);
+
+      const labelBBox = label.node().getBBox();
+      currentX += squareSize + itemLabelGap + labelBBox.width + itemGap;
     });
 
     if (hasMore) {
-      legendContainer.append("span")
-        .style("font-size", "12px")
+      colorLegendGroup.append("text")
+        .attr("x", currentX)
+        .attr("y", verticalCenter)
+        .attr("dominant-baseline", "central")
+        .style("font-size", `${itemFontSize}px`)
         .style("font-style", "italic")
         .text(`(+${categories.length - maxCategoriesToShow} more)`);
     }

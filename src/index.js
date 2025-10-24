@@ -381,7 +381,14 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   scaleBar.group.attr("transform", `translate(1,${options.legendElementHeight - 6})`);
 
   // Create color legend (appears after scale bar when active)
-  const colorLegend = initColorLegend(legendDiv, options);
+  const labelColorLegendDiv = legendDiv.append("div")
+    .attr("class", "ht-color-legend")
+    .style("height", `${options.legendElementHeight}px`)
+    .style("flex", "0 0 auto");
+  const labelColorLegendSvg = labelColorLegendDiv.append("svg")
+    // .attr("width", options.scaleBarSize.max)
+    .attr("height", options.legendElementHeight);
+  const colorLegend = initColorLegend(labelColorLegendSvg, options);
 
   // Create spacer to push right-aligned elements to the right
   const spacer = legendDiv.append("div")
