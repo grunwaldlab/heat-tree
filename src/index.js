@@ -1,8 +1,8 @@
-import { parseNewick } from "./parsers.js"
+import { parseNewick, parseMetadata } from "./parsers.js"
 import { appendIcon } from "./icons.js"
-import { triangleAreaFromSide, calculateTreeBounds, createDashArray, interpolateViridisSubset } from "./utils.js"
+import { triangleAreaFromSide, calculateTreeBounds, createDashArray } from "./utils.js"
 import { calculateScalingFactors, calculateCircularScalingFactors } from "./scaling.js"
-import { initZoomIndicator, initScaleBar, initLeafCount, initColorLegend, initTreeScaleBar } from "./legends.js"
+import { initZoomIndicator, initScaleBar, initLeafCount, initColorLegend } from "./legends.js"
 import { exportToSvg } from './exporter.js'
 import { TextSizeEstimator } from './textAspectRatioPrediction.js'
 
@@ -17,8 +17,7 @@ import {
 } from "./controls.js"
 
 import {
-  hierarchy, select, zoom, zoomIdentity, cluster, ascending,
-  symbol, symbolTriangle, scaleLinear, scaleOrdinal, interpolateViridis
+  hierarchy, select, zoom, zoomIdentity, cluster, ascending, symbol, symbolTriangle
 } from "d3";
 
 
@@ -49,58 +48,14 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     ...options
   };
 
+  // Initialize estimator of text dimensions relative to font size with cache
+  const textSizeEstimator = new TextSizeEstimator();
+
+
   // Parse metadata TSV if provided
-  let metadataMap = new Map();
-  let metadataColumns = [];
-  let columnTypes = new Map(); // Track whether each column is continuous or categorical
-
+  let metadataMap, columnTypes, colorScales;
   if (options.metadata) {
-    const lines = options.metadata.trim().split('\n');
-    if (lines.length > 1) {
-      const headers = lines[0].split('\t');
-      const nodeIdIndex = headers.indexOf('node_id');
-
-      if (nodeIdIndex === -1) {
-        console.warn('Metadata TSV must contain a "node_id" column');
-      } else {
-        // Get column names (excluding node_id)
-        metadataColumns = headers.filter((h, i) => i !== nodeIdIndex);
-
-        // Initialize column type detection
-        const columnValues = new Map();
-        metadataColumns.forEach(col => columnValues.set(col, []));
-
-        // Parse metadata rows
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split('\t');
-          const nodeId = values[nodeIdIndex];
-          const metadata = {};
-
-          for (let j = 0; j < headers.length; j++) {
-            if (j !== nodeIdIndex) {
-              const colName = headers[j];
-              const value = values[j];
-              metadata[colName] = value;
-              columnValues.get(colName).push(value);
-            }
-          }
-
-          metadataMap.set(nodeId, metadata);
-        }
-
-        // Determine column types (continuous vs categorical)
-        metadataColumns.forEach(col => {
-          const values = columnValues.get(col);
-          const numericValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
-
-          // If all non-empty values can be converted to numbers, treat as continuous
-          const isContinuous = numericValues.length > 0 &&
-            numericValues.length === values.filter(v => v !== '').length;
-
-          columnTypes.set(col, isContinuous ? 'continuous' : 'categorical');
-        });
-      }
-    }
+    ({ metadataMap, columnTypes, colorScales } = parseMetadata(options.metadata));
   }
 
   // Current label text state
@@ -108,56 +63,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   // Current label coloring state
   let currentColorColumn = null;
-  let colorScale = null;
-
-  // Function to create color scale for a given column
-  function createColorScale(columnName) {
-    if (!columnName) {
-      return null;
-    }
-
-    const columnType = columnTypes.get(columnName);
-    const values = [];
-
-    // Collect all values for this column
-    metadataMap.forEach(metadata => {
-      if (metadata[columnName] !== undefined && metadata[columnName] !== '') {
-        values.push(metadata[columnName]);
-      }
-    });
-
-    if (values.length === 0) {
-      return null;
-    }
-
-    if (columnType === 'continuous') {
-      // Continuous scale using viridis
-      const numericValues = values.map(v => parseFloat(v));
-      const minVal = Math.min(...numericValues);
-      const maxVal = Math.max(...numericValues);
-
-      // Usage with scale
-      return scaleLinear()
-        .domain([minVal, maxVal])
-        .range([0, 1])
-        .interpolate(() => (t) => interpolateViridisSubset(t));
-    } else {
-      // Categorical scale using colors sampled from viridis
-      const uniqueValues = [...new Set(values)];
-      const numCategories = uniqueValues.length;
-
-      // Sample colors evenly from viridis palette
-      const colors = [];
-      for (let i = 0; i < numCategories; i++) {
-        const t = i / Math.max(1, numCategories - 1);
-        colors.push(interpolateViridisSubset(t));
-      }
-
-      return scaleOrdinal()
-        .domain(uniqueValues)
-        .range(colors);
-    }
-  }
 
   // Function to get label text for a node
   function getNodeLabelText(node) {
@@ -184,7 +89,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   // Function to get color for a node
   function getNodeColor(node) {
-    if (!currentColorColumn || !colorScale) {
+    if (!currentColorColumn || !colorScales.get(currentColorColumn)) {
       return "#000"; // Default black
     }
 
@@ -206,9 +111,9 @@ export function heatTree(newickStr, containerSelector, options = {}) {
       if (isNaN(numericValue)) {
         return "#000";
       }
-      return colorScale(numericValue);
+      return colorScales.get(currentColorColumn)(numericValue);
     } else {
-      return colorScale(value);
+      return colorScales.get(currentColorColumn)(value);
     }
   }
 
@@ -257,9 +162,6 @@ export function heatTree(newickStr, containerSelector, options = {}) {
 
   // Currently selected subtree root
   let selectedNode = null;
-
-  // Initialize estimator of text dimensions relative to font size with cache
-  const textSizeEstimator = new TextSizeEstimator();
 
   // Parse the Newick string
   const treeData = parseNewick(newickStr);
@@ -338,11 +240,11 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   toggleCircularButton.update(isCircularLayout);
 
   // Create label text dropdown (only if metadata is provided)
-  if (metadataColumns.length > 0) {
+  if (columnTypes.size > 0) {
     const labelTextDropdown = initLabelTextDropdown(
       toolbarDiv,
       options,
-      metadataColumns,
+      columnTypes.keys(),
       (columnName) => {
         currentLabelTextColumn = columnName || null;
         update(false, false);
@@ -351,18 +253,17 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   }
 
   // Create label coloring dropdown (only if metadata is provided)
-  if (metadataColumns.length > 0) {
+  if (columnTypes.size > 0) {
     const labelColoringDropdown = initLabelColoringDropdown(
       toolbarDiv,
       options,
-      metadataColumns,
+      columnTypes.keys(),
       (columnName) => {
         currentColorColumn = columnName || null;
-        colorScale = createColorScale(currentColorColumn);
         const columnType = currentColorColumn ? columnTypes.get(currentColorColumn) : null;
         updateColorLegendVisibility();
-        treeColorLegend.update(colorScale, currentColorColumn, columnType);
-        legendColorLegend.update(colorScale, currentColorColumn, columnType);
+        treeColorLegend.update(colorScales.get(currentColorColumn), currentColorColumn, columnType);
+        legendColorLegend.update(colorScales.get(currentColorColumn), currentColorColumn, columnType);
         update(false, false);
       }
     );
@@ -619,7 +520,7 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     } else if (currentColorColumn) {
       labelColorLegendDiv.style("display", "flex");
       const columnType = currentColorColumn ? columnTypes.get(currentColorColumn) : null;
-      legendColorLegend.update(colorScale, currentColorColumn, columnType);
+      legendColorLegend.update(colorScales.get(currentColorColumn), currentColorColumn, columnType);
       const bbox = labelColorLegendSvg.node().getBBox();
       labelColorLegendSvg.attr('viewBox', `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
       labelColorLegendSvg.attr('width', bbox.width);
