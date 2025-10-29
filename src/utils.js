@@ -189,3 +189,34 @@ export function interpolateViridisSubset(t, start = 0.1, end = 0.9) {
   return interpolateViridis(start + t * (end - start));
 }
 
+/**
+ * Base class for objects that support pub/sub pattern
+ */
+export class Subscribable {
+  constructor() {
+    this.subscribers = new Map();
+  }
+
+  subscribe(event, callback) {
+    if (!this.subscribers.has(event)) {
+      this.subscribers.set(event, new Set());
+    }
+    this.subscribers.get(event).add(callback);
+
+    return () => this.unsubscribe(event, callback);
+  }
+
+  unsubscribe(event, callback) {
+    if (this.subscribers.has(event)) {
+      this.subscribers.get(event).delete(callback);
+    }
+  }
+
+  notify(event, data) {
+    if (this.subscribers.has(event)) {
+      this.subscribers.get(event).forEach(callback => {
+        callback(data);
+      });
+    }
+  }
+}
