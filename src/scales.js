@@ -44,16 +44,16 @@ export class ContinuousColorScale {
     this.dataMax = dataMax;
     this.transformMin = transformMin;
     this.transformMax = transformMax;
-    this.nullColor = '#808080'; // Default grey for null/empty values
+    this.nullColor = "#808080"; // Default grey for null/empty values
 
     // Default to viridis-like color scheme if not provided
     if (colors === null) {
-      this.colors = ['#440154', '#31688e', '#35b779', '#fde724'];
+      this.colors = ['#440154', '#31688e', '#35b779', '#fde724'].map(c => this._hexToRgb(c));
     } else {
       if (colors.length < 1) {
         throw new Error('At least 1 color is required');
       }
-      this.colors = colors;
+      this.colors = colors.map(c => this._hexToRgb(c));
     }
 
     // Handle single color case
@@ -103,19 +103,21 @@ export class ContinuousColorScale {
 
     // Handle single color case
     if (this.colors.length === 1) {
-      return this.colors[0];
+      return this._rgbToHex(this.colors[0].r, this.colors[0].g, this.colors[0].b);
     }
 
     // Handle edge case where dataMin === dataMax
     if (this.dataMin === this.dataMax) {
       if (value < this.dataMin) {
-        return this.colors[0];
+        return this._rgbToHex(this.colors[0].r, this.colors[0].g, this.colors[0].b);
       } else if (value > this.dataMax) {
-        return this.colors[this.colors.length - 1];
+        const lastColor = this.colors[this.colors.length - 1];
+        return this._rgbToHex(lastColor.r, lastColor.g, lastColor.b);
       } else {
         // value === dataMin === dataMax, return middle color
         const midIdx = Math.floor(this.colors.length / 2);
-        return this.colors[midIdx];
+        const midColor = this.colors[midIdx];
+        return this._rgbToHex(midColor.r, midColor.g, midColor.b);
       }
     }
 
@@ -133,12 +135,13 @@ export class ContinuousColorScale {
 
     // If transformedT is below the first position, return first color
     if (clampedT <= this.colorPositions[0]) {
-      return this.colors[0];
+      return this._rgbToHex(this.colors[0].r, this.colors[0].g, this.colors[0].b);
     }
 
     // If transformedT is above the last position, return last color
     if (clampedT >= this.colorPositions[this.colorPositions.length - 1]) {
-      return this.colors[this.colors.length - 1];
+      const lastColor = this.colors[this.colors.length - 1];
+      return this._rgbToHex(lastColor.r, lastColor.g, lastColor.b);
     }
 
     // Find the two colors to interpolate between
@@ -153,10 +156,12 @@ export class ContinuousColorScale {
 
     // Handle edge case where we're exactly at a color position
     if (clampedT === this.colorPositions[lowerIdx]) {
-      return this.colors[lowerIdx];
+      const color = this.colors[lowerIdx];
+      return this._rgbToHex(color.r, color.g, color.b);
     }
     if (clampedT === this.colorPositions[upperIdx]) {
-      return this.colors[upperIdx];
+      const color = this.colors[upperIdx];
+      return this._rgbToHex(color.r, color.g, color.b);
     }
 
     // Interpolate between the two colors
@@ -167,16 +172,13 @@ export class ContinuousColorScale {
   }
 
   /**
-   * Interpolate between two hex colors
+   * Interpolate between two RGB colors
    * @private
    */
   _interpolateColor(color1, color2, t) {
-    const c1 = this._hexToRgb(color1);
-    const c2 = this._hexToRgb(color2);
-
-    const r = Math.round(c1.r + (c2.r - c1.r) * t);
-    const g = Math.round(c1.g + (c2.g - c1.g) * t);
-    const b = Math.round(c1.b + (c2.b - c1.b) * t);
+    const r = Math.round(color1.r + (color2.r - color1.r) * t);
+    const g = Math.round(color1.g + (color2.g - color1.g) * t);
+    const b = Math.round(color1.b + (color2.b - color1.b) * t);
 
     return this._rgbToHex(r, g, b);
   }
@@ -217,7 +219,7 @@ export class CategoricalColorScale {
 
     this.transformMin = transformMin;
     this.transformMax = transformMax;
-    this.nullColor = '#808080'; // Default grey for null/empty values
+    this.nullColor = "#808080"; // Default grey for null/empty values
 
     // Calculate unique categories and their frequencies
     this.frequencyMap = new Map();
@@ -236,12 +238,12 @@ export class CategoricalColorScale {
 
     // Default to viridis-like color scheme if not provided
     if (colors === null) {
-      this.colors = ['#440154', '#31688e', '#35b779', '#fde724'];
+      this.colors = ['#440154', '#31688e', '#35b779', '#fde724'].map(c => this._hexToRgb(c));
     } else {
       if (colors.length < 1) {
         throw new Error('At least 1 color is required');
       }
-      this.colors = colors;
+      this.colors = colors.map(c => this._hexToRgb(c));
     }
 
     // Handle single color case
@@ -291,8 +293,9 @@ export class CategoricalColorScale {
 
     // Handle single color case
     if (this.colors.length === 1) {
+      const hexColor = this._rgbToHex(this.colors[0].r, this.colors[0].g, this.colors[0].b);
       for (const category of this.categories) {
-        this.categoryColorMap.set(category, this.colors[0]);
+        this.categoryColorMap.set(category, hexColor);
       }
       return;
     }
@@ -322,17 +325,18 @@ export class CategoricalColorScale {
 
     // Handle single color case
     if (this.colors.length === 1) {
-      return this.colors[0];
+      return this._rgbToHex(this.colors[0].r, this.colors[0].g, this.colors[0].b);
     }
 
     // If t is below the first position, return first color
     if (t <= this.colorPositions[0]) {
-      return this.colors[0];
+      return this._rgbToHex(this.colors[0].r, this.colors[0].g, this.colors[0].b);
     }
 
     // If t is above the last position, return last color
     if (t >= this.colorPositions[this.colorPositions.length - 1]) {
-      return this.colors[this.colors.length - 1];
+      const lastColor = this.colors[this.colors.length - 1];
+      return this._rgbToHex(lastColor.r, lastColor.g, lastColor.b);
     }
 
     // Find the two colors to interpolate between
@@ -347,10 +351,12 @@ export class CategoricalColorScale {
 
     // Handle edge cases
     if (t === this.colorPositions[lowerIdx]) {
-      return this.colors[lowerIdx];
+      const color = this.colors[lowerIdx];
+      return this._rgbToHex(color.r, color.g, color.b);
     }
     if (t === this.colorPositions[upperIdx]) {
-      return this.colors[upperIdx];
+      const color = this.colors[upperIdx];
+      return this._rgbToHex(color.r, color.g, color.b);
     }
 
     // Interpolate between the two colors
@@ -380,16 +386,13 @@ export class CategoricalColorScale {
   }
 
   /**
-   * Interpolate between two hex colors
+   * Interpolate between two RGB colors
    * @private
    */
   _interpolateColor(color1, color2, t) {
-    const c1 = this._hexToRgb(color1);
-    const c2 = this._hexToRgb(color2);
-
-    const r = Math.round(c1.r + (c2.r - c1.r) * t);
-    const g = Math.round(c1.g + (c2.g - c1.g) * t);
-    const b = Math.round(c1.b + (c2.b - c1.b) * t);
+    const r = Math.round(color1.r + (color2.r - color1.r) * t);
+    const g = Math.round(color1.g + (color2.g - color1.g) * t);
+    const b = Math.round(color1.b + (color2.b - color1.b) * t);
 
     return this._rgbToHex(r, g, b);
   }

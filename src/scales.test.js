@@ -77,7 +77,13 @@ describe('ContinuousColorScale', () => {
       const scale = new ContinuousColorScale(0, 100, 0, 1, colors, positions);
 
       expect(scale.colorPositions).toEqual([0, 0.5, 1]);
-      expect(scale.colors).toEqual(['#00ff00', '#0000ff', '#ff0000']);
+      expect(scale.colors).toEqual(
+        [
+          { "b": 0, "g": 255, "r": 0 },
+          { "b": 255, "g": 0, "r": 0 },
+          { "b": 0, "g": 0, "r": 255, }
+        ]
+      );
     });
 
     it('should normalize colorPositions to [0, 1]', () => {
@@ -271,7 +277,13 @@ describe('CategoricalColorScale', () => {
       const scale = new CategoricalColorScale(['A', 'B', 'C'], 0, 1, colors, positions);
 
       expect(scale.colorPositions).toEqual([0, 0.5, 1]);
-      expect(scale.colors).toEqual(['#00ff00', '#0000ff', '#ff0000']);
+      expect(scale.colors).toEqual(
+        [
+          { "b": 0, "g": 255, "r": 0 },
+          { "b": 255, "g": 0, "r": 0 },
+          { "b": 0, "g": 0, "r": 255, }
+        ]
+      );
     });
 
     it('should normalize colorPositions to [0, 1]', () => {
