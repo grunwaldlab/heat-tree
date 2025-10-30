@@ -109,7 +109,7 @@ D\t300\talpha`;
       expect(callback).toHaveBeenCalled();
       expect(callback).toHaveBeenCalledWith(expect.objectContaining({
         tree: treeData.tree,
-        columnTypes: treeData.columnTypes
+        columnType: treeData.columnType
       }));
     });
   });
@@ -154,6 +154,31 @@ D\t300\talpha`;
       expect(id2).toBe('table_1');
     });
 
+    it('should generate unique column IDs', () => {
+      const treeData = new TreeData(simpleNewick);
+      const tableId = treeData.addTable(metadataTable1);
+
+      const columns = treeData.getColumnNames();
+      expect(columns).toContain(`${tableId}_value1`);
+      expect(columns).toContain(`${tableId}_category1`);
+    });
+
+    it('should store original column names', () => {
+      const treeData = new TreeData(simpleNewick);
+      const tableId = treeData.addTable(metadataTable1);
+
+      expect(treeData.columnName.get(`${tableId}_value1`)).toBe('value1');
+      expect(treeData.columnName.get(`${tableId}_category1`)).toBe('category1');
+    });
+
+    it('should store display column names', () => {
+      const treeData = new TreeData(simpleNewick);
+      const tableId = treeData.addTable(metadataTable1);
+
+      expect(treeData.columnDisplayName.get(`${tableId}_value1`)).toBe('Value1');
+      expect(treeData.columnDisplayName.get(`${tableId}_category1`)).toBe('Category1');
+    });
+
     it('should notify subscribers when table is added and enabled', () => {
       const treeData = new TreeData(simpleNewick);
       const callback = vi.fn();
@@ -174,6 +199,20 @@ D\t300\talpha`;
 
       expect(treeData.metadataTables.has(tableId)).toBe(false);
       expect(treeData.enabledTables.has(tableId)).toBe(false);
+    });
+
+    it('should remove column name mappings', () => {
+      const treeData = new TreeData(simpleNewick);
+      const tableId = treeData.addTable(metadataTable1);
+
+      const uniqueId = `${tableId}_value1`;
+      expect(treeData.columnName.has(uniqueId)).toBe(true);
+      expect(treeData.columnDisplayName.has(uniqueId)).toBe(true);
+
+      treeData.deleteTable(tableId);
+
+      expect(treeData.columnName.has(uniqueId)).toBe(false);
+      expect(treeData.columnDisplayName.has(uniqueId)).toBe(false);
     });
 
     it('should warn if table does not exist', () => {
@@ -292,48 +331,51 @@ D\t300\talpha`;
   });
 
   describe('attachTables', () => {
-    it('should attach metadata to matching nodes', () => {
+    it('should attach metadata to matching nodes using unique column IDs', () => {
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(metadataTable1);
+      const tableId = treeData.addTable(metadataTable1);
 
       const leafA = treeData.tree.descendants().find(d => d.data.name === 'A');
       expect(leafA.metadata).toBeDefined();
-      expect(leafA.metadata.value1).toBe('10');
-      expect(leafA.metadata.category1).toBe('red');
+      expect(leafA.metadata[`${tableId}_value1`]).toBe('10');
+      expect(leafA.metadata[`${tableId}_category1`]).toBe('red');
     });
 
     it('should not attach metadata to non-matching nodes', () => {
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(metadataTable1);
+      const tableId = treeData.addTable(metadataTable1);
 
       const leafD = treeData.tree.descendants().find(d => d.data.name === 'D');
       expect(leafD.metadata).toBeDefined();
-      expect(leafD.metadata.value1).toBeUndefined();
+      expect(leafD.metadata[`${tableId}_value1`]).toBeUndefined();
     });
 
-    it('should merge metadata from multiple tables', () => {
+    it('should merge metadata from multiple tables with unique column IDs', () => {
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(metadataTable1);
-      treeData.addTable(metadataTable2);
+      const tableId1 = treeData.addTable(metadataTable1);
+      const tableId2 = treeData.addTable(metadataTable2);
 
       const leafA = treeData.tree.descendants().find(d => d.data.name === 'A');
-      expect(leafA.metadata.value1).toBe('10');
-      expect(leafA.metadata.value2).toBe('100');
-      expect(leafA.metadata.category1).toBe('red');
-      expect(leafA.metadata.category2).toBe('alpha');
+      expect(leafA.metadata[`${tableId1}_value1`]).toBe('10');
+      expect(leafA.metadata[`${tableId2}_value2`]).toBe('100');
+      expect(leafA.metadata[`${tableId1}_category1`]).toBe('red');
+      expect(leafA.metadata[`${tableId2}_category2`]).toBe('alpha');
     });
 
-    it('should overwrite metadata from earlier tables with later tables', () => {
+    it('should keep columns with same name from different tables separate', () => {
       const overlappingTable = `node_id\tvalue1\tcategory1
 A\t999\tgreen`;
 
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(metadataTable1);
-      treeData.addTable(overlappingTable);
+      const tableId1 = treeData.addTable(metadataTable1);
+      const tableId2 = treeData.addTable(overlappingTable);
 
       const leafA = treeData.tree.descendants().find(d => d.data.name === 'A');
-      expect(leafA.metadata.value1).toBe('999');
-      expect(leafA.metadata.category1).toBe('green');
+      // Both columns should exist with different unique IDs
+      expect(leafA.metadata[`${tableId1}_value1`]).toBe('10');
+      expect(leafA.metadata[`${tableId2}_value1`]).toBe('999');
+      expect(leafA.metadata[`${tableId1}_category1`]).toBe('red');
+      expect(leafA.metadata[`${tableId2}_category1`]).toBe('green');
     });
 
     it('should clear metadata when no tables are enabled', () => {
@@ -341,36 +383,36 @@ A\t999\tgreen`;
       const tableId = treeData.addTable(metadataTable1);
 
       let leafA = treeData.tree.descendants().find(d => d.data.name === 'A');
-      expect(leafA.metadata.value1).toBe('10');
+      expect(leafA.metadata[`${tableId}_value1`]).toBe('10');
 
       treeData.disableTable(tableId);
 
       leafA = treeData.tree.descendants().find(d => d.data.name === 'A');
-      expect(leafA.metadata.value1).toBeUndefined();
+      expect(leafA.metadata[`${tableId}_value1`]).toBeUndefined();
     });
   });
 
   describe('inferTypes', () => {
-    it('should infer column types from enabled tables', () => {
+    it('should infer column types from enabled tables using unique column IDs', () => {
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(metadataTable1);
+      const tableId = treeData.addTable(metadataTable1);
 
-      expect(treeData.columnTypes.has('value1')).toBe(true);
-      expect(treeData.columnTypes.has('category1')).toBe(true);
+      expect(treeData.columnType.has(`${tableId}_value1`)).toBe(true);
+      expect(treeData.columnType.has(`${tableId}_category1`)).toBe(true);
     });
 
     it('should merge column types from multiple tables', () => {
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(metadataTable1);
-      treeData.addTable(metadataTable2);
+      const tableId1 = treeData.addTable(metadataTable1);
+      const tableId2 = treeData.addTable(metadataTable2);
 
-      expect(treeData.columnTypes.has('value1')).toBe(true);
-      expect(treeData.columnTypes.has('value2')).toBe(true);
-      expect(treeData.columnTypes.has('category1')).toBe(true);
-      expect(treeData.columnTypes.has('category2')).toBe(true);
+      expect(treeData.columnType.has(`${tableId1}_value1`)).toBe(true);
+      expect(treeData.columnType.has(`${tableId2}_value2`)).toBe(true);
+      expect(treeData.columnType.has(`${tableId1}_category1`)).toBe(true);
+      expect(treeData.columnType.has(`${tableId2}_category2`)).toBe(true);
     });
 
-    it('should overwrite column types from earlier tables with later tables', () => {
+    it('should keep column types separate for same-named columns from different tables', () => {
       const table1 = `node_id\ttest_col
 A\t10
 B\t20`;
@@ -380,22 +422,23 @@ A\tred
 B\tblue`;
 
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(table1);
-      treeData.addTable(table2);
+      const tableId1 = treeData.addTable(table1);
+      const tableId2 = treeData.addTable(table2);
 
-      // Later table should determine the type
-      expect(treeData.columnTypes.get('test_col')).toBe('categorical');
+      // Both columns should exist with their own types
+      expect(treeData.columnType.get(`${tableId1}_test_col`)).toBe('continuous');
+      expect(treeData.columnType.get(`${tableId2}_test_col`)).toBe('categorical');
     });
 
     it('should clear column types when no tables are enabled', () => {
       const treeData = new TreeData(simpleNewick);
       const tableId = treeData.addTable(metadataTable1);
 
-      expect(treeData.columnTypes.size).toBeGreaterThan(0);
+      expect(treeData.columnType.size).toBeGreaterThan(0);
 
       treeData.disableTable(tableId);
 
-      expect(treeData.columnTypes.size).toBe(0);
+      expect(treeData.columnType.size).toBe(0);
     });
   });
 
@@ -409,14 +452,14 @@ B\tblue`;
 
       // Should not have metadata since table is disabled
       const leafA = treeData.tree.descendants().find(d => d.data.name === 'A');
-      expect(leafA.metadata.value1).toBeUndefined();
+      expect(leafA.metadata[`${tableId}_value1`]).toBeUndefined();
 
       // Enable and update
       treeData.enableTable(tableId);
 
       // Now should have metadata
       const leafA2 = treeData.tree.descendants().find(d => d.data.name === 'A');
-      expect(leafA2.metadata.value1).toBe('10');
+      expect(leafA2.metadata[`${tableId}_value1`]).toBe('10');
     });
 
     it('should notify subscribers', () => {
@@ -427,33 +470,30 @@ B\tblue`;
       callback.mockClear();
       treeData.update();
 
-      expect(callback).toHaveBeenCalledWith(expect.objectContaining({
-        tree: treeData.tree,
-        columnTypes: treeData.columnTypes
-      }));
+      expect(callback).toHaveBeenCalledWith(expect.objectContaining(treeData));
     });
   });
 
   describe('getColumnNames', () => {
-    it('should return all column names from enabled tables', () => {
+    it('should return all unique column IDs from enabled tables', () => {
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(metadataTable1);
+      const tableId = treeData.addTable(metadataTable1);
 
       const columns = treeData.getColumnNames();
-      expect(columns).toContain('value1');
-      expect(columns).toContain('category1');
+      expect(columns).toContain(`${tableId}_value1`);
+      expect(columns).toContain(`${tableId}_category1`);
     });
 
-    it('should return column names from multiple tables', () => {
+    it('should return unique column IDs from multiple tables', () => {
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(metadataTable1);
-      treeData.addTable(metadataTable2);
+      const tableId1 = treeData.addTable(metadataTable1);
+      const tableId2 = treeData.addTable(metadataTable2);
 
       const columns = treeData.getColumnNames();
-      expect(columns).toContain('value1');
-      expect(columns).toContain('value2');
-      expect(columns).toContain('category1');
-      expect(columns).toContain('category2');
+      expect(columns).toContain(`${tableId1}_value1`);
+      expect(columns).toContain(`${tableId2}_value2`);
+      expect(columns).toContain(`${tableId1}_category1`);
+      expect(columns).toContain(`${tableId2}_category2`);
     });
 
     it('should return empty array when no tables are enabled', () => {
@@ -463,14 +503,15 @@ B\tblue`;
       expect(columns).toEqual([]);
     });
 
-    it('should not include duplicate column names', () => {
+    it('should include both columns when same name exists in different tables', () => {
       const treeData = new TreeData(simpleNewick);
-      treeData.addTable(metadataTable1);
-      treeData.addTable(metadataTable1); // Add same table twice
+      const tableId1 = treeData.addTable(metadataTable1);
+      const tableId2 = treeData.addTable(metadataTable1); // Add same table structure twice
 
       const columns = treeData.getColumnNames();
-      const uniqueColumns = [...new Set(columns)];
-      expect(columns.length).toBe(uniqueColumns.length);
+      expect(columns).toContain(`${tableId1}_value1`);
+      expect(columns).toContain(`${tableId2}_value1`);
+      expect(columns.length).toBe(4); // 2 columns × 2 tables
     });
   });
 

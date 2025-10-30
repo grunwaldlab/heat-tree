@@ -1,6 +1,6 @@
 import { hierarchy, ascending } from "d3";
 import { parseNewick, parseTable } from "./parsers.js";
-import { Subscribable } from "./utils.js";
+import { Subscribable, columnToHeader } from "./utils.js";
 
 /**
  * Manages tree data and metadata tables
@@ -15,7 +15,9 @@ export class TreeData extends Subscribable {
     this.enabledTables = new Set();
     this._nextTableId = 0;
     this.tree = null; // Hierarchy with metadata attached
-    this.columnTypes = new Map(); // e.g. 'continuous' or 'categorical'
+    this.columnType = new Map(); // e.g. 'continuous' or 'categorical', keyed by unique column ID
+    this.columnName = new Map(); // Original column name, keyed by unique column ID
+    this.columnDisplayName = new Map(); // Display-friendly column name, keyed by unique column ID
 
     this.setTree(newickStr);
     if (Array.isArray(metadataTables)) {
@@ -70,9 +72,36 @@ export class TreeData extends Subscribable {
     }
 
     const { metadataMap, columnTypes } = parseTable(tableStr, sep);
+
+    // Generate unique column IDs for this table
+    const columnIdMap = new Map(); // Maps original column name to unique column ID
+    const uniqueColumnTypes = new Map(); // Maps unique column ID to column type
+
+    for (const [originalName, columnType] of columnTypes) {
+      const uniqueId = `${id}_${originalName}`;
+      columnIdMap.set(originalName, uniqueId);
+      uniqueColumnTypes.set(uniqueId, columnType);
+      this.columnName.set(uniqueId, originalName);
+      this.columnDisplayName.set(uniqueId, columnToHeader(originalName));
+    }
+
+    // Transform metadata to use unique column IDs
+    const transformedMetadata = new Map();
+    for (const [nodeName, nodeData] of metadataMap) {
+      const transformedNodeData = {};
+      for (const [originalColumnName, value] of Object.entries(nodeData)) {
+        const uniqueId = columnIdMap.get(originalColumnName);
+        if (uniqueId) {
+          transformedNodeData[uniqueId] = value;
+        }
+      }
+      transformedMetadata.set(nodeName, transformedNodeData);
+    }
+
     this.metadataTables.set(id, {
-      data: metadataMap,
-      columnTypes: columnTypes
+      data: transformedMetadata,
+      columnTypes: uniqueColumnTypes,
+      columnIdMap: columnIdMap
     });
 
     if (enable) {
@@ -91,6 +120,14 @@ export class TreeData extends Subscribable {
       console.warn(`Table ${tableId} does not exist`);
       return;
     }
+
+    // Remove column mappings for this table
+    const table = this.metadataTables.get(tableId);
+    for (const uniqueId of table.columnTypes.keys()) {
+      this.columnName.delete(uniqueId);
+      this.columnDisplayName.delete(uniqueId);
+    }
+
     this.disableTable(tableId);
     this.metadataTables.delete(tableId);
   }
@@ -129,7 +166,8 @@ export class TreeData extends Subscribable {
 
   /**
    * Attach all enabled metadata tables to tree nodes
-   * Later tables overwrite earlier tables for columns with the same name
+   * Each column gets a unique ID, so columns with the same name from different tables
+   * are stored separately
    */
   attachTables() {
     // Clear existing metadata from all nodes
@@ -146,6 +184,7 @@ export class TreeData extends Subscribable {
         const nodeName = d.data.name;
         if (nodeName && table.data.has(nodeName)) {
           const tableMetadata = table.data.get(nodeName);
+          // Merge metadata using unique column IDs
           d.metadata = { ...d.metadata, ...tableMetadata };
         }
       });
@@ -154,18 +193,19 @@ export class TreeData extends Subscribable {
 
   /**
    * Infer column types from all enabled metadata tables
-   * Later tables overwrite type information for columns with the same name
+   * Uses unique column IDs, so columns with the same name from different tables
+   * are tracked separately
    */
   inferTypes() {
-    this.columnTypes.clear();
+    this.columnType.clear();
 
-    // Collect column types from each enabled table in order
+    // Collect column types from each enabled table
     for (const tableId of this.enabledTables) {
       const table = this.metadataTables.get(tableId);
       if (!table) continue;
 
-      for (const [columnName, columnType] of table.columnTypes) {
-        this.columnTypes.set(columnName, columnType);
+      for (const [uniqueColumnId, columnType] of table.columnTypes) {
+        this.columnType.set(uniqueColumnId, columnType);
       }
     }
   }
@@ -177,17 +217,14 @@ export class TreeData extends Subscribable {
   update() {
     this.attachTables();
     this.inferTypes();
-    this.notify('update', {
-      tree: this.tree,
-      columnTypes: this.columnTypes
-    });
+    this.notify('update', this);
   }
 
   /**
-   * Get all column names from enabled tables
-   * @returns {Array<string>} Array of column names
+   * Get all unique column IDs from enabled tables
+   * @returns {Array<string>} Array of unique column IDs
    */
   getColumnNames() {
-    return Array.from(this.columnTypes.keys());
+    return Array.from(this.columnType.keys());
   }
 }
