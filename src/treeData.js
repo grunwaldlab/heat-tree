@@ -12,14 +12,12 @@ export class TreeData extends Subscribable {
     super();
 
     this.metadataTables = new Map();
-    this.enabledTables = new Set();
     this._nextTableId = 0;
-    this.tree = null; // Hierarchy with metadata attached
     this.columnType = new Map(); // e.g. 'continuous' or 'categorical', keyed by unique column ID
     this.columnName = new Map(); // Original column name, keyed by unique column ID
     this.columnDisplayName = new Map(); // Display-friendly column name, keyed by unique column ID
+    this.tree = this.parseTree(newickStr);
 
-    this.setTree(newickStr);
     if (Array.isArray(metadataTables)) {
       metadataTables.forEach(tableStr => this.addTable(tableStr));
     }
@@ -39,6 +37,7 @@ export class TreeData extends Subscribable {
       .each(function(d) {
         d.leafCount = d.value;
         delete d.value;
+        delete d.data.children;
       })
       .sort((a, b) => (a.leafCount - b.leafCount) || ascending(a.data.length, b.data.length));
 
@@ -55,7 +54,8 @@ export class TreeData extends Subscribable {
    */
   setTree(newickStr) {
     this.tree = this.parseTree(newickStr);
-    this.update();
+    this.metadataTables.keys().forEach(this.attachTable);
+    this.notify('treeUpdate', this);
   }
 
   /**
@@ -66,21 +66,17 @@ export class TreeData extends Subscribable {
    * @param {string} sep - Column separator (default: '\t')
    * @returns {string} The table ID
    */
-  addTable(tableStr, id = null, enable = true, sep = '\t') {
-    if (id === null) {
-      id = `table_${this._nextTableId++}`;
-    }
-
+  addTable(tableStr, sep = '\t') {
+    // Parse table string
     const { metadataMap, columnTypes } = parseTable(tableStr, sep);
 
     // Generate unique column IDs for this table
-    const columnIdMap = new Map(); // Maps original column name to unique column ID
-    const uniqueColumnTypes = new Map(); // Maps unique column ID to column type
-
+    const id = `table_${this._nextTableId++}`;
+    const columnIdMap = new Map();
     for (const [originalName, columnType] of columnTypes) {
       const uniqueId = `${id}_${originalName}`;
       columnIdMap.set(originalName, uniqueId);
-      uniqueColumnTypes.set(uniqueId, columnType);
+      this.columnType.set(uniqueId, columnType);
       this.columnName.set(uniqueId, originalName);
       this.columnDisplayName.set(uniqueId, columnToHeader(originalName));
     }
@@ -98,15 +94,9 @@ export class TreeData extends Subscribable {
       transformedMetadata.set(nodeName, transformedNodeData);
     }
 
-    this.metadataTables.set(id, {
-      data: transformedMetadata,
-      columnTypes: uniqueColumnTypes,
-      columnIdMap: columnIdMap
-    });
-
-    if (enable) {
-      this.enableTable(id);
-    }
+    this.metadataTables.set(id, transformedMetadata);
+    this.attachTable(id);
+    this.notify('metadataUpdate', this);
 
     return id;
   }
@@ -116,115 +106,47 @@ export class TreeData extends Subscribable {
    * @param {string} tableId - ID of the table to remove
    */
   deleteTable(tableId) {
-    if (!this.metadataTables.has(tableId)) {
+    const table = this.metadataTables.get(tableId);
+    if (!table) {
       console.warn(`Table ${tableId} does not exist`);
       return;
     }
-
-    // Remove column mappings for this table
-    const table = this.metadataTables.get(tableId);
-    for (const uniqueId of table.columnTypes.keys()) {
+    const keys = Object.keys(table.values().next().value);
+    for (const uniqueId of keys) {
+      this.columnType.delete(uniqueId);
       this.columnName.delete(uniqueId);
       this.columnDisplayName.delete(uniqueId);
     }
-
-    this.disableTable(tableId);
+    this.detachTable(tableId);
     this.metadataTables.delete(tableId);
+    this.notify('metadataUpdate', this);
   }
 
   /**
-   * Enable a metadata table (attach to tree)
-   * @param {string} tableId - ID of the table to enable
+   * Add metadata to tree nodes
    */
-  enableTable(tableId) {
-    if (!this.metadataTables.has(tableId)) {
-      console.warn(`Table ${tableId} does not exist`);
-      return;
-    }
-
-    if (!this.enabledTables.has(tableId)) {
-      this.enabledTables.add(tableId);
-      this.update();
-    }
-  }
-
-  /**
-   * Disable a metadata table (detach from tree)
-   * @param {string} tableId - ID of the table to disable
-   */
-  disableTable(tableId) {
-    if (!this.metadataTables.has(tableId)) {
-      console.warn(`Table ${tableId} does not exist`);
-      return;
-    }
-
-    if (this.enabledTables.has(tableId)) {
-      this.enabledTables.delete(tableId);
-      this.update();
-    }
-  }
-
-  /**
-   * Attach all enabled metadata tables to tree nodes
-   * Each column gets a unique ID, so columns with the same name from different tables
-   * are stored separately
-   */
-  attachTables() {
-    // Clear existing metadata from all nodes
+  attachTable(tableId) {
+    const table = this.metadataTables.get(tableId);
     this.tree.each(d => {
-      d.metadata = {};
-    });
-
-    // Attach metadata from each enabled table in order
-    for (const tableId of this.enabledTables) {
-      const table = this.metadataTables.get(tableId);
-      if (!table) continue;
-
-      this.tree.each(d => {
-        const nodeName = d.data.name;
-        if (nodeName && table.data.has(nodeName)) {
-          const tableMetadata = table.data.get(nodeName);
-          // Merge metadata using unique column IDs
-          d.metadata = { ...d.metadata, ...tableMetadata };
-        }
-      });
-    }
-  }
-
-  /**
-   * Infer column types from all enabled metadata tables
-   * Uses unique column IDs, so columns with the same name from different tables
-   * are tracked separately
-   */
-  inferTypes() {
-    this.columnType.clear();
-
-    // Collect column types from each enabled table
-    for (const tableId of this.enabledTables) {
-      const table = this.metadataTables.get(tableId);
-      if (!table) continue;
-
-      for (const [uniqueColumnId, columnType] of table.columnTypes) {
-        this.columnType.set(uniqueColumnId, columnType);
+      const nodeName = d.data.name;
+      if (nodeName && table.has(nodeName)) {
+        const tableMetadata = table.get(nodeName);
+        d.metadata = { ...d.metadata, ...tableMetadata };
       }
-    }
+    });
   }
 
   /**
-   * Update the tree with current metadata
-   * This creates a fresh copy of the tree with metadata attached
+   * Remove metadata from tree nodes
    */
-  update() {
-    this.attachTables();
-    this.inferTypes();
-    this.notify('update', this);
+  detachTable(tableId) {
+    const table = this.metadataTables.get(tableId);
+    const keys = Object.keys(table.values().next().value);
+    this.tree.each(d => {
+      keys.forEach(key => {
+        delete d[key];
+      });
+    });
   }
 
-  /**
-   * Get all unique column IDs from enabled tables
-   * @returns {Array<string>} Array of unique column IDs
-   */
-  getColumnNames() {
-    return Array.from(this.columnType.keys());
-  }
 }
