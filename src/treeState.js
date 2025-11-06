@@ -4,13 +4,39 @@ import { ContinuousSizeScale, ContinuousColorScale, CategoricalColorScale } from
 import { cluster } from 'd3';
 
 export class TreeState extends Subscribable {
+
+  treeData;
+  displayedRoot;
+  textSizeEstimator;
+  layout = 'rectangular';
+  labelTextSource = null;
+  labelColorSource = null;
+  labelSizeSource = null;
+  labelFontSource = null;
+  labelStyleSource = null;
+  branchLenToPxFactor = 1;
+  labelSizeToPxFactor = 1;
+  targetViewWidth = 800;
+  targetViewHeight = 600;
+  occupiedViewWidth = 0;
+  occupiedViewHeight = 0;
+  labelSizeScale = null;
+  labelColorScale = null;
+
   constructor(treeData, textSizeEstimator, options = {}) {
-
-    const validLayoutTypes = ['circular', 'rectangular'];
-
-
     super();
 
+    // Check input parameters
+    if (!treeData || !treeData.tree) {
+      console.error('TreeState initialized without valid tree data');
+      return;
+    }
+    if (!textSizeEstimator) {
+      console.error('TreeState initialized without textSizeEstimator');
+      return;
+    }
+
+    // Set defualt option values
     this.options = {
       labelSpacing: 0.1,
       nodeLabelSizeScale: 0.67,
@@ -27,114 +53,121 @@ export class TreeState extends Subscribable {
     };
 
     // State properties
-    this.layout = 'rectangular'; // 'circular' or 'rectangular'
-    this.labelTextSource = null; // metadata column ID
-    this.labelColorSource = null; // metadata column ID
-    this.labelSizeSource = null; // metadata column ID
-    this.labelFontSource = null; // metadata column ID
-    this.labelStyleSource = null; // metadata column ID
-    this.labelOffsetPx = 0;
-    this.displayedRoot = null;
-    this.branchLenToPxFactor = 1;
-    this.labelSizeToPxFactor = 1;
-    this.targetViewWidth = 800;
-    this.targetViewHeight = 600;
-    this.occupiedViewWidth = 0;
-    this.occupiedViewHeight = 0;
-    this.labelSizeScale = null;
-    this.labelColorScale = null;
-
-    // Initialize
-    this.textSizeEstimator = textSizeEstimator;
     this.treeData = treeData;
-    if (!this.treeData || !this.treeData.tree) {
-      console.warn('TreeState initialized without valid tree data');
-      return;
-    }
     this.displayedRoot = this.treeData.tree;
+    this.textSizeEstimator = textSizeEstimator;
 
     // Initial coordinate calculation
-    this.updateCoordinates();
+    this.#updateLabels();
   }
 
-
-  setLayout(layoutType) {
-    if (!validLayoutTypes.includes(layoutType)) {
-      console.warn(`Invalid layout type: ${layoutType}`);
+  set layout(layout) {
+    const validLayoutTypes = ['circular', 'rectangular'];
+    if (!validLayoutTypes.includes(layout)) {
+      console.warn(`Invalid layout type: ${layout}`);
       return;
     }
 
-    if (this.layout !== layoutType) {
-      this.layout = layoutType;
-      this.updateScaling();
+    if (this.layout !== layout) {
+      this.layout = layout;
+      this.#updateLayout();
     }
   }
 
-  setTipLabelTextSource(columnId) {
-    this.labelTextSource = columnId || null;
-    this.updateScaling();
+  set labelTextSource(columnId) {
+    if (columnId != this.labelTextSource) {
+      this.labelTextSource = columnId || null;
+      this.#updateLabels();
+    }
   }
 
-  setTipLabelColorSource(columnId) {
-    this.labelColorSource = columnId || null;
-    this._updateColorScale();
-    this.notify('fontChange');
+  set labelColorSource(columnId) {
+    if (columnId != this.labelColorSource) {
+      this.labelColorSource = columnId || null;
+      this.#updateColorScale();
+      this.#updateLabels();
+      this.notify('fontChange');
+    }
   }
 
-  setTipLabelSizeSource(columnId) {
-    this.labelSizeSource = columnId || null;
-    this._updateSizeScale();
-    this.updateScaling();
+  set labelSizeSource(columnId) {
+    if (columnId != this.labelSizeSource) {
+      this.labelSizeSource = columnId || null;
+      this.#updateSizeScale();
+      this.#updateLabels();
+    }
   }
 
-  setTipLabelFontSource(columnId) {
-    this.labelFontSource = columnId || null;
-    this.updateScaling();
+  set labelFontSource(columnId) {
+    if (columnId != this.labelFontSource) {
+      this.labelFontSource = columnId || null;
+      this.#updateLabels();
+    }
   }
 
-  setTipLabelStyleSource(columnId) {
-    this.labelStyleSource = columnId || null;
-    this.notify('fontChange');
+  set labelStyleSource(columnId) {
+    if (columnId != this.labelStyleSource) {
+      this.labelStyleSource = columnId || null;
+      this.#updateLabels();
+      this.notify('fontChange');
+    }
   }
 
   setTargetTreeDimensions(width, height) {
     this.targetViewWidth = width;
     this.targetViewHeight = height;
-    this.updateScaling();
+    this.#updateScaling();
   }
 
-  setLabelOffset(offsetPx) {
-    this.labelOffsetPx = offsetPx;
-    this.updateScaling();
+  collapseSubtree(node) {
+    if (!node || !node.children) return;
+
+    node.collapsedChildren = node.children;
+    node.children = null;
+
+    this.#updateLayout();
   }
 
-  getTreeDimensions() {
-    if (!this.tree || !this.tree.bounds) {
-      return { width: 0, height: 0 };
-    }
+  expandSubtree(node) {
+    if (!node || !node.collapsedChildren) return;
 
-    const bounds = this.tree.bounds;
+    node.children = node.collapsedChildren;
+    node.collapsedChildren = null;
 
-    if (this.layout === 'circular') {
-      const width = (bounds.maxRadius - bounds.minRadius) * 2;
-      const height = (bounds.maxRadius - bounds.minRadius) * 2;
-      return { width, height };
-    } else {
-      const width = bounds.maxX - bounds.minX;
-      const height = bounds.maxY - bounds.minY;
-      return { width, height };
-    }
+    this.#updateLayout();
   }
 
-  _updateColorScale() {
-    if (!this.labelColorSource || !this.treeData) {
-      this.labelColorScale = null;
-      return;
+  collapseRoot(node) {
+    if (!node || node === this.displayedRoot) return;
+
+    this.displayedRoot = node;
+    this.displayedRoot.collapsed_parent = this.displayedRoot.parent;
+    this.displayedRoot.parent = null;
+
+    this.#updateLayout();
+  }
+
+  expandRoot() {
+    if (!this.displayedRoot || !this.displayedRoot.collapsed_parent) return;
+
+    this.displayedRoot.parent = this.displayedRoot.collapsed_parent;
+    this.displayedRoot.collapsed_parent = null;
+
+    // Find the new root (the topmost ancestor without a collapsed parent)
+    let newRoot = this.displayedRoot;
+    while (newRoot.parent && !newRoot.collapsed_parent) {
+      newRoot = newRoot.parent;
     }
 
-    const columnType = this.treeData.columnType.get(this.labelColorSource);
-    if (!columnType) {
-      this.labelColorScale = null;
+    this.displayedRoot = newRoot;
+
+    this.#updateLayout();
+  }
+
+  #updateColorScale() {
+    // If no scale is defined, return placeholder scale that always returns a default value
+    if (!this.labelColorSource) {
+      this.labelColorScale = new NullScale('#000000');
       return;
     }
 
@@ -146,35 +179,29 @@ export class TreeState extends Subscribable {
       }
     });
 
-    if (values.length === 0) {
-      this.labelColorScale = null;
-      return;
-    }
-
+    // Return a continuous or cateforical scale depending on the column type
+    const columnType = this.treeData.columnType.get(this.labelColorSource);
     if (columnType === 'continuous') {
       const numericValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
-      if (numericValues.length === 0) {
-        this.labelColorScale = null;
-        return;
-      }
       const min = Math.min(...numericValues);
       const max = Math.max(...numericValues);
       this.labelColorScale = new ContinuousColorScale(min, max);
     } else {
-      // Categorical
       this.labelColorScale = new CategoricalColorScale(values);
     }
   }
 
-  _updateSizeScale() {
-    if (!this.labelSizeSource || !this.treeData) {
-      this.labelSizeScale = null;
+  #updateSizeScale() {
+    // If no scale is defined, return placeholder scale that always returns a default value
+    if (!this.labelSizeSource) {
+      this.labelSizeScale = new NullScale(1);
       return;
     }
 
+    // Only use a size scale for continuous variables
     const columnType = this.treeData.columnType.get(this.labelSizeSource);
     if (columnType !== 'continuous') {
-      this.labelSizeScale = null;
+      this.labelSizeScale = new NullScale(1);
       return;
     }
 
@@ -189,66 +216,65 @@ export class TreeState extends Subscribable {
       }
     });
 
-    if (values.length === 0) {
-      this.labelSizeScale = null;
-      return;
-    }
-
+    // Size scale from 0.5x to 1.5x of base size
     const min = Math.min(...values);
     const max = Math.max(...values);
-
-    // Size scale from 0.5x to 1.5x of base size
     this.labelSizeScale = new ContinuousSizeScale(min, max, 0.5, 1.5);
   }
 
-  updateScaling() {
-    if (!this.tree) return;
-
-    // Apply D3 cluster layout to compute base positions
-    const treeLayout = cluster().separation((a, b) => 1);
-    treeLayout(this.tree);
-
-    // Apply branch lengths
+  #updateLabels() {
     this.tree.each(d => {
-      if (d.parent) {
-        d.y = d.parent.y + (d.data.length ? d.data.length : 0);
-      } else {
-        d.y = 0;
-      }
-    });
-
-    // Save original coordinates and prepare for layout transformation
-    this.tree.each(d => {
-      d.originalX = d.x;
-      d.originalY = d.y;
-      d.x = d.originalY; // D3 uses y for what is the x axis in our case
-      d.y = d.originalX;
-      d.angle = d.y * Math.PI * 2 + Math.PI;
-      d.cos = Math.cos(d.angle);
-      d.sin = Math.sin(d.angle);
-      d.radius = d.x;
-    });
-
-    // Move tree so root is at 0,0
-    this.tree.eachAfter(d => {
-      d.x = d.x - this.tree.x;
-      d.y = d.y - this.tree.y;
-    });
-
-    // Set displayed labels
-    this.tree.each(d => {
-      if (d.collapsed_children) {
+      // Set tip label content
+      if (d.children) {
         d.tipLabel = '';
       } else if (d.collapsed_parent) {
-        d.tipLabel = '';
+        d.tipLabel = `(${d.leafCount})`;
       } else {
-        // Get label from metadata if source is specified
-        if (this.labelTextSource && d.metadata && d.metadata[this.labelTextSource] !== undefined) {
+        if (this.labelTextSource) {
           d.tipLabel = String(d.metadata[this.labelTextSource]);
         } else {
           d.tipLabel = d.data.name || '';
         }
-        d.nodeLabel = d.tipLabel;
+      }
+
+      // Set node label content
+      if (d.children || d.collapsedChildren) {
+        d.nodeLabel = d.data.name || '';
+      } else {
+        d.nodeLabel = '';
+      }
+
+      // Apply relative label size (not in pixels) scale if specified
+      if (this.labelSizeSource) {
+        const value = parseFloat(d.metadata[this.labelSizeSource]);
+        d.tipLabelSize = this.labelSizeScale.getValue(value);
+      }
+      d.nodeLabelSize = options.nodeLabelSizeScale;
+
+      // Set label color
+      if (this.labelColorSource) {
+        d.tipLabelColor = this.labelColorScale.getValue(d.metadata[this.labelColorSource]);
+      } else {
+        d.tipLabelColor = this.labelColorScale.getValue();
+      }
+
+      // Set label font (simplified - would need font mapping)
+      d.tipLabelFont = 'sans-serif';
+
+      // Set label style
+      if (this.labelStyleSource) {
+        const styleValue = String(d.metadata[this.labelStyleSource]).toLowerCase();
+        if (styleValue.includes('bold') && styleValue.includes('italic')) {
+          d.tipLabelStyle = 'bold italic';
+        } else if (styleValue.includes('bold')) {
+          d.tipLabelStyle = 'bold';
+        } else if (styleValue.includes('italic')) {
+          d.tipLabelStyle = 'italic';
+        } else {
+          d.tipLabelStyle = 'normal';
+        }
+      } else {
+        d.tipLabelStyle = 'normal';
       }
     });
 
@@ -259,6 +285,50 @@ export class TreeState extends Subscribable {
       d.labelHeightRatio = size.height;
     })
 
+    this.#updateScaling();
+  }
+
+  #updateLayout() {
+    // Apply D3 cluster layout to compute base positions
+    const treeLayout = cluster().separation((a, b) => 1);
+    treeLayout(this.tree);
+
+    // Apply branch lengths
+    this.tree.each(d => {
+      if (d.parent) {
+        d.branchLen = d.data.length ? d.data.length : 0;
+        d.y = d.parent.y + d.branchLen;
+      } else {
+        d.y = 0;
+      }
+    });
+
+    // Save original coordinates and prepare for layout transformation
+    this.tree.each(d => {
+      const originalX = d.x;
+      const originalY = d.y;
+      d.x = originalY; // D3 uses y for what is the x axis in our case
+      d.y = originalX;
+    });
+    if (this.layout === 'circular') {
+      this.tree.each(d => {
+        d.angle = d.y * Math.PI * 2 + Math.PI;
+        d.cos = Math.cos(d.angle);
+        d.sin = Math.sin(d.angle);
+        d.radius = d.x;
+      });
+    }
+
+    // Move tree so root is at 0,0
+    this.tree.eachAfter(d => {
+      d.x = d.x - this.tree.x;
+      d.y = d.y - this.tree.y;
+    });
+
+    this.#updateScaling();
+  }
+
+  #updateScaling() {
     // Calculate scaling factors
     let scalingFactors;
     if (this.layout === 'circular') {
@@ -280,120 +350,42 @@ export class TreeState extends Subscribable {
     this.branchLenToPxFactor = scalingFactors.branchLenToPxFactor_max;
     this.labelSizeToPxFactor = scalingFactors.labelSizeToPxFactor_min;
 
-    this.updateCoordinates();
+    this.#updateCoordinates();
   }
 
-  updateCoordinates() {
-    if (!this.tree) return;
-
-    const tipCount = this.tree.leaves().length;
-
-    // Calculate pixel coordinates based on layout
+  #updateCoordinates() {
+    // Calculate pixel coordinates and sizes based on scaling factors
+    this.tree.each(d => {
+      d.branchLenPx = d.branchLen * this.branchLenToPxFactor;
+      d.tipLabelSizePx = d.tipLabelSize * this.labelSizeToPxFactor;
+      d.nodeLabelSizePx = d.nodeLabelSize * this.labelSizeToPxFactor;
+      d.tipLabelXOffsetPx = d.tipLabelSizePx * this.options.nodeLabelOffset;
+      d.nodeLabelXOffsetPx = d.nodeLabelSizePx * this.options.nodeLabelOffset;
+      d.tipLabelYOffsetPx = d.tipLabelSizePx * d.labelHeightRatio / 2;
+      d.nodeLabelYOffsetPx = d.nodeLabelSizePx * d.labelHeightRatio / 2;
+    });
     if (this.layout === 'circular') {
       this.tree.each(d => {
-        d.lengthPx = d.data.length * this.branchLenToPxFactor;
         d.radiusPx = d.radius * this.branchLenToPxFactor;
-        d.angle = d.angle;
-        d.cos = d.cos;
-        d.sin = d.sin;
-        d.x = d.radiusPx * d.cos;
-        d.y = d.radiusPx * d.sin;
+        d.xPx = d.radiusPx * d.cos;
+        d.yPx = d.radiusPx * d.sin;
       });
     } else {
       this.tree.each(d => {
-        d.lengthPx = d.data.length * this.branchLenToPxFactor;
-        d.x = d.x * this.branchLenToPxFactor;
-        d.y = d.y * tipCount * this.labelSizeToPxFactor * (1 + this.options.labelSpacing);
-        d.angle = null;
-        d.radiusPx = null;
-        d.cos = null;
-        d.sin = null;
+        d.xPx = d.x * this.branchLenToPxFactor;
+        d.yPx = d.y * this.tree.leaves().length * this.labelSizeToPxFactor * (1 + this.options.labelSpacing);
       });
     }
 
-    // Set label properties
-    this.tree.each(d => {
-      const isInterior = d.children || d.collapsed_children;
-
-      // Base font size
-      let baseFontSize = isInterior
-        ? this.labelSizeToPxFactor * this.options.nodeLabelSizeScale
-        : this.labelSizeToPxFactor;
-
-      // Apply size scale if specified
-      if (this.labelSizeSource && d.metadata && d.metadata[this.labelSizeSource] !== undefined) {
-        const value = parseFloat(d.metadata[this.labelSizeSource]);
-        if (!isNaN(value) && this.labelSizeScale) {
-          const sizeMultiplier = this.labelSizeScale.getValue(value);
-          baseFontSize *= sizeMultiplier;
-        }
-      }
-
-      d.tipLabelSize = baseFontSize;
-
-      // Set label color
-      if (this.labelColorSource && d.metadata && d.metadata[this.labelColorSource] !== undefined) {
-        const value = d.metadata[this.labelColorSource];
-        if (this.labelColorScale) {
-          d.tipLabelColor = this.labelColorScale.getValue(value);
-        } else {
-          d.tipLabelColor = '#000';
-        }
-      } else {
-        d.tipLabelColor = '#000';
-      }
-
-      // Set label font (simplified - would need font mapping)
-      d.tipLabelFont = 'sans-serif';
-
-      // Set label style
-      if (this.labelStyleSource && d.metadata && d.metadata[this.labelStyleSource] !== undefined) {
-        const styleValue = String(d.metadata[this.labelStyleSource]).toLowerCase();
-        if (styleValue.includes('bold') && styleValue.includes('italic')) {
-          d.tipLabelStyle = 'bold italic';
-        } else if (styleValue.includes('bold')) {
-          d.tipLabelStyle = 'bold';
-        } else if (styleValue.includes('italic')) {
-          d.tipLabelStyle = 'italic';
-        } else {
-          d.tipLabelStyle = 'normal';
-        }
-      } else {
-        d.tipLabelStyle = 'normal';
-      }
-    });
-
     // Calculate bounds for each node
-    this._calculateBounds();
+    this.#updateBounds();
 
-    // Update occupied dimensions
-    if (this.tree.bounds) {
-      const bounds = this.tree.bounds;
-      if (this.layout === 'circular') {
-        this.occupiedViewWidth = (bounds.maxRadius - bounds.minRadius) * 2;
-        this.occupiedViewHeight = (bounds.maxRadius - bounds.minRadius) * 2;
-      } else {
-        this.occupiedViewWidth = bounds.maxX - bounds.minX;
-        this.occupiedViewHeight = bounds.maxY - bounds.minY;
-      }
-    }
-
-    this.notify('treeChange');
+    this.notify('coordinateChange');
   }
 
-  _calculateBounds() {
-    if (!this.tree) return;
-
+  #updateBounds() {
     const getLabelWidth = (node) => {
       return node.labelWidthRatio * this.labelSizeToPxFactor;
-    };
-
-    const getLabelXOffset = (node) => {
-      return node.tipLabelSize * this.options.nodeLabelOffset;
-    };
-
-    const getLabelYOffset = (node) => {
-      return node.tipLabelSize * node.labelHeightRatio / 2;
     };
 
     if (this.layout === 'circular') {
@@ -406,14 +398,16 @@ export class TreeState extends Subscribable {
             maxAngle: Math.max(...d.children.map(k => k.bounds.maxAngle))
           };
         } else {
-          const angleLabelOffset = Math.atan(getLabelYOffset(d) / d.radiusPx);
+          const angleLabelOffset = Math.atan(d.tipLabelYOffsetPx / d.radiusPx);
           d.bounds = {
             minRadius: d.radiusPx,
-            maxRadius: d.radiusPx + getLabelXOffset(d) + getLabelWidth(d),
+            maxRadius: d.radiusPx + d.tipLabelXOffsetPx + getLabelWidth(d),
             minAngle: d.angle - angleLabelOffset,
             maxAngle: d.angle + angleLabelOffset
           };
         }
+        d.width = d.bounds.maxX - d.bounds.minX;
+        d.height = d.bounds.maxY - d.bounds.minY;
       });
     } else {
       this.tree.eachAfter(d => {
@@ -427,57 +421,15 @@ export class TreeState extends Subscribable {
         } else {
           d.bounds = {
             minX: d.x,
-            maxX: d.x + getLabelXOffset(d) + getLabelWidth(d),
-            minY: d.y - getLabelYOffset(d),
-            maxY: d.y + getLabelYOffset(d)
+            maxX: d.x + d.tipLabelXOffsetPx + getLabelWidth(d),
+            minY: d.y - d.tipLabelYOffsetPx,
+            maxY: d.y + d.tipLabelYOffsetPx
           };
         }
+        d.width = (bounds.maxRadius - bounds.minRadius) * 2;
+        d.height = (bounds.maxRadius - bounds.minRadius) * 2;
       });
     }
   }
 
-  collapseSubtree(node) {
-    if (!node || !node.children) return;
-
-    node.collapsed_children = node.children;
-    node.children = null;
-
-    this.updateScaling();
-  }
-
-  expandSubtree(node) {
-    if (!node || !node.collapsed_children) return;
-
-    node.children = node.collapsed_children;
-    node.collapsed_children = null;
-
-    this.updateScaling();
-  }
-
-  collapseRoot(node) {
-    if (!node || node === this.displayedRoot) return;
-
-    this.displayedRoot = node;
-    this.displayedRoot.collapsed_parent = this.displayedRoot.parent;
-    this.displayedRoot.parent = null;
-
-    this.updateScaling();
-  }
-
-  expandRoot() {
-    if (!this.displayedRoot || !this.displayedRoot.collapsed_parent) return;
-
-    this.displayedRoot.parent = this.displayedRoot.collapsed_parent;
-    this.displayedRoot.collapsed_parent = null;
-
-    // Find the new root (the topmost ancestor without a collapsed parent)
-    let newRoot = this.displayedRoot;
-    while (newRoot.parent && !newRoot.collapsed_parent) {
-      newRoot = newRoot.parent;
-    }
-
-    this.displayedRoot = newRoot;
-
-    this.updateScaling();
-  }
 }

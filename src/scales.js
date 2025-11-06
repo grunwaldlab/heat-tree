@@ -1,4 +1,22 @@
 /**
+ * Placeholder scale for contant output when a mapping variable is not used
+ */
+export class NullScale {
+  defaultValue;
+  constructor(defaultValue) {
+    if (defaultValue) {
+      this.defaultValue = defaultValue;
+    } else {
+      console.error('A defualt value for a NullScale is needed.');
+    }
+  }
+
+  getValue() {
+    return this.defaultValue;
+  }
+}
+
+/**
  * Scale for mapping continuous numeric values to sizes
  */
 export class ContinuousSizeScale {
