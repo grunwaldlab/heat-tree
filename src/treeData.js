@@ -8,14 +8,16 @@ import { Subscribable, columnToHeader } from "./utils.js";
  */
 export class TreeData extends Subscribable {
 
+  tree;
+  metadata = new Map();
+  columnType = new Map(); // e.g. 'continuous' or 'categorical', keyed by unique column ID
+  columnName = new Map(); // Original column name, keyed by unique column ID
+  columnDisplayName = new Map(); // Display-friendly column name, keyed by unique column ID
+  #nextTableId = 0;
+
   constructor(newickStr, metadataTables = []) {
     super();
 
-    this.metadataTables = new Map();
-    this._nextTableId = 0;
-    this.columnType = new Map(); // e.g. 'continuous' or 'categorical', keyed by unique column ID
-    this.columnName = new Map(); // Original column name, keyed by unique column ID
-    this.columnDisplayName = new Map(); // Display-friendly column name, keyed by unique column ID
     this.tree = this.parseTree(newickStr);
 
     if (Array.isArray(metadataTables)) {
@@ -54,8 +56,8 @@ export class TreeData extends Subscribable {
    */
   setTree(newickStr) {
     this.tree = this.parseTree(newickStr);
-    this.metadataTables.keys().forEach(this.attachTable);
-    this.notify('treeUpdate', this);
+    this.metadata.keys().forEach(this.#attachTable);
+    this.notify('treeUpdated', this);
   }
 
   /**
@@ -71,7 +73,7 @@ export class TreeData extends Subscribable {
     const { metadataMap, columnTypes } = parseTable(tableStr, sep);
 
     // Generate unique column IDs for this table
-    const id = `table_${this._nextTableId++}`;
+    const id = `table_${this.#nextTableId++}`;
     const columnIdMap = new Map();
     for (const [originalName, columnType] of columnTypes) {
       const uniqueId = `${id}_${originalName}`;
@@ -94,9 +96,12 @@ export class TreeData extends Subscribable {
       transformedMetadata.set(nodeName, transformedNodeData);
     }
 
-    this.metadataTables.set(id, transformedMetadata);
-    this.attachTable(id);
-    this.notify('metadataUpdate', this);
+    this.metadata.set(id, transformedMetadata);
+    this.#attachTable(id);
+    this.notify('metadataAdded', {
+      tableId: id,
+      columnIds: columnIdMap.values()
+    });
 
     return id;
   }
@@ -106,7 +111,7 @@ export class TreeData extends Subscribable {
    * @param {string} tableId - ID of the table to remove
    */
   deleteTable(tableId) {
-    const table = this.metadataTables.get(tableId);
+    const table = this.metadata.get(tableId);
     if (!table) {
       console.warn(`Table ${tableId} does not exist`);
       return;
@@ -117,16 +122,19 @@ export class TreeData extends Subscribable {
       this.columnName.delete(uniqueId);
       this.columnDisplayName.delete(uniqueId);
     }
-    this.detachTable(tableId);
-    this.metadataTables.delete(tableId);
-    this.notify('metadataUpdate', this);
+    this.#detachTable(tableId);
+    this.metadata.delete(tableId);
+    this.notify('metadataRemoved', {
+      tableId,
+      columnIds: keys
+    });
   }
 
   /**
    * Add metadata to tree nodes
    */
-  attachTable(tableId) {
-    const table = this.metadataTables.get(tableId);
+  #attachTable(tableId) {
+    const table = this.metadata.get(tableId);
     this.tree.each(d => {
       const nodeName = d.data.name;
       if (nodeName && table.has(nodeName)) {
@@ -139,8 +147,8 @@ export class TreeData extends Subscribable {
   /**
    * Remove metadata from tree nodes
    */
-  detachTable(tableId) {
-    const table = this.metadataTables.get(tableId);
+  #detachTable(tableId) {
+    const table = this.metadata.get(tableId);
     const keys = Object.keys(table.values().next().value);
     this.tree.each(d => {
       keys.forEach(key => {

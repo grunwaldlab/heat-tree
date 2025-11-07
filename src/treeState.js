@@ -52,13 +52,36 @@ export class TreeState extends Subscribable {
       ...options
     };
 
-    // State properties
+    // Set state properties
     this.treeData = treeData;
     this.displayedRoot = this.treeData.tree;
     this.textSizeEstimator = textSizeEstimator;
 
     // Initial coordinate calculation
     this.#updateLabels();
+
+    // Watch for changes to the upderlying tree data
+    this.treeData.subscribe('treeUpdate', () => {
+      this.displayedRoot = this.treeData.tree;
+      this.#updateLabels();
+    })
+    this.treeData.subscribe('metadataRemoved', (info) => {
+      if (info.columnIds.includes(this.labelTextSource)) {
+        this.labelTextSource = null;
+      }
+      if (info.columnIds.includes(this.labelColorSource)) {
+        this.labelColorSource = null;
+      }
+      if (info.columnIds.includes(this.labelSizeSource)) {
+        this.labelSizeSource = null;
+      }
+      if (info.columnIds.includes(this.labelFontSource)) {
+        this.labelFontSource = null;
+      }
+      if (info.columnIds.includes(this.labelStyleSource)) {
+        this.labelStyleSource = null;
+      }
+    })
   }
 
   set layout(layout) {

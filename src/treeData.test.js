@@ -29,12 +29,12 @@ D\t300\talpha`;
       const treeData = new TreeData(simpleNewick);
       expect(treeData.tree).toBeDefined();
       expect(treeData.tree.data.name).toBe('E');
-      expect(treeData.metadataTables.size).toBe(0);
+      expect(treeData.metadata.size).toBe(0);
     });
 
     it('should create a TreeData instance with multiple metadata tables', () => {
       const treeData = new TreeData(simpleNewick, [metadataTable1, metadataTable2]);
-      expect(treeData.metadataTables.size).toBe(2);
+      expect(treeData.metadata.size).toBe(2);
     });
   });
 
@@ -101,9 +101,11 @@ D\t300\talpha`;
     it('should notify subscribers when tree is set', () => {
       const treeData = new TreeData(simpleNewick);
       const callback = vi.fn();
-      treeData.subscribe('treeUpdate', callback);
+      treeData.subscribe('treeUpdated', callback);
 
+      console.log(treeData.tree);
       treeData.setTree(complexNewick);
+      console.log(treeData.tree);
 
       expect(callback).toHaveBeenCalled();
       expect(callback).toHaveBeenCalledWith(expect.objectContaining(treeData));
@@ -116,7 +118,7 @@ D\t300\talpha`;
       const tableId = treeData.addTable(metadataTable1);
 
       expect(tableId).toBe('table_0');
-      expect(treeData.metadataTables.has(tableId)).toBe(true);
+      expect(treeData.metadata.has(tableId)).toBe(true);
     });
 
     it('should increment auto-generated IDs', () => {
@@ -157,7 +159,7 @@ D\t300\talpha`;
     it('should notify subscribers when table is added and enabled', () => {
       const treeData = new TreeData(simpleNewick);
       const callback = vi.fn();
-      treeData.subscribe('metadataUpdate', callback);
+      treeData.subscribe('metadataAdded', callback);
 
       treeData.addTable(metadataTable1);
 
@@ -172,7 +174,7 @@ D\t300\talpha`;
 
       treeData.deleteTable(tableId);
 
-      expect(treeData.metadataTables.has(tableId)).toBe(false);
+      expect(treeData.metadata.has(tableId)).toBe(false);
     });
 
     it('should remove column name mappings', () => {
@@ -205,7 +207,7 @@ D\t300\talpha`;
       const treeData = new TreeData(simpleNewick);
       const tableId = treeData.addTable(metadataTable1);
       const callback = vi.fn();
-      treeData.subscribe('metadataUpdate', callback);
+      treeData.subscribe('metadataRemoved', callback);
 
       callback.mockClear(); // Clear the subscription call
       treeData.deleteTable(tableId);
