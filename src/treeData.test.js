@@ -103,9 +103,7 @@ D\t300\talpha`;
       const callback = vi.fn();
       treeData.subscribe('treeUpdated', callback);
 
-      console.log(treeData.tree);
       treeData.setTree(complexNewick);
-      console.log(treeData.tree);
 
       expect(callback).toHaveBeenCalled();
       expect(callback).toHaveBeenCalledWith(expect.objectContaining(treeData));
