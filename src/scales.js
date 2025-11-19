@@ -17,6 +17,15 @@ export class NullScale {
 }
 
 /**
+ * Placeholder scale for contant output when a mapping variable is not used
+ */
+export class IdentityScale {
+  getValue(value) {
+    return value;
+  }
+}
+
+/**
  * Scale for mapping continuous numeric values to sizes
  */
 export class ContinuousSizeScale {
