@@ -1,13 +1,12 @@
 // Calculate optimal scaling factors using constraint-based approach for rectangular layouts
-export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options) {
+export function calculateScalingFactors(root, options) {
   // Calculate leaf annotation dimensions for each node
   const leafData = root.leaves().map(node => {
-    const labelScale = 1; // Unitless scaling factor (assuming 1 for now)
     return {
       x: node.x, // x-axis position in branch length units
-      width: (node.labelWidthRatio + options.nodeLabelOffset) * labelScale,
-      height: node.labelHeightRatio * labelScale,
-      labelScale: labelScale
+      width: (node.tipLabelBounds.width + options.nodeLabelOffset) * node.tipLabelSize,
+      height: node.tipLabelBounds.height * node.tipLabelSize,
+      labelScale: node.tipLabelSize
     };
   });
 
@@ -72,15 +71,15 @@ export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options
 
   // Tree width should fit into viewing window
   applyBranchMax(Math.min(...leafData.map(a =>
-    (viewWidthPx - a.width * labelSizeToPxFactor_min) / a.x
+    (options.viewWidth - a.width * labelSizeToPxFactor_min) / a.x
   )));
   applyLabelMax(Math.min(...leafData.map(a =>
-    (viewWidthPx - a.x * branchLenToPxFactor_min) / a.width
+    (options.viewWidth - a.x * branchLenToPxFactor_min) / a.width
   )));
 
   // Tree height should fit into viewing window
   if (labelSizeToPxFactor_min != labelSizeToPxFactor_max) {
-    applyLabelMax(viewHeightPx / leafData.reduce((sum, a) => sum + a.height, 0));
+    applyLabelMax(options.viewHeight / leafData.reduce((sum, a) => sum + a.height, 0));
   }
 
   // Text should be large and easy to read
@@ -91,7 +90,7 @@ export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options
   // Tree width should fit into viewing window (recalculate since labelSizeToPxFactor_min changed)
   if (branchLenToPxFactor_min != branchLenToPxFactor_max) {
     applyBranchMax(Math.min(...leafData.map(a =>
-      (viewWidthPx - a.width * labelSizeToPxFactor_min) / a.x
+      (options.viewWidth - a.width * labelSizeToPxFactor_min) / a.x
     )));
   }
 
@@ -103,7 +102,7 @@ export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options
     // Tree width should fit into viewing window (recalculate since branchLenToPxFactor_min changed)
     if (labelSizeToPxFactor_min != labelSizeToPxFactor_max) {
       applyLabelMax(Math.min(...leafData.map(a =>
-        (viewWidthPx - a.x * branchLenToPxFactor_min) / a.width
+        (options.viewWidth - a.x * branchLenToPxFactor_min) / a.width
       )));
     }
   }
@@ -122,30 +121,19 @@ export function calculateScalingFactors(root, viewWidthPx, viewHeightPx, options
 }
 
 // Calculate optimal scaling factors using constraint-based approach for circular layouts
-export function calculateCircularScalingFactors(root, viewWidthPx, viewHeightPx, options) {
+export function calculateCircularScalingFactors(root, options) {
   const leaves = root.leaves();
 
   // Calculate leaf annotation dimensions for each node
   const leafData = leaves.map((node, i) => {
-    let nameLen;
-    if (node.collapsed_children) {
-      nameLen = node.collapsed_children_name ? node.collapsed_children_name.length : 0;
-    } else if (node.collapsed_parent) {
-      nameLen = node.collapsed_parent_name ? node.collapsed_parent_name.length : 0;
-    } else {
-      nameLen = node.data.name ? node.data.name.length : 0;
-    }
-
-    const labelScale = 1; // Unitless scaling factor (assuming 1 for now)
-
     return {
       radius: node.radius, // x-axis position in branch length units (radius)
       angle: node.angle,
       cos: node.cos,
       sin: node.sin,
-      width: (node.labelWidthRatio + options.nodeLabelOffset) * labelScale,
-      height: node.labelHeightRatio * labelScale,
-      labelScale: labelScale
+      width: (node.tipLabelBounds.width + options.nodeLabelOffset) * node.tipLabelSize,
+      height: node.tipLabelBounds.height * node.tipLabelSize,
+      labelScale: node.tipLabelSize
     };
   });
 
@@ -215,20 +203,20 @@ export function calculateCircularScalingFactors(root, viewWidthPx, viewHeightPx,
 
   // Tree should fit into viewing window
   function applyBranchViewConstraint() {
-    const rightBranchFactor = Math.min(...leafData.filter(a => a.cos > 0).map(a => (viewWidthPx / 2 - a.width * a.cos * labelSizeToPxFactor_min) / (a.radius * a.cos)));
-    const leftBranchFactor = Math.min(...leafData.filter(a => a.cos < 0).map(a => (viewWidthPx / 2 - a.width * -a.cos * labelSizeToPxFactor_min) / (a.radius * -a.cos)));
-    const bottomBranchFactor = Math.min(...leafData.filter(a => a.sin > 0).map(a => (viewHeightPx / 2 - a.width * a.sin * labelSizeToPxFactor_min) / (a.radius * a.sin)));
-    const topBranchFactor = Math.min(...leafData.filter(a => a.sin < 0).map(a => (viewHeightPx / 2 - a.width * -a.sin * labelSizeToPxFactor_min) / (a.radius * -a.sin)));
+    const rightBranchFactor = Math.min(...leafData.filter(a => a.cos > 0).map(a => (options.viewWidth / 2 - a.width * a.cos * labelSizeToPxFactor_min) / (a.radius * a.cos)));
+    const leftBranchFactor = Math.min(...leafData.filter(a => a.cos < 0).map(a => (options.viewWidth / 2 - a.width * -a.cos * labelSizeToPxFactor_min) / (a.radius * -a.cos)));
+    const bottomBranchFactor = Math.min(...leafData.filter(a => a.sin > 0).map(a => (options.viewHeight / 2 - a.width * a.sin * labelSizeToPxFactor_min) / (a.radius * a.sin)));
+    const topBranchFactor = Math.min(...leafData.filter(a => a.sin < 0).map(a => (options.viewHeight / 2 - a.width * -a.sin * labelSizeToPxFactor_min) / (a.radius * -a.sin)));
     applyBranchMax(Math.min(
       (rightBranchFactor + leftBranchFactor) / 2,
       (topBranchFactor + bottomBranchFactor) / 2
     ));
   }
   function applyLabelViewConstraint() {
-    const rightLabelFactor = Math.min(...leafData.filter(a => a.cos > 0).map(a => (viewWidthPx / 2 - a.radius * a.cos * branchLenToPxFactor_min) / (a.width * a.cos)));
-    const leftLabelFactor = Math.min(...leafData.filter(a => a.cos < 0).map(a => (viewWidthPx / 2 - a.radius * -a.cos * branchLenToPxFactor_min) / (a.width * -a.cos)));
-    const bottomLabelFactor = Math.min(...leafData.filter(a => a.sin > 0).map(a => (viewHeightPx / 2 - a.radius * a.sin * branchLenToPxFactor_min) / (a.width * a.sin)));
-    const topLabelFactor = Math.min(...leafData.filter(a => a.sin < 0).map(a => (viewHeightPx / 2 - a.radius * -a.sin * branchLenToPxFactor_min) / (a.width * -a.sin)));
+    const rightLabelFactor = Math.min(...leafData.filter(a => a.cos > 0).map(a => (options.viewWidth / 2 - a.radius * a.cos * branchLenToPxFactor_min) / (a.width * a.cos)));
+    const leftLabelFactor = Math.min(...leafData.filter(a => a.cos < 0).map(a => (options.viewWidth / 2 - a.radius * -a.cos * branchLenToPxFactor_min) / (a.width * -a.cos)));
+    const bottomLabelFactor = Math.min(...leafData.filter(a => a.sin > 0).map(a => (options.viewHeight / 2 - a.radius * a.sin * branchLenToPxFactor_min) / (a.width * a.sin)));
+    const topLabelFactor = Math.min(...leafData.filter(a => a.sin < 0).map(a => (options.viewHeight / 2 - a.radius * -a.sin * branchLenToPxFactor_min) / (a.width * -a.sin)));
     applyLabelMax(Math.min(
       (rightLabelFactor + leftLabelFactor) / 2,
       (topLabelFactor + bottomLabelFactor) / 2

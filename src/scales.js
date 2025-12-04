@@ -4,10 +4,10 @@
 export class NullScale {
   defaultValue;
   constructor(defaultValue) {
-    if (defaultValue) {
-      this.defaultValue = defaultValue;
-    } else {
+    if (defaultValue === undefined) {
       console.error('A defualt value for a NullScale is needed.');
+    } else {
+      this.defaultValue = defaultValue;
     }
   }
 
