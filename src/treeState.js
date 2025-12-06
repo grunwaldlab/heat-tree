@@ -150,12 +150,16 @@ export class TreeState extends Subscribable {
           downstreams.add(methodName);
         }
       }
+
+      // notify subscribers of change to aesthetic
+      this.notify(`${aesthetic}Change`);
     }
 
     // Call all unique functions needed to update downstream data from all the aesthetics applied
     for (const methodName of downstreams) {
       this[methodName]();
     }
+
   }
 
   setTargetTreeDimensions(width, height) {

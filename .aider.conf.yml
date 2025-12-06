@@ -390,7 +390,7 @@ watch-files: true
 #  - yyy
 #  - zzz
 read:
-   - docs/architecture.md
+   - docs/architecture/summary.md
    - package.json
 
 ## Use VI editing mode in the terminal (default: False)
