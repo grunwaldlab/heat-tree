@@ -1,6 +1,6 @@
 import { Subscribable } from './utils.js';
 import { calculateScalingFactors, calculateCircularScalingFactors } from './scaling.js';
-import { ContinuousSizeScale, ContinuousColorScale, CategoricalColorScale, NullScale, IdentityScale } from './scales.js';
+import { ContinuousSizeScale, ContinuousColorScale, CategoricalColorScale, NullScale, TextScale } from './scales.js';
 import { TextSizeEstimator } from './textAspectRatioPrediction.js'
 import { cluster } from 'd3';
 
@@ -8,7 +8,7 @@ export class TreeState extends Subscribable {
 
   #AESTHETICS = {
     tipLabelText: {
-      scale: 'makeIdentityScale',
+      scale: 'makeTextScale',
       downstream: ['updateTipLabelText', 'updateScaling'],
       default: ''
     },
@@ -23,18 +23,18 @@ export class TreeState extends Subscribable {
       default: 1
     },
     tipLabelFont: {
-      scale: 'makeIdentityScale',
+      scale: 'makeTextScale',
       downstream: ['updateScaling'],
       default: 'sans-serif'
 
     },
     tipLabelStyle: {
-      scale: 'makeIdentityScale',
+      scale: 'makeTextScale',
       downstream: ['updateScaling'],
       default: 'normal'
     },
     nodeLabelText: {
-      scale: 'makeIdentityScale',
+      scale: 'makeTextScale',
       downstream: ['updateNodeLabelText'],
       default: ''
     },
@@ -265,8 +265,8 @@ export class TreeState extends Subscribable {
     this.labelSizeScale = new ContinuousSizeScale(min, max, 0.5, 1.5);
   }
 
-  makeIdentityScale() {
-    return new IdentityScale()
+  makeTextScale() {
+    return new TextScale()
   }
 
   updateTipLabelText() {

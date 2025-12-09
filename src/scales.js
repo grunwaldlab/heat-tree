@@ -19,7 +19,7 @@ export class NullScale {
 /**
  * Placeholder scale for contant output when a mapping variable is not used
  */
-export class IdentityScale {
+export class TextScale {
   getValue(value) {
     return value;
   }

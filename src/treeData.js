@@ -3,6 +3,7 @@ import { parseNewick, parseTable } from "./parsers.js";
 import { Subscribable, columnToHeader } from "./utils.js";
 import {
   NullScale,
+  TextScale,
   ContinuousSizeScale,
   ContinuousColorScale,
   CategoricalColorScale
@@ -19,8 +20,11 @@ export class TreeData extends Subscribable {
   columnType = new Map(); // e.g. 'continuous' or 'categorical', keyed by unique column ID
   columnName = new Map(); // Original column name, keyed by unique column ID
   columnDisplayName = new Map(); // Display-friendly column name, keyed by unique column ID
-  columnColorScale = new Map(); // Color scales for each column
-  columnSizeScale = new Map(); // Size scales for each column
+  columnScale = {
+    color: new Map(),
+    size: new Map(),
+    text: new Map()
+  }
   #nextTableId = 0;
 
   constructor(newickStr, metadataTables = []) {
@@ -131,8 +135,9 @@ export class TreeData extends Subscribable {
       this.columnType.delete(uniqueId);
       this.columnName.delete(uniqueId);
       this.columnDisplayName.delete(uniqueId);
-      this.columnColorScale.delete(uniqueId);
-      this.columnSizeScale.delete(uniqueId);
+      this.columnScale.color.delete(uniqueId);
+      this.columnScale.size.delete(uniqueId);
+      this.columnScale.text.delete(uniqueId);
     }
 
     this.#detachTable(tableId);
@@ -146,150 +151,93 @@ export class TreeData extends Subscribable {
   /**
    * Get the color scale for a column, creating it if needed
    * @param {string} columnId - The unique column ID
+   * @param {string} scaleType - The type of scale to create ('color', 'size', or 'text')
    * @returns {object} The color scale instance
    */
-  getColorScale(columnId) {
+  getScale(columnId, scaleType) {
     // Return existing scale if available
-    if (this.columnColorScale.has(columnId)) {
-      return this.columnColorScale.get(columnId);
+    if (this.columnScale[scaleType].has(columnId)) {
+      return this.columnScale[scaleType].get(columnId);
     }
 
     // Create new scale based on column type
-    const scale = this.#createColorScale(columnId);
-    this.columnColorScale.set(columnId, scale);
+    const scale = this.#createScale(columnId, scaleType);
+    this.columnScale[scaleType].set(columnId, scale);
     return scale;
   }
 
   /**
-   * Set the color scale for a column
+   * Set the scale for a column
    * @param {string} columnId - The unique column ID
+   * @param {string} scaleType - The type of scale to create ('color', 'size', or 'text')
    * @param {object} scale - The scale instance to set
    */
-  setColorScale(columnId, scale) {
-    this.columnColorScale.set(columnId, scale);
+  setScale(columnId, scaleType, scale) {
+    console.log(this.columnScale);
+    this.columnScale[scaleType].set(columnId, scale);
   }
 
   /**
-   * Get the size scale for a column, creating it if needed
-   * @param {string} columnId - The unique column ID
-   * @returns {object} The size scale instance
-   */
-  getSizeScale(columnId) {
-    // Return existing scale if available
-    if (this.columnSizeScale.has(columnId)) {
-      return this.columnSizeScale.get(columnId);
-    }
-
-    // Create new scale based on column type
-    const scale = this.#createSizeScale(columnId);
-    this.columnSizeScale.set(columnId, scale);
-    return scale;
-  }
-
-  /**
-   * Set the size scale for a column
-   * @param {string} columnId - The unique column ID
-   * @param {object} scale - The scale instance to set
-   */
-  setSizeScale(columnId, scale) {
-    this.columnSizeScale.set(columnId, scale);
-  }
-
-  /**
-   * Create a color scale for a column based on its type
+   * Create a scale for a column based on its type and the scale type requested
    * @private
    * @param {string} columnId - The unique column ID
-   * @returns {object} The created color scale instance
+   * @param {string} scaleType - The type of scale to create ('color', 'size', or 'text')
+   * @returns {object} The created scale instance
    */
-  #createColorScale(columnId) {
-    const columnType = this.columnType.get(columnId);
-
-    if (!columnType) {
-      console.warn(`Column ${columnId} not found, returning NullScale`);
-      return new NullScale('#808080');
-    }
-
-    // Collect all values for this column from the tree
-    const values = [];
-    this.tree.each(node => {
-      if (node.metadata && node.metadata[columnId] !== undefined) {
-        values.push(Number(node.metadata[columnId]));
-      }
-    });
-
-    if (values.length === 0) {
-      console.warn(`No values found for column ${columnId}, returning NullScale`);
-      return new NullScale('#808080');
-    }
-
-    if (columnType === 'continuous') {
-      // Filter out non-numeric values
-      const numericValues = values.filter(v => typeof v === 'number' && !isNaN(v));
-
-      if (numericValues.length === 0) {
-        console.warn(`No numeric values found for continuous column ${columnId}, returning NullScale`);
-        return new NullScale('#808080');
-      }
-
-      const dataMin = Math.min(...numericValues);
-      const dataMax = Math.max(...numericValues);
-
-      return new ContinuousColorScale(dataMin, dataMax);
-    } else if (columnType === 'categorical') {
-      return new CategoricalColorScale(values);
-    } else {
-      console.warn(`Unknown column type ${columnType} for column ${columnId}, returning NullScale`);
-      return new NullScale('#808080');
-    }
-  }
-
-  /**
-   * Create a size scale for a column based on its type
-   * @private
-   * @param {string} columnId - The unique column ID
-   * @returns {object} The created size scale instance
-   */
-  #createSizeScale(columnId) {
+  #createScale(columnId, scaleType) {
     const columnType = this.columnType.get(columnId);
 
     if (!columnType) {
       console.error(`Column ${columnId} not found`);
     }
 
-    // Only continuous columns can be mapped to size
-    if (columnType !== 'continuous') {
-      console.error(`Column ${columnId} is not continuous`);
-    }
-
-    // Collect all values for this column from the tree and convert to numeric
-    const values = [];
+    // Collect all values for this column from the tree
+    let values = [];
     this.tree.each(node => {
       if (node.metadata && node.metadata[columnId] !== undefined) {
-        values.push(Number(node.metadata[columnId]));
+        values.push(node.metadata[columnId]);
       }
     });
 
     if (values.length === 0) {
-      console.warn(`No values found for column ${columnId}, returning NullScale`);
-      return new NullScale(1);
+      console.error(`No values found for column ${columnId}`);
     }
 
-    // Filter out non-numeric values
-    const numericValues = values.filter(v => typeof v === 'number' && !isNaN(v));
-
-    if (numericValues.length === 0) {
-      console.warn(`No numeric values found for continuous column ${columnId}, returning NullScale`);
-      return new NullScale(1);
+    // Handle text scales
+    if (scaleType === 'text') {
+      return new TextScale();
     }
 
-    const dataMin = Math.min(...numericValues);
-    const dataMax = Math.max(...numericValues);
+    // Convert to numeric values
+    if (columnType === 'continuous') {
+      values = values.map(v => Number(v)).filter(v => !isNaN(v));
 
-    // Default size range - these could be made configurable
-    const sizeMin = 0.5;
-    const sizeMax = 2.0;
+      if (values.length === 0) {
+        console.warn(`No numeric values found for continuous column ${columnId}, returning NullScale`);
+        return new NullScale(1);
+      }
+    }
 
-    return new ContinuousSizeScale(dataMin, dataMax, sizeMin, sizeMax);
+    // Handle size scales (only for continuous data)
+    if (scaleType === 'size') {
+      if (columnType !== 'continuous') {
+        console.error(`Column ${columnId} is not continuous and cant be used for a size scale`);
+      }
+      return new ContinuousSizeScale(Math.min(...values), Math.max(...values), 0.5, 2);
+    }
+
+    // Handle color scales
+    if (scaleType === 'color') {
+      if (columnType === 'continuous') {
+        return new ContinuousColorScale(Math.min(...values), Math.max(...values));
+      } else if (columnType === 'categorical') {
+        return new CategoricalColorScale(values);
+      } else {
+        console.error(`Unknown column type ${columnType} for column ${columnId}`);
+      }
+    }
+
+    console.error(`Unknown scale type ${scaleType}`);
   }
 
   /**
