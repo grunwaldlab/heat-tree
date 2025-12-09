@@ -1,10 +1,10 @@
 # Controls
 
 Controls not associated with particular tree elements appear at the top of the tree widget and are designed to be as space-efficient and language-agnostic as possible.
-The entire control panel can be minimized by dragging the lower boundary up, after which a hamburger menu with a down-facing arrow on the top left can expand them again when clicked.
-Controls are grouped into tabs that reveal the controls when clicked.
+Controls are grouped into left-aligned tabs that reveal the controls when clicked.
+On the top right of the control panel, aligned with the tabs, there is a button that minimizes the control panel when clicked, after which it is still present as an overlaied button that can expand them again when clicked.
 If the currently selected tab is clicked, it is unselected and no controls are shown other than the tabs.
-The tree is resized to fill the current space not used by controls when controls are resized.
+The tree is resized to fill the current space not used by controls when controls are expanded/collapsed.
 
 ## Color and size scaling settings
 
