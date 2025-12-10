@@ -1,6 +1,6 @@
 import { Subscribable } from './utils.js';
 import { calculateScalingFactors, calculateCircularScalingFactors } from './scaling.js';
-import { ContinuousSizeScale, ContinuousColorScale, CategoricalColorScale, NullScale, TextScale } from './scales.js';
+import { NullScale } from './scales.js';
 import { TextSizeEstimator } from './textAspectRatioPrediction.js'
 import { cluster } from 'd3';
 
@@ -8,33 +8,33 @@ export class TreeState extends Subscribable {
 
   #AESTHETICS = {
     tipLabelText: {
-      scale: 'makeTextScale',
-      downstream: ['updateTipLabelText', 'updateScaling'],
+      scaleType: 'text',
+      downstream: ['updateTipLabelText', 'updateCoordinates'],
       default: ''
     },
     tipLabelColor: {
-      scale: 'makeColorScale',
+      scaleType: 'color',
       downstream: [],
       default: '#000000'
     },
     tipLabelSize: {
-      scale: 'makeSizeScale',
-      downstream: ['updateScaling'],
+      scaleType: 'size',
+      downstream: ['updateCoordinates'],
       default: 1
     },
     tipLabelFont: {
-      scale: 'makeTextScale',
-      downstream: ['updateScaling'],
+      scaleType: 'text',
+      downstream: ['updateCoordinates'],
       default: 'sans-serif'
 
     },
     tipLabelStyle: {
-      scale: 'makeTextScale',
-      downstream: ['updateScaling'],
+      scaleType: 'text',
+      downstream: ['updateCoordinates'],
       default: 'normal'
     },
     nodeLabelText: {
-      scale: 'makeTextScale',
+      scaleType: 'text',
       downstream: ['updateNodeLabelText'],
       default: ''
     },
@@ -100,7 +100,7 @@ export class TreeState extends Subscribable {
 
   #initalize() {
     this.displayedRoot = this.state.treeData.tree;
-    this.#updateLayout(false);
+    this.updateLayout();
     this.setAesthetics(this.state.aesthetics, true);
   }
 
@@ -114,7 +114,7 @@ export class TreeState extends Subscribable {
     if (force || this.state.layout !== layout) {
       this.state.layout = layout;
     }
-    this.#updateLayout();
+    this.update();
   }
 
   setAesthetics(values, force = false) {
@@ -129,7 +129,7 @@ export class TreeState extends Subscribable {
         if (columnId === null) {
           this.aestheticsScales[aesthetic] = new NullScale(aesData.default);
         } else {
-          this.aestheticsScales[aesthetic] = this[aesData.scale](columnId);
+          this.aestheticsScales[aesthetic] = this.state.treeData.getScale(columnId, aesData.scaleType);
         }
 
         // Update the tree data directly modified by the aesthetic
@@ -165,7 +165,7 @@ export class TreeState extends Subscribable {
   setTargetTreeDimensions(width, height) {
     this.state.viewWidth = width;
     this.state.viewHeight = height;
-    this.updateScaling();
+    this.updateCoordinates();
   }
 
   collapseSubtree(node) {
@@ -181,7 +181,7 @@ export class TreeState extends Subscribable {
     node.collapsedChildren = node.children;
     node.children = null;
 
-    this.#updateLayout();
+    this.update();
   }
 
   expandSubtree(node) {
@@ -190,7 +190,7 @@ export class TreeState extends Subscribable {
     node.children = node.collapsedChildren;
     node.collapsedChildren = null;
 
-    this.#updateLayout();
+    this.update();
   }
 
   collapseRoot(node) {
@@ -200,7 +200,7 @@ export class TreeState extends Subscribable {
     this.displayedRoot.collapsed_parent = this.displayedRoot.parent;
     this.displayedRoot.parent = null;
 
-    this.#updateLayout();
+    this.update();
   }
 
   expandRoot() {
@@ -217,56 +217,7 @@ export class TreeState extends Subscribable {
 
     this.displayedRoot = newRoot;
 
-    this.#updateLayout();
-  }
-
-  makeColorScale(colorSource) {
-    // Collect values from tree nodes
-    const values = [];
-    this.displayedRoot.each(node => {
-      if (node.metadata && node.metadata[colorSource] !== undefined) {
-        values.push(node.metadata[colorSource]);
-      }
-    });
-
-    // Return a continuous or categorical scale depending on the column type
-    const columnType = this.state.treeData.columnType.get(colorSource);
-    if (columnType === 'continuous') {
-      const numericValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
-      const min = Math.min(...numericValues);
-      const max = Math.max(...numericValues);
-      return new ContinuousColorScale(min, max);
-    } else {
-      return new CategoricalColorScale(values);
-    }
-  }
-
-  makeSizeScale(sizeSource) {
-    // Only use a size scale for continuous variables
-    const columnType = this.state.treeData.columnType.get(sizeSource);
-    if (columnType !== 'continuous') {
-      return new NullScale(1);
-    }
-
-    // Collect numeric values from tree nodes
-    const values = [];
-    this.displayedRoot.each(node => {
-      if (node.metadata && node.metadata[sizeSource] !== undefined) {
-        const numValue = parseFloat(node.metadata[sizeSource]);
-        if (!isNaN(numValue)) {
-          values.push(numValue);
-        }
-      }
-    });
-
-    // Size scale from 0.5x to 1.5x of base size
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    this.labelSizeScale = new ContinuousSizeScale(min, max, 0.5, 1.5);
-  }
-
-  makeTextScale() {
-    return new TextScale()
+    this.update();
   }
 
   updateTipLabelText() {
@@ -291,7 +242,12 @@ export class TreeState extends Subscribable {
     })
   }
 
-  #updateLayout(updateDownstream = true) {
+  update() {
+    this.updateLayout();
+    this.updateCoordinates();
+  }
+
+  updateLayout() {
     // Apply D3 cluster layout to compute base positions
     const treeLayout = cluster().separation((a, b) => 1);
     treeLayout(this.displayedRoot);
@@ -327,12 +283,9 @@ export class TreeState extends Subscribable {
       d.x = d.x - this.displayedRoot.x;
       d.y = d.y - this.displayedRoot.y;
     });
-    if (updateDownstream) {
-      this.updateScaling();
-    }
   }
 
-  updateScaling() {
+  updateCoordinates() {
     // Estimate label dimensions
     this.displayedRoot.each(d => {
       d.tipLabelBounds = this.textSizeEstimator.getRelativeTextSize(d.tipLabelText);
@@ -350,10 +303,6 @@ export class TreeState extends Subscribable {
     this.branchLenToPxFactor = scalingFactors.branchLenToPxFactor_max;
     this.labelSizeToPxFactor = scalingFactors.labelSizeToPxFactor_min;
 
-    this.#updateCoordinates();
-  }
-
-  #updateCoordinates() {
     // Calculate pixel coordinates and sizes based on scaling factors
     this.displayedRoot.each(d => {
       d.branchLenPx = d.branchLen * this.branchLenToPxFactor;
@@ -377,17 +326,10 @@ export class TreeState extends Subscribable {
       });
     }
 
-    // Calculate bounds for each node
-    this.#updateBounds();
-
-    this.notify('coordinateChange');
-  }
-
-  #updateBounds() {
+    // Update bounds
     const getLabelWidth = (node) => {
       return node.nodeLabelBounds.width * this.labelSizeToPxFactor;
     };
-
     if (this.state.layout === 'circular') {
       this.state.treeData.tree.eachAfter(d => {
         if (d.children) {
@@ -430,6 +372,16 @@ export class TreeState extends Subscribable {
         d.height = (d.bounds.maxRadius - d.bounds.minRadius) * 2;
       });
     }
+
+    // Move tree so its top left extent is at 0,0
+    const minX = Math.min(...this.displayedRoot.descendants().map(d => d.bounds.minX));
+    const minY = Math.min(...this.displayedRoot.descendants().map(d => d.bounds.minY));
+    this.displayedRoot.eachAfter(d => {
+      d.x = d.x - minX;
+      d.y = d.y - minY;
+    });
+
+    this.notify('coordinateChange');
   }
 
 }

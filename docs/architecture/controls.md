@@ -6,16 +6,17 @@ On the top right of the control panel, aligned with the tabs, there is a button 
 If the currently selected tab is clicked, it is unselected and no controls are shown other than the tabs.
 The tree is resized to fill the current space not used by controls when controls are expanded/collapsed.
 
-## Color and size scaling settings
+## Metadata column properties
 
-Color palettes and size scaling settings are associated with each metadata column.
-These settings include:
+Each metadata column has properties assocaited with it, such as:
 
-- an ordered series of colors/sizes used as outputs for the scale that are interpolated between as needed for continuous variables
-- the associated input values for each output, in ascending order for continuous variables
-- A default value for missing data
+- the display name
+- whether it is continuous or categorical data
+- how to convert values to labels (text), size, or color
 
-These settings can be changed by a popup control panel that appears when a button on a dropdown for a metadata column selector is clicked.
+These settings can be changed by a popup control panel.
+This popup panel can be accessed by clicking on a "edit" button (shaped like a pencil) that occurs to the right of metadata column names in aesthetic selector dropdowns like those used to style tip labels.
+This popup can also be accessed by clicking on an edit button that appears when a legend is selected.
 
 ## Tab groups
 
