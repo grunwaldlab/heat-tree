@@ -288,6 +288,14 @@ export class TreeState extends Subscribable {
     });
   }
 
+  getCollapsedTriangleHeight(d) {
+    return d.tipLabelSizePx + 1.1;
+  }
+
+  getCollapsedTriangleOffset(d) {
+    return this.getCollapsedTriangleHeight(d) * 0.52;
+  }
+
   updateCoordinates() {
     // Estimate label dimensions
     this.displayedRoot.each(d => {
@@ -317,7 +325,14 @@ export class TreeState extends Subscribable {
       d.branchLenPx = d.branchLen * this.branchLenToPxFactor;
       d.tipLabelSizePx = d.tipLabelSize * this.labelSizeToPxFactor;
       d.nodeLabelSizePx = d.nodeLabelSize * this.labelSizeToPxFactor * this.state.nodeLabelSizeScale;
-      d.tipLabelXOffsetPx = d.tipLabelSizePx * this.state.nodeLabelOffset;
+      
+      // Calculate tip label offset, incorporating collapsed triangle if present
+      let tipLabelXOffset = d.tipLabelSizePx * this.state.nodeLabelOffset;
+      if (d.collapsedChildren) {
+        tipLabelXOffset += this.getCollapsedTriangleOffset(d) * 1.3;
+      }
+      d.tipLabelXOffsetPx = tipLabelXOffset;
+      
       d.nodeLabelXOffsetPx = d.nodeLabelSizePx * this.state.nodeLabelOffset;
       d.tipLabelYOffsetPx = d.tipLabelSizePx * d.tipLabelBounds.height / 2;
       d.nodeLabelYOffsetPx = d.nodeLabelSizePx * d.nodeLabelBounds.height / 2;
@@ -353,7 +368,7 @@ export class TreeState extends Subscribable {
           };
         } else {
           const minRadius = d.radiusPx;
-          const maxRadius = minRadius + d.tipLabelXOffsetP + d.tipLabelBounds.widthPx;
+          const maxRadius = minRadius + d.tipLabelXOffsetPx + d.tipLabelBounds.widthPx;
           const angleLabelOffset = Math.atan(d.tipLabelYOffsetPx / d.radiusPx);
           const minAngle = d.angle - angleLabelOffset;
           const maxAngle = d.angle + angleLabelOffset;

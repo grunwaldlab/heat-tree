@@ -628,11 +628,11 @@ export class TreeView {
     collapsedHitsEnter.merge(collapsedHits)
       .attr('transform', d => `translate(${d.xPx}, ${d.yPx}) rotate(${this.#getLabelRotation(d)})`)
       .attr('x', d => {
-        return isCircular && this.#isLeftSide(d) ? -(this.#getCollapsedTriangleHeight(d) + d.tipLabelBounds.width * this.treeState.labelSizeToPxFactor) : 0;
+        return this.#isLeftSide(d) ? -(this.treeState.getCollapsedTriangleHeight(d) + d.tipLabelBounds.width * this.treeState.labelSizeToPxFactor) : 0;
       })
       .attr('y', d => -d.tipLabelYOffsetPx * 1.5)
-      .attr('width', d => this.#getCollapsedTriangleHeight(d) + d.tipLabelBounds.width * this.treeState.labelSizeToPxFactor)
-      .attr('height', d => Math.max(d.tipLabelSizePx, this.#getCollapsedTriangleHeight(d)));
+      .attr('width', d => this.treeState.getCollapsedTriangleHeight(d) + d.tipLabelBounds.width * this.treeState.labelSizeToPxFactor)
+      .attr('height', d => Math.max(d.tipLabelSizePx, this.treeState.getCollapsedTriangleHeight(d)));
 
     // Update hit areas for collapsed roots
     const collapsedRootHits = this.layers.hitLayer.selectAll('.collapsed-root-hit')
@@ -917,16 +917,8 @@ export class TreeView {
     }
   }
 
-  #getCollapsedTriangleOffset(d) {
-    return this.#getCollapsedTriangleHeight(d) * 0.52;
-  }
-
-  #getCollapsedTriangleHeight(d) {
-    return d.tipLabelSizePx + 1.1;
-  }
-
   #getCollapsedTrianglePath(d) {
-    const triangleArea = triangleAreaFromSide(this.#getCollapsedTriangleHeight(d));
+    const triangleArea = triangleAreaFromSide(this.treeState.getCollapsedTriangleHeight(d));
     return symbol().type(symbolTriangle).size(triangleArea)();
   }
 
@@ -1083,7 +1075,7 @@ export class TreeView {
 
     if (transition) {
       tipLabels
-        .attr('x', d => this.#getTipLabelOffset(d).x)
+        .attr('x', d => this.#isLeftSide(d) ? -d.tipLabelXOffsetPx : d.tipLabelXOffsetPx)
       tipLabels
         .transition('update tip labels')
         .duration(this.options.transitionDuration)
@@ -1094,7 +1086,7 @@ export class TreeView {
     } else {
       tipLabels
         .attr('dy', d => d.tipLabelSizePx / 2.5)
-        .attr('x', d => this.#getTipLabelOffset(d).x)
+        .attr('x', d => this.#isLeftSide(d) ? -d.tipLabelXOffsetPx : d.tipLabelXOffsetPx)
         .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
         .style('text-anchor', d => this.#getTipLabelAnchor(d))
         .style('font-size', d => `${d.tipLabelSizePx}px`);
@@ -1116,14 +1108,14 @@ export class TreeView {
         .transition('update node labels')
         .duration(this.options.transitionDuration)
         .attr('dy', d => this.#getNodeLabelDy(d))
-        .attr('x', d => this.#getNodeLabelOffset(d).x)
+        .attr('x', d => this.#isLeftSide(d) ? d.nodeLabelXOffsetPx : -d.nodeLabelXOffsetPx)
         .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
         .style('text-anchor', d => this.#getNodeLabelAnchor(d))
         .style('font-size', d => `${d.nodeLabelSizePx}px`);
     } else {
       nodeLabels
         .attr('dy', d => this.#getNodeLabelDy(d))
-        .attr('x', d => this.#getNodeLabelOffset(d).x)
+        .attr('x', d => this.#isLeftSide(d) ? d.nodeLabelXOffsetPx : -d.nodeLabelXOffsetPx)
         .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
         .style('text-anchor', d => this.#getNodeLabelAnchor(d))
         .style('font-size', d => `${d.nodeLabelSizePx}px`);
@@ -1146,7 +1138,7 @@ export class TreeView {
 
     // Set translate offset immediately (no transition)
     nodeShapes
-      .attr('transform', d => `rotate(${this.#getTriangleRotation(d)}) translate(0, ${this.#getCollapsedTriangleOffset(d)})`)
+      .attr('transform', d => `rotate(${this.#getTriangleRotation(d)}) translate(0, ${this.treeState.getCollapsedTriangleOffset(d)})`)
       .style('display', d => d.collapsedChildren ? null : 'none');
 
     // Animate only the shape/path changes
@@ -1155,7 +1147,7 @@ export class TreeView {
         .transition()
         .duration(this.options.transitionDuration)
         .attr('d', d => d.collapsedChildren ? this.#getCollapsedTrianglePath(d) : null)
-        .attr('transform', d => `rotate(${this.#getTriangleRotation(d)}) translate(0, ${this.#getCollapsedTriangleOffset(d)})`);
+        .attr('transform', d => `rotate(${this.#getTriangleRotation(d)}) translate(0, ${this.treeState.getCollapsedTriangleOffset(d)})`);
     } else {
       nodeShapes.attr('d', d => d.collapsedChildren ? this.#getCollapsedTrianglePath(d) : null);
     }
@@ -1276,29 +1268,6 @@ export class TreeView {
     } else {
       return node.children || node.collapsedChildren ? 'end' : 'start';
     }
-  }
-
-  /**
-   * Get label x/y offsets for positioning
-   * @param {Object} d - Tree node
-   * @returns {Object} Object with x and y offset values
-   */
-  #getNodeLabelOffset(d) {
-    const xOffset = this.treeState.state.layout === 'circular' && this.#isLeftSide(d) ? d.nodeLabelXOffsetPx : -d.nodeLabelXOffsetPx;
-    return { x: xOffset, y: 0 };
-  }
-
-  /**
-   * Get label x/y offsets for positioning
-   * @param {Object} d - Tree node
-   * @returns {Object} Object with x and y offset values
-   */
-  #getTipLabelOffset(d) {
-    let xOffset = this.treeState.state.layout === 'circular' && this.#isLeftSide(d) ? -d.tipLabelXOffsetPx : d.tipLabelXOffsetPx;
-    if (d.collapsedChildren) {
-      xOffset += this.#getCollapsedTriangleOffset(d) * 1.3;
-    }
-    return { x: xOffset, y: 0 };
   }
 
   /**
