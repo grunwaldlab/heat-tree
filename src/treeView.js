@@ -1,5 +1,6 @@
-import { select, symbol, symbolTriangle } from 'd3';
-import { triangleAreaFromSide } from './utils.js';
+import { select, symbol, symbolTriangle, zoom, zoomIdentity } from 'd3';
+import { triangleAreaFromSide, calculateTreeBounds, createDashArray } from './utils.js';
+import { appendIcon } from './icons.js';
 
 export class TreeView {
   constructor(treeState, svgContainer, options = {}) {
@@ -12,10 +13,22 @@ export class TreeView {
     }
 
     // Store reference to the TreeState instance
-    this.state = treeState;
+    this.treeState = treeState;
 
     // Store reference to the main SVG container
     this.svg = select(svgContainer);
+
+    // Store options
+    this.options = {
+      buttonSize: 25,
+      controlsMargin: 3,
+      buttonPadding: 2,
+      manualZoomAndPanEnabled: true,
+      autoZoomEnabled: true,
+      autoPanEnabled: true,
+      transitionDuration: 500,
+      ...options
+    };
 
     // Object containing references to SVG layers
     this.layers = {};
@@ -26,14 +39,11 @@ export class TreeView {
     // Current zoom/pan transform
     this.currentTransform = { x: 0, y: 0, k: 1 };
 
-    // Duration for animations (milliseconds)
-    this.transitionDuration = options.transitionDuration || 500;
-
     // Flag to prevent overlapping transitions
     this.isTransitioning = false;
 
     // Track previous layout state to detect transitions
-    this.wasCircularLayout = this.state.state.layout === 'circular';
+    this.wasCircularLayout = this.treeState.state.layout === 'circular';
 
     // Track if we're expanding a subtree (for delayed fade-in)
     this.isExpanding = false;
@@ -41,8 +51,23 @@ export class TreeView {
     // Store references to active transitions for cancellation
     this.activeTransitions = new Set();
 
+    // Toggle state for user-initiated zooming/panning
+    this.manualZoomAndPanEnabled = this.options.manualZoomAndPanEnabled;
+
+    // Toggle state for automatic zoom to fit
+    this.autoZoomEnabled = this.options.autoZoomEnabled;
+
+    // Toggle state for automatic panning
+    this.autoPanEnabled = this.options.autoPanEnabled;
+
+    // Currently selected subtree node
+    this.selectedNode = null;
+
     // Initialize SVG layers
     this.#initializeLayers();
+
+    // Initialize zoom behavior
+    this.#initializeZoom();
 
     // Subscribe to TreeState events
     this.#subscribeToStateChanges();
@@ -52,7 +77,7 @@ export class TreeView {
   }
 
   /**
-   * Initialize SVG layers for branches, nodes, and legends
+   * Initialize SVG layers for branches, nodes, hit areas, and UI overlays
    */
   #initializeLayers() {
     const treeGroup = this.svg.append('g')
@@ -61,9 +86,86 @@ export class TreeView {
       .attr('class', 'branch-layer');
     this.layers.nodeLayer = treeGroup.append('g')
       .attr('class', 'node-layer');
+    this.layers.hitLayer = treeGroup.append('g')
+      .attr('class', 'hit-layer');
     this.layers.legendLayer = treeGroup.append('g')
       .attr('class', 'legend-layer');
     this.layers.treeGroup = treeGroup;
+
+    // Selection rectangle (shown when a subtree is selected)
+    this.layers.selectionRect = treeGroup.append('path')
+      .attr('class', 'selection-rect')
+      .attr('fill', 'none')
+      .attr('stroke', 'grey')
+      .attr('stroke-width', 2)
+      .attr('stroke-dasharray', '5,5')
+      .attr('pointer-events', 'none')
+      .style('display', 'none');
+
+    // Floating button group for subtree actions (added to outer SVG so it ignores zoom)
+    this.layers.selectionBtns = this.svg.append('g')
+      .attr('class', 'selection-btns')
+      .style('display', 'none');
+
+    // Create selection buttons
+    this.#createSelectionButtons();
+  }
+
+  /**
+   * Create floating buttons for subtree actions
+   */
+  #createSelectionButtons() {
+    const btnGroup = this.layers.selectionBtns;
+
+    // Button to collapse the selected subtree
+    const btnCollapseSelected = btnGroup.append('svg')
+      .attr('width', this.options.buttonSize)
+      .attr('height', this.options.buttonSize)
+      .style('cursor', 'pointer')
+      .on('click', () => {
+        if (this.selectedNode && this.selectedNode.children) {
+          this.treeState.collapseSubtree(this.selectedNode);
+          this.selectedNode = null;
+          this.layers.selectionRect.style('display', 'none');
+          this.layers.selectionBtns.style('display', 'none');
+        }
+      });
+    appendIcon(btnCollapseSelected, 'compress', this.options.buttonSize, this.options.buttonPadding);
+
+    // Button to collapse root to the selected subtree
+    const btnCollapseRoot = btnGroup.append('svg')
+      .attr('transform', `translate(0, ${this.options.buttonSize + this.options.controlsMargin})`)
+      .attr('width', this.options.buttonSize)
+      .attr('height', this.options.buttonSize)
+      .style('cursor', 'pointer')
+      .on('click', () => {
+        if (this.selectedNode && this.selectedNode !== this.treeState.displayedRoot) {
+          this.treeState.collapseRoot(this.selectedNode);
+          this.selectedNode = null;
+          this.layers.selectionRect.style('display', 'none');
+          this.layers.selectionBtns.style('display', 'none');
+        }
+      });
+    appendIcon(btnCollapseRoot, 'expand', this.options.buttonSize, this.options.buttonPadding);
+  }
+
+  /**
+   * Initialize zoom and pan behavior
+   */
+  #initializeZoom() {
+    this.treeZoom = zoom()
+      .filter(event => {
+        if (!this.manualZoomAndPanEnabled) return false;
+        if (event.type === 'dblclick') return false;
+        return true;
+      })
+      .on('zoom', (event) => {
+        this.currentTransform = event.transform;
+        this.layers.treeGroup.attr('transform', event.transform);
+        this.#updateSelectionButtons();
+      });
+
+    this.svg.call(this.treeZoom);
   }
 
   /**
@@ -71,37 +173,37 @@ export class TreeView {
    */
   #subscribeToStateChanges() {
     // Subscribe to coordinate changes (position updates)
-    this.state.subscribe('coordinateChange', () => {
+    this.treeState.subscribe('coordinateChange', () => {
       this.#handleCoordinateChange();
     });
 
     // Subscribe to layout changes (rectangular <-> circular)
-    this.state.subscribe('layoutChange', () => {
+    this.treeState.subscribe('layoutChange', () => {
       this.#handleLayoutChange();
     });
 
     // Subscribe to aesthetic changes
-    this.state.subscribe('tipLabelTextChange', () => {
+    this.treeState.subscribe('tipLabelTextChange', () => {
       this.#updateTipLabelText();
     });
 
-    this.state.subscribe('tipLabelColorChange', () => {
+    this.treeState.subscribe('tipLabelColorChange', () => {
       this.#updateTipLabelColor();
     });
 
-    this.state.subscribe('tipLabelSizeChange', () => {
+    this.treeState.subscribe('tipLabelSizeChange', () => {
       this.#updateTipLabelSize();
     });
 
-    this.state.subscribe('tipLabelFontChange', () => {
+    this.treeState.subscribe('tipLabelFontChange', () => {
       this.#updateTipLabelFont();
     });
 
-    this.state.subscribe('tipLabelStyleChange', () => {
+    this.treeState.subscribe('tipLabelStyleChange', () => {
       this.#updateTipLabelStyle();
     });
 
-    this.state.subscribe('nodeLabelTextChange', () => {
+    this.treeState.subscribe('nodeLabelTextChange', () => {
       this.#updateNodeLabelText();
     });
   }
@@ -112,6 +214,8 @@ export class TreeView {
   #initialRender() {
     this.#updateBranches(false);
     this.#updateNodes(false);
+    this.#updateHitAreas(false);
+    this.#fitToView(false);
   }
 
   /**
@@ -121,9 +225,15 @@ export class TreeView {
     if (this.isTransitioning) {
       return;
     }
-    // Update branches and nodes with transition
+    // Update branches, nodes, and hit areas with transition
     this.#updateBranches(true);
     this.#updateNodes(true);
+    this.#updateHitAreas(true);
+
+    // Auto-fit if enabled
+    if (this.autoZoomEnabled || this.autoPanEnabled) {
+      this.#fitToView(true);
+    }
   }
 
   /**
@@ -133,9 +243,15 @@ export class TreeView {
     if (this.isTransitioning) {
       return;
     }
-    // Update branches and nodes with transition
+    // Update branches, nodes, and hit areas with transition
     this.#updateBranches(true);
     this.#updateNodes(true);
+    this.#updateHitAreas(true);
+
+    // Auto-fit if enabled
+    if (this.autoZoomEnabled || this.autoPanEnabled) {
+      this.#fitToView(true);
+    }
   }
 
   /**
@@ -201,12 +317,370 @@ export class TreeView {
   }
 
   /**
+   * Enable or disable manual zoom and pan
+   * @param {boolean} enabled - Whether to enable manual zoom/pan
+   */
+  setManualZoomAndPanEnabled(enabled) {
+    this.manualZoomAndPanEnabled = enabled;
+  }
+
+  /**
+   * Enable or disable automatic zoom to fit
+   * @param {boolean} enabled - Whether to enable auto zoom
+   */
+  setAutoZoomEnabled(enabled) {
+    this.autoZoomEnabled = enabled;
+  }
+
+  /**
+   * Enable or disable automatic panning
+   * @param {boolean} enabled - Whether to enable auto pan
+   */
+  setAutoPanEnabled(enabled) {
+    this.autoPanEnabled = enabled;
+  }
+
+  /**
+   * Fit the tree to the view with optional transition
+   * @param {boolean} transition - Whether to animate the fit
+   */
+  #fitToView(transition = true) {
+    const { width: viewW, height: viewH } = this.svg.node().getBoundingClientRect();
+
+    // Calculate bounds of all tree elements
+    const bounds = this.#getCurrentBounds();
+    if (!bounds) return;
+
+    const treeWidth = bounds.maxX - bounds.minX;
+    const treeHeight = bounds.maxY - bounds.minY;
+
+    // Left margin for control buttons
+    const marginLeft = this.options.buttonSize + this.options.controlsMargin;
+
+    // Available space
+    const availableWidth = viewW - marginLeft;
+    const availableHeight = viewH;
+
+    // Calculate scale to fit tree within available space
+    let scale = this.currentTransform.k;
+    let tx = this.currentTransform.x;
+    let ty = this.currentTransform.y;
+
+    // Apply auto-zoom if enabled
+    if (this.autoZoomEnabled) {
+      const scaleX = availableWidth / treeWidth;
+      const scaleY = availableHeight / treeHeight;
+      scale = Math.min(scaleX, scaleY);
+    }
+
+    // Apply auto-pan if enabled
+    if (this.autoPanEnabled) {
+      // Check if tree fits in each dimension
+      const scaledTreeWidth = treeWidth * scale;
+      const scaledTreeHeight = treeHeight * scale;
+
+      if (scaledTreeWidth <= availableWidth) {
+        // Tree fits horizontally - center it
+        tx = marginLeft + (availableWidth - scaledTreeWidth) / 2 - bounds.minX * scale;
+      } else {
+        // Tree doesn't fit - minimize unused space
+        const leftSpace = -bounds.minX * scale - marginLeft;
+        const rightSpace = viewW - bounds.maxX * scale;
+
+        if (leftSpace > 0) {
+          // Unused space on left - shift right
+          tx = marginLeft - bounds.minX * scale;
+        } else if (rightSpace > 0) {
+          // Unused space on right - shift left
+          tx = viewW - bounds.maxX * scale;
+        } else {
+          // No unused space - keep current pan or center
+          tx = marginLeft + availableWidth / 2 - (bounds.minX + bounds.maxX) / 2 * scale;
+        }
+      }
+
+      if (scaledTreeHeight <= availableHeight) {
+        // Tree fits vertically - center it
+        ty = (availableHeight - scaledTreeHeight) / 2 - bounds.minY * scale;
+      } else {
+        // Tree doesn't fit - minimize unused space
+        const topSpace = -bounds.minY * scale;
+        const bottomSpace = viewH - bounds.maxY * scale;
+
+        if (topSpace > 0) {
+          // Unused space on top - shift down
+          ty = -bounds.minY * scale;
+        } else if (bottomSpace > 0) {
+          // Unused space on bottom - shift up
+          ty = viewH - bounds.maxY * scale;
+        } else {
+          // No unused space - keep current pan or center
+          ty = availableHeight / 2 - (bounds.minY + bounds.maxY) / 2 * scale;
+        }
+      }
+    }
+
+    const transform = zoomIdentity.translate(tx, ty).scale(scale);
+
+    // Apply through zoom behavior
+    if (transition) {
+      this.svg.transition()
+        .duration(this.options.transitionDuration)
+        .call(this.treeZoom.transform, transform);
+    } else {
+      this.svg.call(this.treeZoom.transform, transform);
+    }
+  }
+
+  /**
+   * Get current tree bounds
+   * @returns {Object} Bounds object with minX, maxX, minY, maxY
+   */
+  #getCurrentBounds() {
+    const root = this.treeState.displayedRoot;
+    return {
+      minX: root.bounds.minX,
+      maxX: root.bounds.maxX,
+      minY: root.bounds.minY,
+      maxY: root.bounds.maxY
+    };
+  }
+
+  /**
+   * Select or deselect a subtree
+   * @param {Object} node - Tree node to select
+   */
+  #selectSubtree(node) {
+    if (this.selectedNode === node) {
+      // Deselect
+      this.selectedNode = null;
+      this.layers.selectionRect.style('display', 'none');
+      this.layers.selectionBtns.style('display', 'none');
+    } else {
+      // Select
+      this.selectedNode = node;
+      this.layers.selectionRect
+        .attr('d', this.#generateSelectionPath(node))
+        .style('display', 'block');
+      this.#updateSelectionButtons();
+    }
+  }
+
+  /**
+   * Generate selection rectangle path
+   * @param {Object} node - Tree node
+   * @returns {string} SVG path string
+   */
+  #generateSelectionPath(node) {
+    if (!node || !node.children) return '';
+
+    const isCircular = this.treeState.state.layout === 'circular';
+
+    if (isCircular) {
+      const innerStart = {
+        x: node.bounds.minRadius * Math.cos(node.bounds.minAngle),
+        y: node.bounds.minRadius * Math.sin(node.bounds.minAngle)
+      };
+      const innerEnd = {
+        x: node.bounds.minRadius * Math.cos(node.bounds.maxAngle),
+        y: node.bounds.minRadius * Math.sin(node.bounds.maxAngle)
+      };
+      const outerStart = {
+        x: node.bounds.maxRadius * Math.cos(node.bounds.minAngle),
+        y: node.bounds.maxRadius * Math.sin(node.bounds.minAngle)
+      };
+      const outerEnd = {
+        x: node.bounds.maxRadius * Math.cos(node.bounds.maxAngle),
+        y: node.bounds.maxRadius * Math.sin(node.bounds.maxAngle)
+      };
+
+      const largeArcFlag = (node.bounds.maxAngle - node.bounds.minAngle) > Math.PI ? 1 : 0;
+
+      return `M${innerStart.x},${innerStart.y} L${outerStart.x},${outerStart.y} A${node.bounds.maxRadius},${node.bounds.maxRadius} 0 ${largeArcFlag},1 ${outerEnd.x},${outerEnd.y} L${innerEnd.x},${innerEnd.y} A${node.bounds.minRadius},${node.bounds.minRadius} 0 ${largeArcFlag},0 ${innerStart.x},${innerStart.y} Z`;
+    } else {
+      const topLeft = { x: node.bounds.minX, y: node.bounds.minY };
+      const topRight = { x: node.bounds.maxX, y: node.bounds.minY };
+      const bottomRight = { x: node.bounds.maxX, y: node.bounds.maxY };
+      const bottomLeft = { x: node.bounds.minX, y: node.bounds.maxY };
+
+      return `M${topLeft.x},${topLeft.y} L${topRight.x},${topRight.y} L${bottomRight.x},${bottomRight.y} L${bottomLeft.x},${bottomLeft.y} L${topLeft.x},${topLeft.y} Z`;
+    }
+  }
+
+  /**
+   * Update selection buttons position
+   */
+  #updateSelectionButtons() {
+    if (!this.selectedNode) {
+      this.layers.selectionBtns.style('display', 'none');
+      return;
+    }
+
+    const isCircular = this.treeState.state.layout === 'circular';
+    let x, y;
+
+    if (isCircular) {
+      // For circular layout, find the leftmost point
+      const minAngle = this.selectedNode.bounds.minAngle;
+      const maxAngle = this.selectedNode.bounds.maxAngle;
+      const minRadius = this.selectedNode.bounds.minRadius;
+      const maxRadius = this.selectedNode.bounds.maxRadius;
+
+      const numSamples = 20;
+      let minX = Infinity;
+      let minXY = 0;
+
+      for (let i = 0; i <= numSamples; i++) {
+        const angle = minAngle + (maxAngle - minAngle) * i / numSamples;
+
+        const innerX = minRadius * Math.cos(angle);
+        const innerY = minRadius * Math.sin(angle);
+        const outerX = maxRadius * Math.cos(angle);
+        const outerY = maxRadius * Math.sin(angle);
+
+        if (innerX < minX) {
+          minX = innerX;
+          minXY = innerY;
+        }
+        if (outerX < minX) {
+          minX = outerX;
+          minXY = outerY;
+        }
+      }
+
+      x = minX;
+      y = minXY;
+    } else {
+      x = this.selectedNode.bounds.minX;
+      y = this.selectedNode.bounds.minY;
+    }
+
+    // Calculate screen position
+    let screenX = x * this.currentTransform.k + this.currentTransform.x - this.options.buttonSize - this.options.controlsMargin;
+    let screenY = y * this.currentTransform.k + this.currentTransform.y - this.options.controlsMargin;
+
+    // Keep within viewable area
+    const { width: viewW, height: viewH } = this.svg.node().getBoundingClientRect();
+    screenX = Math.max(screenX, 0);
+    screenX = Math.min(screenX, viewW - this.options.buttonSize);
+    screenY = Math.max(screenY, 0);
+    screenY = Math.min(screenY, viewH - this.options.buttonSize * 2 - this.options.controlsMargin);
+
+    this.layers.selectionBtns
+      .attr('transform', `translate(${screenX},${screenY})`)
+      .style('display', 'block');
+  }
+
+  /**
+   * Update hit areas for interaction
+   * @param {boolean} transition - Whether to animate the update
+   */
+  #updateHitAreas(transition = true) {
+    const root = this.treeState.displayedRoot;
+    if (!root) return;
+
+    const isCircular = this.treeState.state.layout === 'circular';
+    const triangleHeight = this.treeState.labelSizeToPxFactor * 1.1;
+    const branchWidth = this.treeState.labelSizeToPxFactor * this.treeState.state.branchThicknessProp;
+    const collapsedRootLineLength = this.#getCollapsedRootLineLength();
+
+    // Update hit areas for subtree selection
+    const hits = this.layers.hitLayer.selectAll('.hit')
+      .data(root.descendants().filter(d => d.children), d => d.id);
+
+    hits.exit().remove();
+
+    const hitsEnter = hits.enter().append('path')
+      .attr('class', 'hit')
+      .attr('fill', 'transparent')
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        this.#selectSubtree(d);
+        event.stopPropagation();
+      });
+
+    hitsEnter.merge(hits)
+      .attr('d', d => this.#generateSelectionPath(d));
+
+    // Sort by depth so deeper nodes are on top
+    this.layers.hitLayer.selectAll('.hit').sort((a, b) => a.depth - b.depth);
+
+    // Update hit areas for collapsed subtrees
+    const collapsedHits = this.layers.hitLayer.selectAll('.collapsed-hit')
+      .data(root.descendants().filter(d => d.collapsedChildren), d => d.id);
+
+    collapsedHits.exit().remove();
+
+    const collapsedHitsEnter = collapsedHits.enter().append('rect')
+      .attr('class', 'collapsed-hit')
+      .attr('fill', 'transparent')
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        if (d.collapsedChildren) {
+          this.isExpanding = true;
+          this.treeState.expandSubtree(d);
+        }
+        event.stopPropagation();
+      });
+
+    collapsedHitsEnter.merge(collapsedHits)
+      .attr('transform', d => `translate(${d.xPx}, ${d.yPx}) rotate(${this.#getLabelRotation(d)})`)
+      .attr('x', d => {
+        return isCircular && this.#isLeftSide(d) ? -(triangleHeight + d.tipLabelBounds.width * this.treeState.labelSizeToPxFactor) : 0;
+      })
+      .attr('y', d => -d.tipLabelYOffsetPx * 1.5)
+      .attr('width', d => triangleHeight + d.tipLabelBounds.width * this.treeState.labelSizeToPxFactor)
+      .attr('height', d => d.tipLabelYOffsetPx * 3);
+
+    // Update hit areas for collapsed roots
+    const collapsedRootHits = this.layers.hitLayer.selectAll('.collapsed-root-hit')
+      .data(root.collapsed_parent ? [root] : [], d => d.id);
+
+    collapsedRootHits.exit().remove();
+
+    const collapsedRootHitsEnter = collapsedRootHits.enter().append('rect')
+      .attr('class', 'collapsed-root-hit')
+      .attr('fill', 'transparent')
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        if (d.collapsed_parent) {
+          this.selectedNode = null;
+          this.layers.selectionRect.style('display', 'none');
+          this.layers.selectionBtns.style('display', 'none');
+          this.isExpanding = true;
+          this.treeState.expandRoot();
+        }
+        event.stopPropagation();
+      });
+
+    collapsedRootHitsEnter.merge(collapsedRootHits)
+      .attr('transform', d => {
+        if (!d.collapsed_parent) return `translate(${d.xPx}, ${d.yPx})`;
+
+        let rotationAngle = 0;
+        if (isCircular) {
+          const children = d.children || [];
+          if (children.length > 0) {
+            const avgAngle = children.reduce((sum, child) => sum + child.angle, 0) / children.length;
+            rotationAngle = avgAngle * (180 / Math.PI);
+          }
+        }
+
+        return `translate(${d.xPx}, ${d.yPx}) rotate(${rotationAngle})`;
+      })
+      .attr('x', -collapsedRootLineLength)
+      .attr('y', -branchWidth * 5)
+      .attr('width', collapsedRootLineLength)
+      .attr('height', branchWidth * 10);
+  }
+
+  /**
    * Create a D3 transition with appropriate duration
    * @returns {Transition} D3 transition object
    */
   #createTransition() {
     const transition = this.svg.transition()
-      .duration(this.transitionDuration);
+      .duration(this.options.transitionDuration);
 
     // Track this transition
     this.activeTransitions.add(transition);
@@ -224,6 +698,14 @@ export class TreeView {
    */
   #handleTransitionStart() {
     this.isTransitioning = true;
+
+    // Hide selection rectangle during layout transitions
+    const isCircular = this.treeState.state.layout === 'circular';
+    const layoutChanged = this.wasCircularLayout !== isCircular;
+
+    if (layoutChanged && this.selectedNode) {
+      this.layers.selectionRect.style('display', 'none');
+    }
   }
 
   /**
@@ -245,6 +727,17 @@ export class TreeView {
         .transition()
         .duration(150)
         .attr('opacity', 1);
+    }
+
+    // Show selection rectangle at the end of layout transitions
+    const isCircular = this.treeState.state.layout === 'circular';
+    const layoutChanged = this.wasCircularLayout !== isCircular;
+
+    if (layoutChanged && this.selectedNode && this.selectedNode.children) {
+      this.layers.selectionRect
+        .attr('d', this.#generateSelectionPath(this.selectedNode))
+        .style('display', 'block');
+      this.#updateSelectionButtons();
     }
 
     // Reset expanding flag
@@ -273,14 +766,14 @@ export class TreeView {
    * @param {boolean} transition - Whether to animate the update
    */
   #updateBranches(transition = true) {
-    const root = this.state.displayedRoot;
+    const root = this.treeState.displayedRoot;
     if (!root) return;
 
     // Get all links (parent-child connections) from the tree
     const links = root.links();
 
     // Calculate branch thickness
-    const branchWidth = this.state.labelSizeToPxFactor * this.state.state.branchThicknessProp;
+    const branchWidth = this.treeState.labelSizeToPxFactor * this.treeState.state.branchThicknessProp;
 
     // DATA JOIN: bind links to branch groups using stable target node ID
     const branchGroups = this.layers.branchLayer
@@ -288,21 +781,14 @@ export class TreeView {
       .data(links, d => d.target.id);
 
     // EXIT: Remove branches that no longer exist
-    const branchGroupsExit = branchGroups.exit();
     if (transition) {
-      branchGroupsExit.each(function() {
-        select(this).selectAll('path')
-          .transition()
-          .duration(this.transitionDuration)
-          .attr('stroke-width', branchWidth)
-          .attr('d', d => `M${d.source.xPx},${d.source.yPx}`);
-      }.bind(this));
-      branchGroupsExit
-        .transition()
-        .duration(this.transitionDuration)
+      branchGroups.exit()
+        .transition('remove branches')
+        .duration(this.options.transitionDuration)
+        .attr('opacity', 0)
         .remove();
     } else {
-      branchGroupsExit.remove();
+      branchGroups.exit().remove();
     }
 
     // ENTER: Create new branch groups
@@ -332,7 +818,7 @@ export class TreeView {
 
   /**
    * Create initial branch group with offset and extension paths
-   * @param {Selection} selection - D3 selection of entering branch groups
+   * @param {Selection} selection -D3 selection of entering branch groups
    */
   #createBranchGroup(selection) {
     // Append offset path (the part that separates branches along y-axis or angle)
@@ -359,7 +845,7 @@ export class TreeView {
    * @param {number} branchWidth - Width of branch strokes
    */
   #updateBranchPaths(selection, transition, branchWidth) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
 
     // Select offset and extension paths
     const offsetPaths = selection.select('.offset');
@@ -372,13 +858,13 @@ export class TreeView {
       // Animate path changes
       offsetPaths
         .transition()
-        .duration(this.transitionDuration)
+        .duration(this.options.transitionDuration)
         .attr('stroke-width', branchWidth)
         .attr('d', d => this.#getBranchPath(d, 'offset'));
 
       extensionPaths
         .transition()
-        .duration(this.transitionDuration)
+        .duration(this.options.transitionDuration)
         .attr('stroke-width', branchWidth)
         .attr('d', d => this.#getBranchPath(d, 'extension'));
     } else {
@@ -400,7 +886,7 @@ export class TreeView {
    * @returns {string} SVG path string
    */
   #getBranchPath(link, pathType) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
 
     if (isCircular) {
       if (pathType === 'offset') {
@@ -436,23 +922,23 @@ export class TreeView {
    * @param {boolean} transition - Whether to animate the update
    */
   #updateNodes(transition = true) {
-    const root = this.state.displayedRoot;
+    const root = this.treeState.displayedRoot;
     if (!root) return;
 
     // Detect if we're transitioning between layouts
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
     const layoutChanged = this.wasCircularLayout !== isCircular;
 
     // Get all nodes from the tree
     const nodes = root.descendants();
 
     // Calculate triangle size for collapsed nodes
-    const triangleHeight = this.state.labelSizeToPxFactor * 1.1;
+    const triangleHeight = this.treeState.labelSizeToPxFactor * 1.1;
     const triangleArea = triangleAreaFromSide(triangleHeight);
     const trianglePath = symbol().type(symbolTriangle).size(triangleArea)();
 
     // Calculate branch width for collapsed root lines
-    const branchWidth = this.state.labelSizeToPxFactor * this.state.state.branchThicknessProp;
+    const branchWidth = this.treeState.labelSizeToPxFactor * this.treeState.state.branchThicknessProp;
 
     // Calculate collapsed root line length
     const collapsedRootLineLength = this.#getCollapsedRootLineLength();
@@ -463,7 +949,15 @@ export class TreeView {
       .data(nodes, d => d.id);
 
     // EXIT: Remove nodes that no longer exist
-    nodeGroups.exit().remove();
+    if (transition) {
+      nodeGroups.exit()
+        .transition('remove nodes')
+        .duration(this.options.transitionDuration)
+        .attr('opacity', 0)
+        .remove();
+    } else {
+      nodeGroups.exit().remove();
+    }
 
     // ENTER: Create new node groups
     const nodeGroupsEnter = nodeGroups.enter()
@@ -504,13 +998,13 @@ export class TreeView {
 
     // Handle transition end callback
     if (transition) {
-      // Get the entering branch groups from the previous update
-      const branchGroupsEnter = this.#updateBranches(false);
+      // Get the entering branch groups from the current update
+      const branchGroupsEnter = this.selections.branches ? this.selections.branches.enter() : null;
 
       // Use a single transition end callback
       nodeGroupsUpdate
         .transition()
-        .duration(this.transitionDuration)
+        .duration(this.options.transitionDuration)
         .on('end', () => {
           this.#handleTransitionEnd(branchGroupsEnter, nodeGroupsEnter);
         });
@@ -545,6 +1039,7 @@ export class TreeView {
 
     // Append text label for tips
     selection.append('text')
+      .filter(d => d.tipLabelText && d.tipLabelText.trim() !== '')
       .attr('class', 'tip-label')
       .style('text-anchor', d => this.#getLabelAnchor(d))
       .style('font-size', d => `${d.tipLabelSizePx}px`)
@@ -555,7 +1050,9 @@ export class TreeView {
       .text(d => d.tipLabelText || '');
 
     // Append text label for interior nodes
-    selection.append('text')
+    selection
+      .filter(d => d.nodeLabelText && d.nodeLabelText.trim() !== '')
+      .append('text')
       .attr('class', 'node-label')
       .style('text-anchor', d => this.#getLabelAnchor(d))
       .style('font-size', d => `${d.nodeLabelSizePx}px`)
@@ -567,7 +1064,7 @@ export class TreeView {
     selection.append('text')
       .attr('class', 'collapsed-subtree')
       .style('text-anchor', d => this.#getLabelAnchor(d))
-      .style('font-size', `${this.state.labelSizeToPxFactor}px`)
+      .style('font-size', `${this.treeState.labelSizeToPxFactor}px`)
       .style('font-weight', 'bold')
       .style('display', d => d.collapsedChildren ? null : 'none')
       .text(d => d.collapsedChildren ? `(${d.leafCount})` : '');
@@ -581,8 +1078,8 @@ export class TreeView {
   #updateNodePositions(selection, transition) {
     if (transition) {
       selection
-        .transition()
-        .duration(this.transitionDuration)
+        .transition('update node positions')
+        .duration(this.options.transitionDuration)
         .attr('transform', d => `translate(${d.xPx}, ${d.yPx})`);
     } else {
       selection.attr('transform', d => `translate(${d.xPx}, ${d.yPx})`);
@@ -595,23 +1092,23 @@ export class TreeView {
    * @param {boolean} transition - Whether to animate the update
    */
   #updateNodeLabels(selection, transition) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
 
     // Update tip labels
     const tipLabels = selection.selectAll('.tip-label');
 
     if (transition) {
       tipLabels
-        .transition()
-        .duration(this.transitionDuration)
-        .attr('dy', d => this.#getLabelDy(d, false))
+        .transition('update tip labels')
+        .duration(this.options.transitionDuration)
+        .attr('dy', d => d.tipLabelSizePx / 2.5)
         .attr('x', d => this.#getLabelOffset(d, false).x)
         .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
         .style('text-anchor', d => this.#getLabelAnchor(d))
         .style('font-size', d => `${d.tipLabelSizePx}px`);
     } else {
       tipLabels
-        .attr('dy', d => this.#getLabelDy(d, false))
+        .attr('dy', d => d.tipLabelSizePx / 2.5)
         .attr('x', d => this.#getLabelOffset(d, false).x)
         .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
         .style('text-anchor', d => this.#getLabelAnchor(d))
@@ -631,16 +1128,16 @@ export class TreeView {
 
     if (transition) {
       nodeLabels
-        .transition()
-        .duration(this.transitionDuration)
-        .attr('dy', d => this.#getLabelDy(d, true))
+        .transition('update node labels')
+        .duration(this.options.transitionDuration)
+        .attr('dy', d => this.#getNodeLabelDy(d))
         .attr('x', d => this.#getLabelOffset(d, true).x)
         .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
         .style('text-anchor', d => this.#getLabelAnchor(d))
         .style('font-size', d => `${d.nodeLabelSizePx}px`);
     } else {
       nodeLabels
-        .attr('dy', d => this.#getLabelDy(d, true))
+        .attr('dy', d => this.#getNodeLabelDy(d))
         .attr('x', d => this.#getLabelOffset(d, true).x)
         .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
         .style('text-anchor', d => this.#getLabelAnchor(d))
@@ -672,7 +1169,7 @@ export class TreeView {
     if (transition) {
       nodeShapes
         .transition()
-        .duration(this.transitionDuration)
+        .duration(this.options.transitionDuration)
         .attr('d', d => d.collapsedChildren ? trianglePath : null)
         .attr('transform', d => `rotate(${this.#getTriangleRotation(d)}) translate(0, ${0.52 * triangleHeight})`);
     } else {
@@ -689,7 +1186,7 @@ export class TreeView {
    * @param {number} triangleHeight - Height of triangle for collapsed subtrees
    */
   #updateCollapsedIndicators(selection, transition, branchWidth, collapsedRootLineLength, triangleHeight) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
 
     // Update collapsed root lines
     const collapsedRootLines = selection.selectAll('.collapsed-root-line');
@@ -697,7 +1194,7 @@ export class TreeView {
     if (transition) {
       collapsedRootLines
         .transition()
-        .duration(this.transitionDuration)
+        .duration(this.options.transitionDuration)
         .attr('x2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).x)
         .attr('y2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).y)
         .attr('stroke-width', branchWidth);
@@ -719,23 +1216,23 @@ export class TreeView {
     if (transition) {
       collapsedSubtreeLabels
         .transition()
-        .duration(this.transitionDuration)
-        .attr('dy', d => this.state.labelSizeToPxFactor / 2.5)
+        .duration(this.options.transitionDuration)
+        .attr('dy', d => this.treeState.labelSizeToPxFactor / 2.5)
         .attr('x', d => {
           const offset = triangleHeight;
           return isCircular && this.#isLeftSide(d) ? -offset : offset;
         })
         .style('text-anchor', d => this.#getLabelAnchor(d))
-        .style('font-size', `${this.state.labelSizeToPxFactor}px`);
+        .style('font-size', `${this.treeState.labelSizeToPxFactor}px`);
     } else {
       collapsedSubtreeLabels
-        .attr('dy', d => this.state.labelSizeToPxFactor / 2.5)
+        .attr('dy', d => this.treeState.labelSizeToPxFactor / 2.5)
         .attr('x', d => {
           const offset = triangleHeight;
           return isCircular && this.#isLeftSide(d) ? -offset : offset;
         })
         .style('text-anchor', d => this.#getLabelAnchor(d))
-        .style('font-size', `${this.state.labelSizeToPxFactor}px`);
+        .style('font-size', `${this.treeState.labelSizeToPxFactor}px`);
     }
 
     collapsedSubtreeLabels
@@ -748,7 +1245,7 @@ export class TreeView {
    * @param {Selection} selection - D3 selection of node groups
    */
   #handleLayoutTransitionFlip(selection) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
 
     selection.selectAll('text').each(function(d) {
       const textElement = select(this);
@@ -781,7 +1278,7 @@ export class TreeView {
    * @returns {number} Rotation angle in degrees
    */
   #getLabelRotation(node) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
     if (!isCircular) return 0;
 
     const angleDeg = node.angle * (180 / Math.PI);
@@ -795,7 +1292,7 @@ export class TreeView {
    * @returns {number} Rotation angle in degrees
    */
   #getTriangleRotation(node) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
     if (!isCircular) return -90;
     return node.angle * (180 / Math.PI) - 90;
   }
@@ -806,7 +1303,7 @@ export class TreeView {
    * @returns {string} Text anchor value ('start', 'end', 'middle')
    */
   #getLabelAnchor(node) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
     const isInterior = node.children || node.collapsedChildren;
 
     if (!isCircular) {
@@ -828,7 +1325,7 @@ export class TreeView {
    * @returns {Object} Object with x and y offset values
    */
   #getLabelOffset(node, isInterior) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
     const offset = isInterior ? node.nodeLabelXOffsetPx : node.tipLabelXOffsetPx;
 
     // In circular layout, flip the offset for left-side nodes
@@ -843,22 +1340,16 @@ export class TreeView {
   /**
    * Get label dy offset for vertical positioning
    * @param {Object} node - Tree node
-   * @param {boolean} isInterior - Whether this is an interior node label
    * @returns {number} Vertical offset value
    */
-  #getLabelDy(node, isInterior) {
-    if (isInterior) {
-      // Interior node labels
-      if (node.collapsed_parent) {
-        return this.state.labelSizeToPxFactor * 1.2;
-      } else {
-        const parentBelow = node.parent && node.parent.yPx > node.yPx;
-        const size = node.nodeLabelSizePx;
-        return parentBelow ? -size * 0.3 : size * 1;
-      }
+  #getNodeLabelDy(node) {
+    // Interior node labels
+    if (node.collapsed_parent) {
+      return this.treeState.labelSizeToPxFactor * 1.2;
     } else {
-      // Tip labels
-      return node.tipLabelSizePx / 2.5;
+      const parentBelow = node.parent && node.parent.yPx > node.yPx;
+      const size = node.nodeLabelSizePx;
+      return parentBelow ? -size * 0.3 : size * 1;
     }
   }
 
@@ -868,9 +1359,9 @@ export class TreeView {
    * @returns {boolean} True if node is on left side
    */
   #isLeftSide(node) {
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
     if (!isCircular) return false;
-    return node.angle > Math.PI * 2.5 || node.angle < Math.PI * 1.5;
+    return node.angle > Math.PI * 0.5 && node.angle < Math.PI * 1.5;
   }
 
   /**
@@ -880,7 +1371,7 @@ export class TreeView {
    */
   #wasLeftSide(node) {
     if (!this.wasCircularLayout) return false;
-    return node.angle > Math.PI * 2.5 || node.angle < Math.PI * 1.5;
+    return node.angle > Math.PI * 0.5 && node.angle < Math.PI * 1.5;
   }
 
   /**
@@ -892,7 +1383,7 @@ export class TreeView {
   #getCollapsedRootLineEnd(node, lineLength) {
     if (!node.collapsed_parent) return { x: 0, y: 0 };
 
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
 
     if (isCircular) {
       // Calculate average angle of children
@@ -914,17 +1405,17 @@ export class TreeView {
    * @returns {number} Line length in pixels
    */
   #getCollapsedRootLineLength() {
-    const root = this.state.displayedRoot;
+    const root = this.treeState.displayedRoot;
     if (!root) return 0;
 
-    const isCircular = this.state.state.layout === 'circular';
+    const isCircular = this.treeState.state.layout === 'circular';
 
     if (isCircular) {
       const maxRadius = Math.max(...root.leaves().map(d => d.radiusPx));
-      return maxRadius * this.state.state.collapsedRootLineProp * 2;
+      return maxRadius * this.treeState.state.collapsedRootLineProp * 2;
     } else {
       const maxX = Math.max(...root.leaves().map(d => d.xPx));
-      return maxX * this.state.state.collapsedRootLineProp;
+      return maxX * this.treeState.state.collapsedRootLineProp;
     }
   }
 }

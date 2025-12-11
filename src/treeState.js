@@ -38,6 +38,11 @@ export class TreeState extends Subscribable {
       downstream: ['updateNodeLabelText'],
       default: ''
     },
+    nodeLabelSize: {
+      scaleType: 'size',
+      downstream: ['updateCoordinates'],
+      default: 1
+    },
   }
 
   state = {
@@ -179,7 +184,7 @@ export class TreeState extends Subscribable {
     }
 
     node.collapsedChildren = node.children;
-    node.children = null;
+    delete node.children;
 
     this.update();
   }
@@ -188,7 +193,7 @@ export class TreeState extends Subscribable {
     if (!node || !node.collapsedChildren) return;
 
     node.children = node.collapsedChildren;
-    node.collapsedChildren = null;
+    delete node.collapsedChildren;
 
     this.update();
   }
@@ -198,7 +203,7 @@ export class TreeState extends Subscribable {
 
     this.displayedRoot = node;
     this.displayedRoot.collapsed_parent = this.displayedRoot.parent;
-    this.displayedRoot.parent = null;
+    delete this.displayedRoot.parent;
 
     this.update();
   }
@@ -207,7 +212,7 @@ export class TreeState extends Subscribable {
     if (!this.displayedRoot || !this.displayedRoot.collapsed_parent) return;
 
     this.displayedRoot.parent = this.displayedRoot.collapsed_parent;
-    this.displayedRoot.collapsed_parent = null;
+    delete this.displayedRoot.collapsed_parent;
 
     // Find the new root (the topmost ancestor without a collapsed parent)
     let newRoot = this.displayedRoot;
@@ -288,8 +293,14 @@ export class TreeState extends Subscribable {
   updateCoordinates() {
     // Estimate label dimensions
     this.displayedRoot.each(d => {
-      d.tipLabelBounds = this.textSizeEstimator.getRelativeTextSize(d.tipLabelText);
-      d.nodeLabelBounds = this.textSizeEstimator.getRelativeTextSize(d.nodeLabelText);
+      d.tipLabelBounds = this.textSizeEstimator.getRelativeTextSize(
+        d.tipLabelText,
+        { 'font-family': d.tipLabelFont, 'font-style': d.tipLabelStyle }
+      );
+      d.nodeLabelBounds = this.textSizeEstimator.getRelativeTextSize(
+        d.nodeLabelText,
+        { 'font-family': d.nodeLabelFont, 'font-style': d.nodeLabelStyle }
+      );
     })
 
     // Calculate scaling factors
@@ -307,11 +318,13 @@ export class TreeState extends Subscribable {
     this.displayedRoot.each(d => {
       d.branchLenPx = d.branchLen * this.branchLenToPxFactor;
       d.tipLabelSizePx = d.tipLabelSize * this.labelSizeToPxFactor;
-      d.nodeLabelSizePx = d.nodeLabelSize * this.labelSizeToPxFactor;
+      d.nodeLabelSizePx = d.nodeLabelSize * this.labelSizeToPxFactor * this.state.nodeLabelSizeScale;
       d.tipLabelXOffsetPx = d.tipLabelSizePx * this.state.nodeLabelOffset;
       d.nodeLabelXOffsetPx = d.nodeLabelSizePx * this.state.nodeLabelOffset;
       d.tipLabelYOffsetPx = d.tipLabelSizePx * d.tipLabelBounds.height / 2;
       d.nodeLabelYOffsetPx = d.nodeLabelSizePx * d.nodeLabelBounds.height / 2;
+      d.tipLabelBounds.widthPx = d.tipLabelBounds.width * d.tipLabelSizePx;
+      d.tipLabelBounds.heightPx = d.tipLabelBounds.height * d.tipLabelSizePx;
     });
     if (this.state.layout === 'circular') {
       this.displayedRoot.each(d => {
@@ -327,9 +340,6 @@ export class TreeState extends Subscribable {
     }
 
     // Update bounds
-    const getLabelWidth = (node) => {
-      return node.nodeLabelBounds.width * this.labelSizeToPxFactor;
-    };
     if (this.state.layout === 'circular') {
       this.state.treeData.tree.eachAfter(d => {
         if (d.children) {
@@ -337,25 +347,47 @@ export class TreeState extends Subscribable {
             minRadius: d.radiusPx,
             maxRadius: Math.max(...d.children.map(k => k.bounds.maxRadius)),
             minAngle: Math.min(...d.children.map(k => k.bounds.minAngle)),
-            maxAngle: Math.max(...d.children.map(k => k.bounds.maxAngle))
+            maxAngle: Math.max(...d.children.map(k => k.bounds.maxAngle)),
+            minX: Math.min(...d.children.map(k => k.bounds.minX)),
+            maxX: Math.max(...d.children.map(k => k.bounds.maxX)),
+            minY: Math.min(...d.children.map(k => k.bounds.minY)),
+            maxY: Math.max(...d.children.map(k => k.bounds.maxY))
           };
         } else {
+          const minRadius = d.radiusPx;
+          const maxRadius = minRadius + d.tipLabelXOffsetP + d.tipLabelBounds.widthPx;
           const angleLabelOffset = Math.atan(d.tipLabelYOffsetPx / d.radiusPx);
+          const minAngle = d.angle - angleLabelOffset;
+          const maxAngle = d.angle + angleLabelOffset;
+          const xValues = [
+            minRadius * Math.cos(minAngle),
+            minRadius * Math.cos(maxAngle),
+            maxRadius * Math.cos(maxAngle),
+            maxRadius * Math.cos(minAngle),
+          ]
+          const yValues = [
+            minRadius * Math.sin(minAngle),
+            minRadius * Math.sin(maxAngle),
+            maxRadius * Math.sin(maxAngle),
+            maxRadius * Math.sin(minAngle),
+          ]
           d.bounds = {
-            minRadius: d.radiusPx,
-            maxRadius: d.radiusPx + d.tipLabelXOffsetPx + getLabelWidth(d),
-            minAngle: d.angle - angleLabelOffset,
-            maxAngle: d.angle + angleLabelOffset
+            minRadius,
+            maxRadius,
+            minAngle,
+            maxAngle,
+            minX: Math.min(...xValues),
+            maxX: Math.max(...xValues),
+            minY: Math.min(...yValues),
+            maxY: Math.max(...yValues)
           };
         }
-        d.width = d.bounds.maxX - d.bounds.minX;
-        d.height = d.bounds.maxY - d.bounds.minY;
       });
     } else {
       this.state.treeData.tree.eachAfter(d => {
         if (d.children) {
           d.bounds = {
-            minX: d.x,
+            minX: d.xPx,
             maxX: Math.max(...d.children.map(k => k.bounds.maxX)),
             minY: Math.min(...d.children.map(k => k.bounds.minY)),
             maxY: Math.max(...d.children.map(k => k.bounds.maxY))
@@ -363,23 +395,13 @@ export class TreeState extends Subscribable {
         } else {
           d.bounds = {
             minX: d.xPx,
-            maxX: d.xPx + d.tipLabelXOffsetPx + getLabelWidth(d),
+            maxX: d.xPx + d.tipLabelXOffsetPx + d.tipLabelBounds.widthPx,
             minY: d.yPx - d.tipLabelYOffsetPx,
             maxY: d.yPx + d.tipLabelYOffsetPx
           };
         }
-        d.width = (d.bounds.maxRadius - d.bounds.minRadius) * 2;
-        d.height = (d.bounds.maxRadius - d.bounds.minRadius) * 2;
       });
     }
-
-    // Move tree so its top left extent is at 0,0
-    const minX = Math.min(...this.displayedRoot.descendants().map(d => d.bounds.minX));
-    const minY = Math.min(...this.displayedRoot.descendants().map(d => d.bounds.minY));
-    this.displayedRoot.eachAfter(d => {
-      d.x = d.x - minX;
-      d.y = d.y - minY;
-    });
 
     this.notify('coordinateChange');
   }
