@@ -202,21 +202,21 @@ export class TreeState extends Subscribable {
     if (!node || node === this.displayedRoot) return;
 
     this.displayedRoot = node;
-    this.displayedRoot.collapsed_parent = this.displayedRoot.parent;
+    this.displayedRoot.collapsedParent = this.displayedRoot.parent;
     delete this.displayedRoot.parent;
 
     this.update();
   }
 
   expandRoot() {
-    if (!this.displayedRoot || !this.displayedRoot.collapsed_parent) return;
+    if (!this.displayedRoot || !this.displayedRoot.collapsedParent) return;
 
-    this.displayedRoot.parent = this.displayedRoot.collapsed_parent;
-    delete this.displayedRoot.collapsed_parent;
+    this.displayedRoot.parent = this.displayedRoot.collapsedParent;
+    delete this.displayedRoot.collapsedParent;
 
     // Find the new root (the topmost ancestor without a collapsed parent)
     let newRoot = this.displayedRoot;
-    while (newRoot.parent && !newRoot.collapsed_parent) {
+    while (newRoot.parent && !newRoot.collapsedParent) {
       newRoot = newRoot.parent;
     }
 
@@ -227,10 +227,8 @@ export class TreeState extends Subscribable {
 
   updateTipLabelText() {
     this.state.treeData.tree.each(d => {
-      if (d.children) {
-        d.tipLabelText = '';
-      } else if (d.collapsed_parent) {
-        d.tipLabelText = `(${d.leafCount})`;
+      if ((d.children || d.collapsedChildren) && (this.state.aesthetics.tipLabelText === null || !d.tipLabelText)) {
+        d.tipLabelText = `Clade with ${d.leafCount} tips`;
       } else if (!d.tipLabelText) {
         d.tipLabelText = d.data.name || '';
       }

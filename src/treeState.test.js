@@ -234,7 +234,7 @@ D\t25\tgreen`;
       treeState.collapseRoot(newRoot);
 
       expect(treeState.displayedRoot).toBe(newRoot);
-      expect(newRoot.collapsed_parent).toBe(originalParent);
+      expect(newRoot.collapsedParent).toBe(originalParent);
       expect(newRoot.parent).toBeNull();
     });
 
@@ -245,7 +245,7 @@ D\t25\tgreen`;
       treeState.expandRoot();
 
       expect(treeState.displayedRoot).toBe(treeData.tree);
-      expect(newRoot.collapsed_parent).toBeNull();
+      expect(newRoot.collapsedParent).toBeNull();
     });
 
     it('should not collapse root if node is already displayed root', () => {

@@ -45,7 +45,7 @@ export function calculateTreeBounds(displayedRoot, isCircularLayout, getLabelWid
     } else {
       // For rectangular layout
       // Consider collapsed root line (extends left)
-      const leftExtent = d.x - (d.collapsed_parent ? collapsedRootLineLength : 0);
+      const leftExtent = d.x - (d.collapsedParent ? collapsedRootLineLength : 0);
       if (leftExtent < minX) minX = leftExtent;
 
       // Consider node position and right-pointing labels
