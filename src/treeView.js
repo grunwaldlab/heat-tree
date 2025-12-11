@@ -179,7 +179,7 @@ export class TreeView {
 
     // Subscribe to layout changes (rectangular <-> circular)
     this.treeState.subscribe('layoutChange', () => {
-      this.#handleLayoutChange();
+      this.#handleCoordinateChange();
     });
 
     // Subscribe to aesthetic changes
@@ -222,31 +222,35 @@ export class TreeView {
    * Handle coordinate changes from TreeState
    */
   #handleCoordinateChange() {
-    if (this.isTransitioning) {
-      return;
-    }
+    // if (this.isTransitioning) {
+    //   return;
+    // }
+
     // Update branches, nodes, and hit areas with transition
-    this.#updateBranches(true);
-    this.#updateNodes(true);
+    const branchGroupsEnter = this.#updateBranches(true);
+    const nodeGroupsEnter = this.#updateNodes(true);
     this.#updateHitAreas(true);
 
-    // Auto-fit if enabled
-    if (this.autoZoomEnabled || this.autoPanEnabled) {
-      this.#fitToView(true);
-    }
-  }
+    // Handle delayed fade-in for expanded subtrees
+    if (this.isExpanding && branchGroupsEnter && nodeGroupsEnter) {
+      // Wait for the main transition to complete, then fade in
+      setTimeout(() => {
+        branchGroupsEnter
+          .transition('branch group fade in')
+          .duration(150)
+          .attr('opacity', 1);
 
-  /**
-   * Handle layout changes from TreeState
-   */
-  #handleLayoutChange() {
-    if (this.isTransitioning) {
-      return;
+        nodeGroupsEnter
+          .transition('node group fade in')
+          .duration(150)
+          .attr('opacity', 1);
+
+        // Reset expanding flag after fade-in completes
+        setTimeout(() => {
+          this.isExpanding = false;
+        }, 150);
+      }, this.options.transitionDuration);
     }
-    // Update branches, nodes, and hit areas with transition
-    this.#updateBranches(true);
-    this.#updateNodes(true);
-    this.#updateHitAreas(true);
 
     // Auto-fit if enabled
     if (this.autoZoomEnabled || this.autoPanEnabled) {
@@ -573,9 +577,8 @@ export class TreeView {
 
   /**
    * Update hit areas for interaction
-   * @param {boolean} transition - Whether to animate the update
    */
-  #updateHitAreas(transition = true) {
+  #updateHitAreas() {
     const root = this.treeState.displayedRoot;
     if (!root) return;
 
@@ -630,7 +633,7 @@ export class TreeView {
       })
       .attr('y', d => -d.tipLabelYOffsetPx * 1.5)
       .attr('width', d => triangleHeight + d.tipLabelBounds.width * this.treeState.labelSizeToPxFactor)
-      .attr('height', d => d.tipLabelYOffsetPx * 3);
+      .attr('height', d => Math.max(d.tipLabelSizePx, triangleHeight));
 
     // Update hit areas for collapsed roots
     const collapsedRootHits = this.layers.hitLayer.selectAll('.collapsed-root-hit')
@@ -719,12 +722,12 @@ export class TreeView {
     // Delayed fade-in for newly expanded subtrees
     if (this.isExpanding && branchGroupsEnter && nodeGroupsEnter) {
       branchGroupsEnter
-        .transition()
+        .transition('branch group fade in')
         .duration(150)
         .attr('opacity', 1);
 
       nodeGroupsEnter
-        .transition()
+        .transition('node group fade in')
         .duration(150)
         .attr('opacity', 1);
     }
@@ -783,8 +786,6 @@ export class TreeView {
     // EXIT: Remove branches that no longer exist
     if (transition) {
       branchGroups.exit()
-        .transition('remove branches')
-        .duration(this.options.transitionDuration)
         .attr('opacity', 0)
         .remove();
     } else {
@@ -951,8 +952,6 @@ export class TreeView {
     // EXIT: Remove nodes that no longer exist
     if (transition) {
       nodeGroups.exit()
-        .transition('remove nodes')
-        .duration(this.options.transitionDuration)
         .attr('opacity', 0)
         .remove();
     } else {
@@ -995,20 +994,6 @@ export class TreeView {
 
     // Store the selection for future updates
     this.selections.nodes = nodeGroupsUpdate;
-
-    // Handle transition end callback
-    if (transition) {
-      // Get the entering branch groups from the current update
-      const branchGroupsEnter = this.selections.branches ? this.selections.branches.enter() : null;
-
-      // Use a single transition end callback
-      nodeGroupsUpdate
-        .transition()
-        .duration(this.options.transitionDuration)
-        .on('end', () => {
-          this.#handleTransitionEnd(branchGroupsEnter, nodeGroupsEnter);
-        });
-    }
 
     // Update the previous layout state for next transition
     this.wasCircularLayout = isCircular;
