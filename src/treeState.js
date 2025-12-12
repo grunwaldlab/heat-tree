@@ -118,8 +118,9 @@ export class TreeState extends Subscribable {
 
     if (force || this.state.layout !== layout) {
       this.state.layout = layout;
+      this.update();
+      this.notify('layoutChange', { layout });
     }
-    this.update();
   }
 
   setAesthetics(values, force = false) {

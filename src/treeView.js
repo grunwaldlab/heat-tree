@@ -111,6 +111,12 @@ export class TreeView {
     this.#createSelectionButtons();
   }
 
+  #clearSelection() {
+    this.selectedNode = null;
+    this.layers.selectionRect.style('display', 'none');
+    this.layers.selectionBtns.style('display', 'none');
+  }
+
   /**
    * Create floating buttons for subtree actions
    */
@@ -123,11 +129,9 @@ export class TreeView {
       .attr('height', this.options.buttonSize)
       .style('cursor', 'pointer')
       .on('click', () => {
-        if (this.selectedNode && this.selectedNode.children) {
+        if (this.selectedNode && this.selectedNode !== this.treeState.displayedRoot) {
           this.treeState.collapseSubtree(this.selectedNode);
-          this.selectedNode = null;
-          this.layers.selectionRect.style('display', 'none');
-          this.layers.selectionBtns.style('display', 'none');
+          this.#clearSelection()
         }
       });
     appendIcon(btnCollapseSelected, 'compress', this.options.buttonSize, this.options.buttonPadding);
@@ -141,9 +145,7 @@ export class TreeView {
       .on('click', () => {
         if (this.selectedNode && this.selectedNode !== this.treeState.displayedRoot) {
           this.treeState.collapseRoot(this.selectedNode);
-          this.selectedNode = null;
-          this.layers.selectionRect.style('display', 'none');
-          this.layers.selectionBtns.style('display', 'none');
+          this.#clearSelection()
         }
       });
     appendIcon(btnCollapseRoot, 'expand', this.options.buttonSize, this.options.buttonPadding);
@@ -222,9 +224,6 @@ export class TreeView {
    * Handle coordinate changes from TreeState
    */
   #handleCoordinateChange() {
-    // if (this.isTransitioning) {
-    //   return;
-    // }
 
     // Update branches, nodes, and hit areas with transition
     const branchGroupsEnter = this.#updateBranches(true);
@@ -467,10 +466,7 @@ export class TreeView {
    */
   #selectSubtree(node) {
     if (this.selectedNode === node) {
-      // Deselect
-      this.selectedNode = null;
-      this.layers.selectionRect.style('display', 'none');
-      this.layers.selectionBtns.style('display', 'none');
+      this.#clearSelection();
     } else {
       // Select
       this.selectedNode = node;
@@ -487,8 +483,6 @@ export class TreeView {
    */
   #updateSelectionRect(transition = false) {
     if (!this.selectedNode || !this.selectedNode.children) {
-      this.layers.selectionRect.style('display', 'none');
-      this.layers.selectionBtns.style('display', 'none');
       return;
     }
 
@@ -605,12 +599,10 @@ export class TreeView {
     screenY = Math.min(screenY, viewH - this.options.buttonSize * 2 - this.options.controlsMargin);
 
     if (transition) {
-      console.log('erer')
       // Hide buttons immediately, then move and fade in after transition
       this.layers.selectionBtns
         .attr('opacity', 0)
         .attr('transform', `translate(${screenX},${screenY})`);
-
     } else {
       this.layers.selectionBtns
         .attr('transform', `translate(${screenX},${screenY})`)
@@ -718,21 +710,6 @@ export class TreeView {
   }
 
   /**
-   * Handle transition start - sets transitioning flag and hides elements as needed
-   */
-  #handleTransitionStart() {
-    this.isTransitioning = true;
-
-    // Hide selection rectangle during layout transitions only
-    const isCircular = this.treeState.state.layout === 'circular';
-    const layoutChanged = this.wasCircularLayout !== isCircular;
-
-    if (layoutChanged && this.selectedNode) {
-      this.layers.selectionRect.style('display', 'none');
-    }
-  }
-
-  /**
    * Main method to update all branches
    * @param {boolean} transition - Whether to animate the update
    */
@@ -821,9 +798,6 @@ export class TreeView {
     const extensionPaths = selection.select('.extension');
 
     if (transition) {
-      // Set transition start flag
-      this.#handleTransitionStart();
-
       // Animate path changes
       offsetPaths
         .transition()
@@ -1177,15 +1151,15 @@ export class TreeView {
         needsFlip = this.#wasLeftSide(d);
       }
 
-      if (needsFlip) {
-        // Get current rotation
-        const currentTransform = textElement.attr('transform') || 'rotate(0)';
-        const currentRotation = parseFloat(currentTransform.match(/rotate\(([-\d.]+)\)/)?.[1] || 0);
-
-        // Apply instant 180° flip
-        const flippedRotation = currentRotation + 180;
-        textElement.attr('transform', `rotate(${flippedRotation})`);
-      }
+      // if (needsFlip) {
+      //   // Get current rotation
+      //   const currentTransform = textElement.attr('transform') || 'rotate(0)';
+      //   const currentRotation = parseFloat(currentTransform.match(/rotate\(([-\d.]+)\)/)?.[1] || 0);
+      //
+      //   // Apply instant 180° flip
+      //   const flippedRotation = currentRotation + 180;
+      //   textElement.attr('transform', `rotate(${flippedRotation})`);
+      // }
     }.bind(this));
   }
 
