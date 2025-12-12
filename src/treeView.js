@@ -162,7 +162,7 @@ export class TreeView {
       .on('zoom', (event) => {
         this.currentTransform = event.transform;
         this.layers.treeGroup.attr('transform', event.transform);
-        this.#updateSelectionButtons();
+        this.#updateSelectionButtons(event.sourceEvent === null);
       });
 
     this.svg.call(this.treeZoom);
@@ -231,6 +231,11 @@ export class TreeView {
     const nodeGroupsEnter = this.#updateNodes(true);
     this.#updateHitAreas(true);
 
+    // Update selection rectangle if a node is selected
+    if (this.selectedNode && this.selectedNode.children) {
+      this.#updateSelectionRect(true);
+    }
+
     // Handle delayed fade-in for expanded subtrees
     if (this.isExpanding && branchGroupsEnter && nodeGroupsEnter) {
       // Wait for the main transition to complete, then fade in
@@ -242,6 +247,12 @@ export class TreeView {
 
         nodeGroupsEnter
           .transition('node group fade in')
+          .duration(150)
+          .attr('opacity', 1);
+
+        this.layers.selectionBtns
+          .attr('opacity', 0)
+          .transition('fade in selection buttons')
           .duration(150)
           .attr('opacity', 1);
 
@@ -428,7 +439,7 @@ export class TreeView {
 
     // Apply through zoom behavior
     if (transition) {
-      this.svg.transition()
+      this.svg.transition('zoom')
         .duration(this.options.transitionDuration)
         .call(this.treeZoom.transform, transform);
     } else {
@@ -466,7 +477,29 @@ export class TreeView {
       this.layers.selectionRect
         .attr('d', this.#generateSelectionPath(node))
         .style('display', 'block');
-      this.#updateSelectionButtons();
+      this.#updateSelectionButtons(false);
+    }
+  }
+
+  /**
+   * Update selection rectangle with optional transition
+   * @param {boolean} transition - Whether to animate the update
+   */
+  #updateSelectionRect(transition = false) {
+    if (!this.selectedNode || !this.selectedNode.children) {
+      this.layers.selectionRect.style('display', 'none');
+      this.layers.selectionBtns.style('display', 'none');
+      return;
+    }
+
+    if (transition) {
+      this.layers.selectionRect
+        .transition('update selection rect')
+        .duration(this.options.transitionDuration)
+        .attr('d', this.#generateSelectionPath(this.selectedNode));
+    } else {
+      this.layers.selectionRect
+        .attr('d', this.#generateSelectionPath(this.selectedNode));
     }
   }
 
@@ -513,9 +546,10 @@ export class TreeView {
 
   /**
    * Update selection buttons position
+   * @param {boolean} transition - Whether to animate the update
    */
-  #updateSelectionButtons() {
-    if (!this.selectedNode) {
+  #updateSelectionButtons(transition = true) {
+    if (!this.selectedNode || !this.selectedNode.children) {
       this.layers.selectionBtns.style('display', 'none');
       return;
     }
@@ -570,9 +604,19 @@ export class TreeView {
     screenY = Math.max(screenY, 0);
     screenY = Math.min(screenY, viewH - this.options.buttonSize * 2 - this.options.controlsMargin);
 
-    this.layers.selectionBtns
-      .attr('transform', `translate(${screenX},${screenY})`)
-      .style('display', 'block');
+    if (transition) {
+      console.log('erer')
+      // Hide buttons immediately, then move and fade in after transition
+      this.layers.selectionBtns
+        .attr('opacity', 0)
+        .attr('transform', `translate(${screenX},${screenY})`);
+
+    } else {
+      this.layers.selectionBtns
+        .attr('transform', `translate(${screenX},${screenY})`)
+        .attr('opacity', 1)
+        .style('display', 'block');
+    }
   }
 
   /**
@@ -646,9 +690,6 @@ export class TreeView {
       .style('cursor', 'pointer')
       .on('click', (event, d) => {
         if (d.collapsedParent) {
-          this.selectedNode = null;
-          this.layers.selectionRect.style('display', 'none');
-          this.layers.selectionBtns.style('display', 'none');
           this.isExpanding = true;
           this.treeState.expandRoot();
         }
@@ -677,90 +718,18 @@ export class TreeView {
   }
 
   /**
-   * Create a D3 transition with appropriate duration
-   * @returns {Transition} D3 transition object
-   */
-  #createTransition() {
-    const transition = this.svg.transition()
-      .duration(this.options.transitionDuration);
-
-    // Track this transition
-    this.activeTransitions.add(transition);
-
-    // Remove from tracking when complete
-    transition.on('end interrupt cancel', () => {
-      this.activeTransitions.delete(transition);
-    });
-
-    return transition;
-  }
-
-  /**
    * Handle transition start - sets transitioning flag and hides elements as needed
    */
   #handleTransitionStart() {
     this.isTransitioning = true;
 
-    // Hide selection rectangle during layout transitions
+    // Hide selection rectangle during layout transitions only
     const isCircular = this.treeState.state.layout === 'circular';
     const layoutChanged = this.wasCircularLayout !== isCircular;
 
     if (layoutChanged && this.selectedNode) {
       this.layers.selectionRect.style('display', 'none');
     }
-  }
-
-  /**
-   * Handle transition end - clears flag, shows new elements, updates UI
-   * @param {Selection} branchGroupsEnter - Entering branch groups (for delayed fade-in)
-   * @param {Selection} nodeGroupsEnter - Entering node groups (for delayed fade-in)
-   */
-  #handleTransitionEnd(branchGroupsEnter, nodeGroupsEnter) {
-    this.isTransitioning = false;
-
-    // Delayed fade-in for newly expanded subtrees
-    if (this.isExpanding && branchGroupsEnter && nodeGroupsEnter) {
-      branchGroupsEnter
-        .transition('branch group fade in')
-        .duration(150)
-        .attr('opacity', 1);
-
-      nodeGroupsEnter
-        .transition('node group fade in')
-        .duration(150)
-        .attr('opacity', 1);
-    }
-
-    // Show selection rectangle at the end of layout transitions
-    const isCircular = this.treeState.state.layout === 'circular';
-    const layoutChanged = this.wasCircularLayout !== isCircular;
-
-    if (layoutChanged && this.selectedNode && this.selectedNode.children) {
-      this.layers.selectionRect
-        .attr('d', this.#generateSelectionPath(this.selectedNode))
-        .style('display', 'block');
-      this.#updateSelectionButtons();
-    }
-
-    // Reset expanding flag
-    this.isExpanding = false;
-  }
-
-  /**
-   * Cancel any in-progress transitions
-   */
-  #cancelTransitions() {
-    // Interrupt all active transitions
-    this.activeTransitions.forEach(transition => {
-      transition.interrupt();
-    });
-
-    // Clear the set
-    this.activeTransitions.clear();
-
-    // Reset flags
-    this.isTransitioning = false;
-    this.isExpanding = false;
   }
 
   /**
@@ -909,7 +878,8 @@ export class TreeView {
       if (pathType === 'offset') {
         // Rectangular offset: arc from source to point at source x but target y
         const sweepFlag = link.target.angle > link.source.angle ? 1 : 0;
-        return `M${link.source.xPx},${link.source.yPx} A2000,2000 0 0,${sweepFlag} ${link.source.xPx},${link.target.yPx}`;
+        // return `M${link.source.xPx},${link.source.yPx} A2000,2000 0 0,${sweepFlag} ${link.source.xPx},${link.target.yPx}`;
+        return `M${link.source.xPx},${link.source.yPx} L${link.source.xPx},${link.target.yPx}`;
       } else {
         // Rectangular extension: horizontal line from offset end to target
         return `M${link.source.xPx},${link.target.yPx} L${link.target.xPx},${link.target.yPx}`;
