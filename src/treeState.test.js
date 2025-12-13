@@ -37,7 +37,6 @@ D\t25\tgreen`;
       expect(treeState.state.viewWidth).toBe(800);
       expect(treeState.state.viewHeight).toBe(600);
       expect(treeState.displayedRoot).toBeDefined();
-      console.log(treeState);
     });
 
     it('should initialize with provided tree data', () => {

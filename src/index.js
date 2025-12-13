@@ -20,12 +20,18 @@ function injectStyles() {
 
 /**
  * Create a heat tree visualization
- * @param {string} newickStr - Newick formatted tree string
+ * @param {Object} treesConfig - Configuration object with trees array
+ * @param {Array} treesConfig.trees - Array of tree objects, each with newick, name, and metadata
  * @param {string} containerSelector - CSS selector for container element
  * @param {Object} options - Configuration options
  * @returns {Object} Object containing references to tree components
  */
-export function heatTree(newickStr, containerSelector, options = {}) {
+export function heatTree(treesConfig, containerSelector, options = {}) {
+  // Validate input
+  if (!treesConfig || !treesConfig.trees || !Array.isArray(treesConfig.trees) || treesConfig.trees.length === 0) {
+    throw new Error('treesConfig must have a non-empty trees array');
+  }
+
   // Inject styles
   injectStyles();
 
@@ -38,30 +44,31 @@ export function heatTree(newickStr, containerSelector, options = {}) {
     manualZoomAndPanEnabled: true,
     autoZoomEnabled: true,
     autoPanEnabled: true,
-    metadata: null,
     ...options
   };
 
-  // Initialize text size estimator
+  // Initialize text size estimator (shared across all trees)
   const textSizeEstimator = new TextSizeEstimator();
 
-  // Parse metadata if provided
-  let metadataTables = [];
-  if (options.metadata) {
-    if (Array.isArray(options.metadata)) {
-      metadataTables = options.metadata;
-    } else {
-      metadataTables = [options.metadata];
+  // Create TreeData instances for each tree
+  const treeDataInstances = new Map();
+  treesConfig.trees.forEach((treeConfig, index) => {
+    if (!treeConfig.newick) {
+      throw new Error(`Tree at index ${index} is missing newick string`);
     }
-  }
 
-  // Create TreeData instance
-  const treeData = new TreeData(newickStr, metadataTables);
+    const treeName = treeConfig.name || `Tree ${index + 1}`;
+    const metadataTables = treeConfig.metadata ?
+      (Array.isArray(treeConfig.metadata) ? treeConfig.metadata : [treeConfig.metadata]) :
+      [];
 
-  // Create TreeState instance
-  const treeState = new TreeState({
-    treeData: treeData
-  }, textSizeEstimator);
+    const treeData = new TreeData(treeConfig.newick, metadataTables);
+    treeDataInstances.set(treeName, treeData);
+  });
+
+  // Cache for TreeState and TreeView instances
+  const treeStateCache = new Map();
+  const treeViewCache = new Map();
 
   // Get container element
   const container = document.querySelector(containerSelector);
@@ -93,27 +100,81 @@ export function heatTree(newickStr, containerSelector, options = {}) {
   widgetDiv.appendChild(treeDiv);
   container.appendChild(widgetDiv);
 
-  // Create toolbar
-  createToolbar(toolbarDiv, treeState, treeData, options);
+  // Track current tree
+  let currentTreeName = null;
+  let currentTreeState = null;
+  let currentTreeView = null;
 
-  // Create TreeView instance
-  const treeView = new TreeView(treeState, treeSvg, {
-    buttonSize: options.buttonSize,
-    controlsMargin: options.controlsMargin,
-    buttonPadding: options.buttonPadding,
-    transitionDuration: options.transitionDuration,
-    manualZoomAndPanEnabled: options.manualZoomAndPanEnabled,
-    autoZoomEnabled: options.autoZoomEnabled,
-    autoPanEnabled: options.autoPanEnabled
-  });
+  /**
+   * Switch to a different tree
+   * @param {string} treeName - Name of the tree to switch to
+   */
+  function switchToTree(treeName) {
+    if (!treeDataInstances.has(treeName)) {
+      console.error(`Tree not found: ${treeName}`);
+      return;
+    }
 
-  console.log(treeState);
+    // If switching to the same tree, do nothing
+    if (currentTreeName === treeName && currentTreeView) {
+      return;
+    }
+
+    // Clear the SVG before switching trees
+    while (treeSvg.firstChild) {
+      treeSvg.removeChild(treeSvg.firstChild);
+    }
+
+    // Get or create TreeState for this tree
+    if (!treeStateCache.has(treeName)) {
+      const treeData = treeDataInstances.get(treeName);
+      const treeState = new TreeState({
+        treeData: treeData
+      }, textSizeEstimator);
+      treeStateCache.set(treeName, treeState);
+    }
+
+    // Get or create TreeView for this tree
+    if (!treeViewCache.has(treeName)) {
+      const treeState = treeStateCache.get(treeName);
+      const treeView = new TreeView(treeState, treeSvg, {
+        buttonSize: options.buttonSize,
+        controlsMargin: options.controlsMargin,
+        buttonPadding: options.buttonPadding,
+        transitionDuration: options.transitionDuration,
+        manualZoomAndPanEnabled: options.manualZoomAndPanEnabled,
+        autoZoomEnabled: options.autoZoomEnabled,
+        autoPanEnabled: options.autoPanEnabled
+      });
+      treeViewCache.set(treeName, treeView);
+    } else {
+      // Reattach existing TreeView to the SVG
+      const treeView = treeViewCache.get(treeName);
+      treeView.reattach(treeSvg);
+    }
+
+    // Update current references
+    currentTreeName = treeName;
+    currentTreeState = treeStateCache.get(treeName);
+    currentTreeView = treeViewCache.get(treeName);
+  }
+
+  // Create toolbar with tree switching capability
+  createToolbar(toolbarDiv, treeDataInstances, () => currentTreeState, switchToTree, options);
+
+  // Display the first tree initially
+  const firstTreeName = Array.from(treeDataInstances.keys())[0];
+  switchToTree(firstTreeName);
 
   // Return references to components
   return {
-    treeData,
-    treeState,
-    treeView,
+    treeDataInstances,
+    treeStateCache,
+    treeViewCache,
+    getCurrentTreeState: () => currentTreeState,
+    getCurrentTreeView: () => currentTreeView,
+    getCurrentTreeName: () => currentTreeName,
+    switchToTree,
     container: widgetDiv
   };
 }

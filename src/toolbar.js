@@ -1,11 +1,12 @@
 /**
  * Create and manage the toolbar with tabs and controls
  * @param {HTMLElement} toolbarDiv - Container for the toolbar
- * @param {TreeState} treeState - Tree state instance
- * @param {TreeData} treeData - Tree data instance
+ * @param {Map} treeDataInstances - Map of tree names to TreeData instances
+ * @param {Function} getCurrentTreeState - Function that returns the current TreeState
+ * @param {Function} switchToTree - Function to switch to a different tree
  * @param {Object} options - Configuration options
  */
-export function createToolbar(toolbarDiv, treeState, treeData, options) {
+export function createToolbar(toolbarDiv, treeDataInstances, getCurrentTreeState, switchToTree, options) {
   const CONTROL_HEIGHT = 24; // Standard height for all controls
   let currentTab = null;
 
@@ -85,13 +86,13 @@ export function createToolbar(toolbarDiv, treeState, treeData, options) {
 
     switch (tabId) {
       case 'data':
-        populateDataControls(controlsContainer, treeState, treeData, options, CONTROL_HEIGHT);
+        populateDataControls(controlsContainer, treeDataInstances, getCurrentTreeState, switchToTree, options, CONTROL_HEIGHT);
         break;
       case 'tree-manipulation':
-        populateTreeManipulationControls(controlsContainer, treeState, options, CONTROL_HEIGHT);
+        populateTreeManipulationControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
         break;
       case 'export':
-        populateExportControls(controlsContainer, treeState, options, CONTROL_HEIGHT);
+        populateExportControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
         break;
     }
   }
@@ -107,7 +108,7 @@ export function createToolbar(toolbarDiv, treeState, treeData, options) {
 /**
  * Populate Data tab controls
  */
-function populateDataControls(container, treeState, treeData, options, controlHeight) {
+function populateDataControls(container, treeDataInstances, getCurrentTreeState, switchToTree, options, controlHeight) {
   container.innerHTML = '';
 
   // Select tree control
@@ -117,9 +118,24 @@ function populateDataControls(container, treeState, treeData, options, controlHe
   const treeSelect = document.createElement('select');
   treeSelect.className = 'ht-select';
   treeSelect.style.height = `${controlHeight}px`;
-  const treeOption = document.createElement('option');
-  treeOption.textContent = 'Current tree';
-  treeSelect.appendChild(treeOption);
+  
+  // Populate tree options
+  const treeNames = Array.from(treeDataInstances.keys());
+  treeNames.forEach((treeName, index) => {
+    const option = document.createElement('option');
+    option.value = treeName;
+    option.textContent = treeName;
+    if (index === 0) {
+      option.selected = true;
+    }
+    treeSelect.appendChild(option);
+  });
+
+  // Handle tree selection change
+  treeSelect.addEventListener('change', (e) => {
+    switchToTree(e.target.value);
+  });
+
   container.appendChild(treeSelect);
 
   const addTreeBtn = createButton('+', 'Add tree from Newick file', controlHeight);
@@ -144,8 +160,14 @@ function populateDataControls(container, treeState, treeData, options, controlHe
 /**
  * Populate Tree Manipulation tab controls
  */
-function populateTreeManipulationControls(container, treeState, options, controlHeight) {
+function populateTreeManipulationControls(container, getCurrentTreeState, options, controlHeight) {
   container.innerHTML = '';
+
+  const treeState = getCurrentTreeState();
+  if (!treeState) {
+    container.textContent = 'No tree selected';
+    return;
+  }
 
   // Expand subtrees button
   const expandSubtreesBtn = createButton('Expand subtrees', 'Expand all collapsed subtrees', controlHeight);
@@ -184,8 +206,14 @@ function populateTreeManipulationControls(container, treeState, options, control
 /**
  * Populate Export tab controls
  */
-function populateExportControls(container, treeState, options, controlHeight) {
+function populateExportControls(container, getCurrentTreeState, options, controlHeight) {
   container.innerHTML = '';
+
+  const treeState = getCurrentTreeState();
+  if (!treeState) {
+    container.textContent = 'No tree selected';
+    return;
+  }
 
   // Export button
   const exportBtn = createButton('Export', 'Export the tree to a file', controlHeight);

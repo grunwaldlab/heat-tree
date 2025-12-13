@@ -77,6 +77,40 @@ export class TreeView {
   }
 
   /**
+   * Destroy the TreeView and clean up DOM elements
+   */
+  destroy() {
+    // Clear all SVG content
+    this.svg.selectAll('*').remove();
+    
+    // Clear references
+    this.layers = {};
+    this.selections = {};
+    this.selectedNode = null;
+  }
+
+  /**
+   * Reattach the TreeView to a new SVG container
+   * @param {SVGElement} svgContainer - New SVG container element
+   */
+  reattach(svgContainer) {
+    // Update SVG reference
+    this.svg = select(svgContainer);
+
+    // Reinitialize layers
+    this.#initializeLayers();
+
+    // Reinitialize zoom behavior
+    this.#initializeZoom();
+
+    // Re-render without transition
+    this.#updateBranches(false);
+    this.#updateNodes(false);
+    this.#updateHitAreas(false);
+    this.#fitToView(false);
+  }
+
+  /**
    * Initialize SVG layers for branches, nodes, hit areas, and UI overlays
    */
   #initializeLayers() {

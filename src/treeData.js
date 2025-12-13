@@ -173,7 +173,6 @@ export class TreeData extends Subscribable {
    * @param {object} scale - The scale instance to set
    */
   setScale(columnId, scaleType, scale) {
-    console.log(this.columnScale);
     this.columnScale[scaleType].set(columnId, scale);
   }
 
