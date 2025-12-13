@@ -17,6 +17,7 @@ export class TreeData extends Subscribable {
 
   tree;
   metadata = new Map();
+  metadataTableNames = new Map(); // Map of table ID to display name
   columnType = new Map(); // e.g. 'continuous' or 'categorical', keyed by unique column ID
   columnName = new Map(); // Original column name, keyed by unique column ID
   columnDisplayName = new Map(); // Display-friendly column name, keyed by unique column ID
@@ -27,13 +28,16 @@ export class TreeData extends Subscribable {
   }
   #nextTableId = 0;
 
-  constructor(newickStr, metadataTables = []) {
+  constructor(newickStr, metadataTables = [], metadataTableNames = []) {
     super();
 
     this.tree = this.parseTree(newickStr);
 
     if (Array.isArray(metadataTables)) {
-      metadataTables.forEach(tableStr => this.addTable(tableStr));
+      metadataTables.forEach((tableStr, index) => {
+        const tableName = metadataTableNames[index] || `Metadata ${index + 1}`;
+        this.addTable(tableStr, tableName);
+      });
     }
   }
 
@@ -73,19 +77,33 @@ export class TreeData extends Subscribable {
   }
 
   /**
+   * Get metadata table names
+   * @returns {Array<string>} Array of metadata table names
+   */
+  getMetadataTableNames() {
+    return Array.from(this.metadataTableNames.values());
+  }
+
+  /**
    * Add a metadata table
    * @param {string} tableStr - TSV formatted string or path
-   * @param {string|null} id - Optional table ID (auto-generated if null)
-   * @param {boolean} enable - Whether to enable the table immediately (default: true)
+   * @param {string} tableName - Display name for the table
    * @param {string} sep - Column separator (default: '\t')
    * @returns {string} The table ID
    */
-  addTable(tableStr, sep = '\t') {
+  addTable(tableStr, tableName = null, sep = '\t') {
     // Parse table string
     const { metadataMap, columnTypes } = parseTable(tableStr, sep);
 
     // Generate unique column IDs for this table
     const id = `table_${this.#nextTableId++}`;
+
+    // Set table name
+    if (!tableName) {
+      tableName = `Metadata ${this.#nextTableId}`;
+    }
+    this.metadataTableNames.set(id, tableName);
+
     const columnIdMap = new Map();
     for (const [originalName, columnType] of columnTypes) {
       const uniqueId = `${id}_${originalName}`;
@@ -142,6 +160,7 @@ export class TreeData extends Subscribable {
 
     this.#detachTable(tableId);
     this.metadata.delete(tableId);
+    this.metadataTableNames.delete(tableId);
     this.notify('metadataRemoved', {
       tableId,
       columnIds: keys

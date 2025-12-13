@@ -6,6 +6,8 @@ On the top right of the control panel, aligned with the tabs, there is a button 
 If the currently selected tab is clicked, it is unselected and no controls are shown other than the tabs.
 The tree is resized to fill the current space not used by controls when controls are expanded/collapsed.
 
+The state of the controls are entirely dependent on the state of the `treeState`/`treeView`/`treeData` instance currently active.
+
 ## Metadata column properties
 
 Each metadata column has properties assocaited with it, such as:

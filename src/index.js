@@ -35,13 +35,13 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
   // Inject styles
   injectStyles();
 
-  // Set default options
+  // Set default options (support both old and new option names)
   options = {
     buttonSize: 25,
     controlsMargin: 3,
     buttonPadding: 2,
     transitionDuration: 500,
-    manualZoomAndPanEnabled: true,
+    manualZoomAndPanEnabled: options.zoomInitiallyEnabled !== undefined ? options.zoomInitiallyEnabled : true,
     autoZoomEnabled: true,
     autoPanEnabled: true,
     ...options
@@ -52,17 +52,35 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
 
   // Create TreeData instances for each tree
   const treeDataInstances = new Map();
+
   treesConfig.trees.forEach((treeConfig, index) => {
     if (!treeConfig.newick) {
       throw new Error(`Tree at index ${index} is missing newick string`);
     }
 
     const treeName = treeConfig.name || `Tree ${index + 1}`;
-    const metadataTables = treeConfig.metadata ?
-      (Array.isArray(treeConfig.metadata) ? treeConfig.metadata : [treeConfig.metadata]) :
-      [];
 
-    const treeData = new TreeData(treeConfig.newick, metadataTables);
+    // Process metadata tables - can be array of objects with name and data, or just data objects
+    let metadataTables = [];
+    let metadataNames = [];
+
+    if (treeConfig.metadata) {
+      const metadataArray = Array.isArray(treeConfig.metadata) ? treeConfig.metadata : [treeConfig.metadata];
+
+      metadataArray.forEach((metadataItem, metaIndex) => {
+        if (metadataItem.name && metadataItem.data) {
+          // Named metadata table
+          metadataTables.push(metadataItem.data);
+          metadataNames.push(metadataItem.name);
+        } else {
+          // Unnamed metadata table - use as-is
+          metadataTables.push(metadataItem);
+          metadataNames.push(`Metadata ${metaIndex + 1}`);
+        }
+      });
+    }
+
+    const treeData = new TreeData(treeConfig.newick, metadataTables, metadataNames);
     treeDataInstances.set(treeName, treeData);
   });
 
@@ -104,6 +122,9 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
   let currentTreeName = null;
   let currentTreeState = null;
   let currentTreeView = null;
+
+  // Store toolbar refresh function
+  let refreshToolbar = null;
 
   /**
    * Switch to a different tree
@@ -157,10 +178,21 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     currentTreeName = treeName;
     currentTreeState = treeStateCache.get(treeName);
     currentTreeView = treeViewCache.get(treeName);
+
+    // Refresh toolbar if the refresh function is available
+    if (refreshToolbar) {
+      refreshToolbar();
+    }
   }
 
   // Create toolbar with tree switching capability
-  createToolbar(toolbarDiv, treeDataInstances, () => currentTreeState, switchToTree, options);
+  refreshToolbar = createToolbar(
+    toolbarDiv,
+    treeDataInstances,
+    () => currentTreeState,
+    switchToTree,
+    options
+  );
 
   // Display the first tree initially
   const firstTreeName = Array.from(treeDataInstances.keys())[0];

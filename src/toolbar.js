@@ -5,10 +5,18 @@
  * @param {Function} getCurrentTreeState - Function that returns the current TreeState
  * @param {Function} switchToTree - Function to switch to a different tree
  * @param {Object} options - Configuration options
+ * @returns {Function} Function to refresh the current tab's controls
  */
-export function createToolbar(toolbarDiv, treeDataInstances, getCurrentTreeState, switchToTree, options) {
+export function createToolbar(
+  toolbarDiv,
+  treeDataInstances,
+  getCurrentTreeState,
+  switchToTree,
+  options
+) {
   const CONTROL_HEIGHT = 24; // Standard height for all controls
   let currentTab = null;
+  let selectedMetadata = null; // Track which metadata table is "selected" for future controls
 
   // Create tabs container
   const tabsContainer = document.createElement('div');
@@ -22,6 +30,7 @@ export function createToolbar(toolbarDiv, treeDataInstances, getCurrentTreeState
   const tabs = [
     { id: 'data', label: 'Data' },
     { id: 'tree-manipulation', label: 'Tree Manipulation' },
+    { id: 'tip-label-settings', label: 'Tip Label Settings' },
     { id: 'export', label: 'Export' }
   ];
 
@@ -46,6 +55,34 @@ export function createToolbar(toolbarDiv, treeDataInstances, getCurrentTreeState
     tabElements[tab.id] = tabDiv;
     tabsContainer.appendChild(tabDiv);
   });
+
+  // Function to get metadata table names for the current tree
+  function getCurrentMetadataNames() {
+    const treeState = getCurrentTreeState();
+    if (!treeState || !treeState.state.treeData) return [];
+    return treeState.state.treeData.getMetadataTableNames();
+  }
+
+  // Function to get the currently selected metadata table name
+  function getSelectedMetadata() {
+    return selectedMetadata;
+  }
+
+  // Function to set the currently selected metadata table
+  function setSelectedMetadata(metadataName) {
+    const metadataNames = getCurrentMetadataNames();
+    if (metadataNames.includes(metadataName)) {
+      selectedMetadata = metadataName;
+    } else {
+      console.warn(`Metadata table not found: ${metadataName}`);
+    }
+  }
+
+  // Function to reset selected metadata when switching trees
+  function resetSelectedMetadata() {
+    const metadataNames = getCurrentMetadataNames();
+    selectedMetadata = metadataNames.length > 0 ? metadataNames[0] : null;
+  }
 
   // Function to open a tab
   function openTab(tabId) {
@@ -86,14 +123,36 @@ export function createToolbar(toolbarDiv, treeDataInstances, getCurrentTreeState
 
     switch (tabId) {
       case 'data':
-        populateDataControls(controlsContainer, treeDataInstances, getCurrentTreeState, switchToTree, options, CONTROL_HEIGHT);
+        populateDataControls(
+          controlsContainer,
+          treeDataInstances,
+          getCurrentTreeState,
+          switchToTree,
+          getCurrentMetadataNames,
+          getSelectedMetadata,
+          setSelectedMetadata,
+          resetSelectedMetadata,
+          options,
+          CONTROL_HEIGHT
+        );
         break;
       case 'tree-manipulation':
         populateTreeManipulationControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
         break;
+      case 'tip-label-settings':
+        populateTipLabelSettingsControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
+        break;
       case 'export':
         populateExportControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
         break;
+    }
+  }
+
+  // Function to refresh the current tab (used when tree changes)
+  function refreshCurrentTab() {
+    resetSelectedMetadata();
+    if (currentTab) {
+      populateControls(currentTab);
     }
   }
 
@@ -103,12 +162,29 @@ export function createToolbar(toolbarDiv, treeDataInstances, getCurrentTreeState
 
   // Open the first tab by default
   openTab(tabs[0].id);
+
+  // Initialize selected metadata (will be set properly after first tree loads)
+  resetSelectedMetadata();
+
+  // Return the refresh function so it can be called from outside
+  return refreshCurrentTab;
 }
 
 /**
  * Populate Data tab controls
  */
-function populateDataControls(container, treeDataInstances, getCurrentTreeState, switchToTree, options, controlHeight) {
+function populateDataControls(
+  container,
+  treeDataInstances,
+  getCurrentTreeState,
+  switchToTree,
+  getCurrentMetadataNames,
+  getSelectedMetadata,
+  setSelectedMetadata,
+  resetSelectedMetadata,
+  options,
+  controlHeight
+) {
   container.innerHTML = '';
 
   // Select tree control
@@ -118,14 +194,17 @@ function populateDataControls(container, treeDataInstances, getCurrentTreeState,
   const treeSelect = document.createElement('select');
   treeSelect.className = 'ht-select';
   treeSelect.style.height = `${controlHeight}px`;
-  
+
   // Populate tree options
   const treeNames = Array.from(treeDataInstances.keys());
-  treeNames.forEach((treeName, index) => {
+  const currentTreeState = getCurrentTreeState();
+  const currentTreeName = currentTreeState ? Array.from(treeDataInstances.entries()).find(([name, data]) => data === currentTreeState.state.treeData)?.[0] : null;
+
+  treeNames.forEach((treeName) => {
     const option = document.createElement('option');
     option.value = treeName;
     option.textContent = treeName;
-    if (index === 0) {
+    if (treeName === currentTreeName) {
       option.selected = true;
     }
     treeSelect.appendChild(option);
@@ -148,9 +227,34 @@ function populateDataControls(container, treeDataInstances, getCurrentTreeState,
   const metadataSelect = document.createElement('select');
   metadataSelect.className = 'ht-select';
   metadataSelect.style.height = `${controlHeight}px`;
-  const metadataOption = document.createElement('option');
-  metadataOption.textContent = 'No metadata';
-  metadataSelect.appendChild(metadataOption);
+
+  // Populate metadata options
+  const metadataNames = getCurrentMetadataNames();
+  const selectedMetadata = getSelectedMetadata();
+
+  if (metadataNames.length === 0) {
+    const option = document.createElement('option');
+    option.textContent =  'No metadata';
+    option.value = '';
+    metadataSelect.appendChild(option);
+    metadataSelect.disabled = true;
+  } else {
+    metadataNames.forEach((metadataName) => {
+      const option = document.createElement('option');
+      option.value = metadataName;
+      option.textContent = metadataName;
+      if (metadataName === selectedMetadata) {
+        option.selected = true;
+      }
+      metadataSelect.appendChild(option);
+    });
+
+    // Handle metadata selection change
+    metadataSelect.addEventListener('change', (e) => {
+      setSelectedMetadata(e.target.value);
+    });
+  }
+
   container.appendChild(metadataSelect);
 
   const addMetadataBtn = createButton('+', 'Add metadata table', controlHeight);
@@ -195,12 +299,206 @@ function populateTreeManipulationControls(container, getCurrentTreeState, option
   const radialLayoutLabel = createLabel('Radial layout:', controlHeight);
   container.appendChild(radialLayoutLabel);
 
-  const radialLayoutToggle = createToggle(treeState.state.layout === 'circular', controlHeight);
+  const isCircular = treeState.state.layout === 'circular';
+  const radialLayoutToggle = createToggle(isCircular, controlHeight);
+  
+  // Update toggle state based on layout changes
+  const updateToggleState = () => {
+    const currentLayout = treeState.state.layout;
+    if (currentLayout === 'circular') {
+      radialLayoutToggle.classList.add('active');
+    } else {
+      radialLayoutToggle.classList.remove('active');
+    }
+  };
+  
+  // Subscribe to layout changes
+  treeState.subscribe('layoutChange', updateToggleState);
+  
+  // Handle click - switch layout based on current state
   radialLayoutToggle.addEventListener('click', () => {
-    const isCircular = radialLayoutToggle.classList.contains('active');
-    treeState.setLayout(isCircular ? 'circular' : 'rectangular');
+    const currentLayout = treeState.state.layout;
+    treeState.setLayout(currentLayout === 'circular' ? 'rectangular' : 'circular');
   });
+  
   container.appendChild(radialLayoutToggle);
+}
+
+/**
+ * Populate Tip Label Settings tab controls
+ */
+function populateTipLabelSettingsControls(container, getCurrentTreeState, options, controlHeight) {
+  container.innerHTML = '';
+
+  const treeState = getCurrentTreeState();
+  if (!treeState) {
+    container.textContent = 'No tree selected';
+    return;
+  }
+
+  // Enable tip labels toggle
+  const enableTipLabelsLabel = createLabel('Enable tip labels:', controlHeight);
+  container.appendChild(enableTipLabelsLabel);
+
+  const enableTipLabelsToggle = createToggle(true, controlHeight);
+  container.appendChild(enableTipLabelsToggle);
+
+  // Tip label text
+  const tipLabelTextLabel = createLabel('Tip label text:', controlHeight);
+  container.appendChild(tipLabelTextLabel);
+
+  const tipLabelTextContainer = document.createElement('div');
+  tipLabelTextContainer.style.display = 'flex';
+  tipLabelTextContainer.style.gap = `${options.controlsMargin}px`;
+
+  const tipLabelTextSelect = createMetadataColumnSelect(
+    treeState,
+    'tipLabelText',
+    'Node IDs',
+    controlHeight
+  );
+  tipLabelTextContainer.appendChild(tipLabelTextSelect);
+
+  const tipLabelTextEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
+  tipLabelTextEditBtn.style.width = `${controlHeight}px`;
+  tipLabelTextEditBtn.style.flexShrink = '0';
+  tipLabelTextContainer.appendChild(tipLabelTextEditBtn);
+
+  container.appendChild(tipLabelTextContainer);
+
+  // Tip label color
+  const tipLabelColorLabel = createLabel('Tip label color:', controlHeight);
+  container.appendChild(tipLabelColorLabel);
+
+  const tipLabelColorContainer = document.createElement('div');
+  tipLabelColorContainer.style.display = 'flex';
+  tipLabelColorContainer.style.gap = `${options.controlsMargin}px`;
+
+  const tipLabelColorSelect = createMetadataColumnSelect(
+    treeState,
+    'tipLabelColor',
+    'None',
+    controlHeight
+  );
+  tipLabelColorContainer.appendChild(tipLabelColorSelect);
+
+  const tipLabelColorEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
+  tipLabelColorEditBtn.style.width = `${controlHeight}px`;
+  tipLabelColorEditBtn.style.flexShrink = '0';
+  tipLabelColorContainer.appendChild(tipLabelColorEditBtn);
+
+  container.appendChild(tipLabelColorContainer);
+
+  // Tip label size
+  const tipLabelSizeLabel = createLabel('Tip label size:', controlHeight);
+  container.appendChild(tipLabelSizeLabel);
+
+  const tipLabelSizeContainer = document.createElement('div');
+  tipLabelSizeContainer.style.display = 'flex';
+  tipLabelSizeContainer.style.gap = `${options.controlsMargin}px`;
+
+  const tipLabelSizeSelect = createMetadataColumnSelect(
+    treeState,
+    'tipLabelSize',
+    'None',
+    controlHeight
+  );
+  tipLabelSizeContainer.appendChild(tipLabelSizeSelect);
+
+  const tipLabelSizeEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
+  tipLabelSizeEditBtn.style.width = `${controlHeight}px`;
+  tipLabelSizeEditBtn.style.flexShrink = '0';
+  tipLabelSizeContainer.appendChild(tipLabelSizeEditBtn);
+
+  container.appendChild(tipLabelSizeContainer);
+
+  // Tip label style
+  const tipLabelStyleLabel = createLabel('Tip label style:', controlHeight);
+  container.appendChild(tipLabelStyleLabel);
+
+  const tipLabelStyleContainer = document.createElement('div');
+  tipLabelStyleContainer.style.display = 'flex';
+  tipLabelStyleContainer.style.gap = `${options.controlsMargin}px`;
+
+  const tipLabelStyleSelect = createMetadataColumnSelect(
+    treeState,
+    'tipLabelStyle',
+    'None',
+    controlHeight
+  );
+  tipLabelStyleContainer.appendChild(tipLabelStyleSelect);
+
+  const tipLabelStyleEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
+  tipLabelStyleEditBtn.style.width = `${controlHeight}px`;
+  tipLabelStyleEditBtn.style.flexShrink = '0';
+  tipLabelStyleContainer.appendChild(tipLabelStyleEditBtn);
+
+  container.appendChild(tipLabelStyleContainer);
+
+  // Tip label font
+  const tipLabelFontLabel = createLabel('Tip label font:', controlHeight);
+  container.appendChild(tipLabelFontLabel);
+
+  const tipLabelFontSelect = document.createElement('select');
+  tipLabelFontSelect.className = 'ht-select';
+  tipLabelFontSelect.style.height = `${controlHeight}px`;
+
+  const fonts = ['sans-serif', 'serif', 'monospace', 'Arial', 'Times New Roman', 'Courier New'];
+  fonts.forEach(font => {
+    const option = document.createElement('option');
+    option.value = font;
+    option.textContent = font;
+    if (font === treeState.state.aesthetics.tipLabelFont || (font === 'sans-serif' && !treeState.state.aesthetics.tipLabelFont)) {
+      option.selected = true;
+    }
+    tipLabelFontSelect.appendChild(option);
+  });
+
+  container.appendChild(tipLabelFontSelect);
+}
+
+/**
+ * Create a metadata column select dropdown
+ */
+function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight) {
+  const select = document.createElement('select');
+  select.className = 'ht-select';
+  select.style.height = `${controlHeight}px`;
+  select.style.flex = '1';
+
+  // Add default option
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = defaultLabel;
+  select.appendChild(defaultOption);
+
+  // Get all metadata columns
+  const treeData = treeState.state.treeData;
+  const columnIds = Array.from(treeData.columnDisplayName.keys());
+
+  // Add options for each metadata column
+  columnIds.forEach(columnId => {
+    const option = document.createElement('option');
+    option.value = columnId;
+    option.textContent = treeData.columnDisplayName.get(columnId);
+    
+    // Check if this column is currently selected for this aesthetic
+    if (treeState.state.aesthetics[aesthetic] === columnId) {
+      option.selected = true;
+    }
+    
+    select.appendChild(option);
+  });
+
+  // Handle selection change
+  select.addEventListener('change', (e) => {
+    const columnId = e.target.value || null;
+    const aestheticUpdate = {};
+    aestheticUpdate[aesthetic] = columnId;
+    treeState.setAesthetics(aestheticUpdate);
+  });
+
+  return select;
 }
 
 /**
@@ -306,9 +604,8 @@ function createToggle(initialState, height) {
 
   toggle.appendChild(knob);
 
-  toggle.addEventListener('click', () => {
-    toggle.classList.toggle('active');
-  });
+  // Note: Click handler should be added by the caller, not here
+  // This allows the caller to control the toggle state explicitly
 
   return toggle;
 }
