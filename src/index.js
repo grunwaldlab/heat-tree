@@ -101,7 +101,6 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
   // Create toolbar div
   const toolbarDiv = document.createElement('div');
   toolbarDiv.className = 'ht-toolbar';
-  toolbarDiv.style.gap = `${options.controlsMargin}px`;
 
   // Create tree div
   const treeDiv = document.createElement('div');

@@ -48,13 +48,14 @@
 }
 
 .ht-controls {
-  padding: 4px 8px;
+  padding: 2px 8px;
   background-color: #fafafa;
   border-bottom: 1px solid #ddd;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  height: 26px;
 }
 
 .ht-controls.hidden {

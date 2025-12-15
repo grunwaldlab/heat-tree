@@ -456,7 +456,6 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
 
   const tipLabelTextContainer = document.createElement('div');
   tipLabelTextContainer.style.display = 'flex';
-  tipLabelTextContainer.style.gap = `${options.controlsMargin}px`;
 
   const tipLabelTextSelect = createMetadataColumnSelect(
     treeState,
@@ -480,7 +479,6 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
 
   const tipLabelColorContainer = document.createElement('div');
   tipLabelColorContainer.style.display = 'flex';
-  tipLabelColorContainer.style.gap = `${options.controlsMargin}px`;
 
   const tipLabelColorSelect = createMetadataColumnSelect(
     treeState,
@@ -504,7 +502,6 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
 
   const tipLabelSizeContainer = document.createElement('div');
   tipLabelSizeContainer.style.display = 'flex';
-  tipLabelSizeContainer.style.gap = `${options.controlsMargin}px`;
 
   const tipLabelSizeSelect = createMetadataColumnSelect(
     treeState,
@@ -528,7 +525,6 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
 
   const tipLabelStyleContainer = document.createElement('div');
   tipLabelStyleContainer.style.display = 'flex';
-  tipLabelStyleContainer.style.gap = `${options.controlsMargin}px`;
 
   const tipLabelStyleSelect = createMetadataColumnSelect(
     treeState,
