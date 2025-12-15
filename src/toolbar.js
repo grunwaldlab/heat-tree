@@ -702,24 +702,41 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelStyleLabel = createLabel('Style:', controlHeight);
   container.appendChild(tipLabelStyleLabel);
 
-  const tipLabelStyleContainer = document.createElement('div');
-  tipLabelStyleContainer.style.display = 'flex';
+  const tipLabelStyleSelect = document.createElement('select');
+  tipLabelStyleSelect.className = 'ht-select';
+  tipLabelStyleSelect.style.height = `${controlHeight}px`;
 
-  const tipLabelStyleSelect = createMetadataColumnSelect(
-    treeState,
-    'tipLabelStyle',
-    'Default',
-    controlHeight,
-    false
-  );
-  tipLabelStyleContainer.appendChild(tipLabelStyleSelect);
+  const styles = ['normal', 'italic'];
 
-  const tipLabelStyleEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
-  tipLabelStyleEditBtn.style.width = `${controlHeight}px`;
-  tipLabelStyleEditBtn.style.flexShrink = '0';
-  tipLabelStyleContainer.appendChild(tipLabelStyleEditBtn);
+  // Get current style value - check if it's set via aesthetic or use default
+  const currentStyle = treeState.state.aesthetics.tipLabelStyle !== undefined
+    ? treeState.aestheticsScales.tipLabelStyle.getValue()
+    : 'normal';
 
-  container.appendChild(tipLabelStyleContainer);
+  styles.forEach(style => {
+    const option = document.createElement('option');
+    option.value = style;
+    option.textContent = style.charAt(0).toUpperCase() + style.slice(1);
+    if (style === currentStyle) {
+      option.selected = true;
+    }
+    tipLabelStyleSelect.appendChild(option);
+  });
+
+  // Handle style selection change
+  tipLabelStyleSelect.addEventListener('change', (e) => {
+    const selectedStyle = e.target.value;
+    // Set the style as a direct value (not from metadata)
+    treeState.setAesthetics({ tipLabelStyle: undefined });
+    // Then update all nodes to use this style
+    treeState.state.treeData.tree.each(d => {
+      d.tipLabelStyle = selectedStyle;
+    });
+    // Trigger coordinate update since style affects text size
+    treeState.updateCoordinates();
+  });
+
+  container.appendChild(tipLabelStyleSelect);
 
   // Tip label font
   const tipLabelFontLabel = createLabel('Font:', controlHeight);
@@ -730,9 +747,9 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   tipLabelFontSelect.style.height = `${controlHeight}px`;
 
   const fonts = ['sans-serif', 'serif', 'monospace', 'Arial', 'Times New Roman', 'Courier New'];
-  
+
   // Get current font value - check if it's set via aesthetic or use default
-  const currentFont = treeState.state.aesthetics.tipLabelFont !== undefined 
+  const currentFont = treeState.state.aesthetics.tipLabelFont !== undefined
     ? treeState.aestheticsScales.tipLabelFont.getValue()
     : 'sans-serif';
 
@@ -818,7 +835,7 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
     let columnId;
     if (e.target.value === 'none') {
       // Special handling for "None" - set aesthetic to null to disable it
-      columnId =null;
+      columnId = null;
     } else if (e.target.value === '') {
       // Empty string means use default behavior
       columnId = undefined;
