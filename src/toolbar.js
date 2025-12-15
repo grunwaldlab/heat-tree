@@ -20,6 +20,11 @@ export function createToolbar(
   let currentTab = null;
   let selectedMetadata = null; // Track which metadata table is "selected" for future controls
 
+  // Store references to buttons that need to be updated dynamically
+  let expandSubtreesBtn = null;
+  let expandRootBtn = null;
+  let currentTreeStateSubscription = null;
+
   // Create tabs container
   const tabsContainer = document.createElement('div');
   tabsContainer.className = 'ht-tabs';
@@ -86,6 +91,28 @@ export function createToolbar(
     selectedMetadata = metadataNames.length > 0 ? metadataNames[0] : null;
   }
 
+  // Function to update expand button states
+  function updateExpandButtonStates() {
+    const treeState = getCurrentTreeState();
+    if (!treeState) return;
+
+    // Update expand subtrees button
+    if (expandSubtreesBtn) {
+      let hasCollapsedSubtrees = false;
+      treeState.displayedRoot.each(node => {
+        if (node !== treeState.displayedRoot && node.collapsedChildren) {
+          hasCollapsedSubtrees = true;
+        }
+      });
+      expandSubtreesBtn.disabled = !hasCollapsedSubtrees;
+    }
+
+    // Update expand root button
+    if (expandRootBtn) {
+      expandRootBtn.disabled = !treeState.displayedRoot.collapsedParent;
+    }
+  }
+
   // Function to open a tab
   function openTab(tabId) {
     // Update current tab
@@ -141,7 +168,16 @@ export function createToolbar(
         );
         break;
       case 'tree-manipulation':
-        populateTreeManipulationControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
+        populateTreeManipulationControls(
+          controlsContainer,
+          getCurrentTreeState,
+          refreshCurrentTab,
+          updateExpandButtonStates,
+          options,
+          CONTROL_HEIGHT,
+          (btn) => { expandSubtreesBtn = btn; },
+          (btn) => { expandRootBtn = btn; }
+        );
         break;
       case 'tip-label-settings':
         populateTipLabelSettingsControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
@@ -155,6 +191,23 @@ export function createToolbar(
   // Function to refresh the current tab (used when tree changes)
   function refreshCurrentTab() {
     resetSelectedMetadata();
+
+    // Unsubscribe from previous tree state
+    if (currentTreeStateSubscription) {
+      currentTreeStateSubscription();
+      currentTreeStateSubscription = null;
+    }
+
+    // Reset button references when switching trees
+    expandSubtreesBtn = null;
+    expandRootBtn = null;
+
+    // Subscribe to coordinate changes in the new tree state
+    const treeState = getCurrentTreeState();
+    if (treeState) {
+      currentTreeStateSubscription = treeState.subscribe('coordinateChange', updateExpandButtonStates);
+    }
+
     if (currentTab) {
       populateControls(currentTab);
     }
@@ -378,7 +431,16 @@ function populateDataControls(
 /**
  * Populate Tree Manipulation tab controls
  */
-function populateTreeManipulationControls(container, getCurrentTreeState, options, controlHeight) {
+function populateTreeManipulationControls(
+  container,
+  getCurrentTreeState,
+  refreshCurrentTab,
+  updateExpandButtonStates,
+  options,
+  controlHeight,
+  setExpandSubtreesBtn,
+  setExpandRootBtn
+) {
   container.innerHTML = '';
 
   const treeState = getCurrentTreeState();
@@ -389,10 +451,77 @@ function populateTreeManipulationControls(container, getCurrentTreeState, option
 
   // Expand subtrees button
   const expandSubtreesBtn = createButton('Expand subtrees', 'Expand all collapsed subtrees', controlHeight);
+
+  // Check if there are any collapsed subtrees (excluding root)
+  const hasCollapsedSubtrees = () => {
+    let foundCollapsed = false;
+
+    treeState.displayedRoot.each(node => {
+      if (node !== treeState.displayedRoot && node.collapsedChildren) {
+        foundCollapsed = true;
+      }
+    });
+
+    return foundCollapsed;
+  };
+
+  // Set initial disabled state
+  expandSubtreesBtn.disabled = !hasCollapsedSubtrees();
+
+  expandSubtreesBtn.addEventListener('click', () => {
+    const nodesToExpand = [];
+
+    // Find all currently visible collapsed nodes (excluding root)
+    treeState.displayedRoot.each(node => {
+      if (node !== treeState.displayedRoot && node.collapsedChildren) {
+        // Check if this node is visible (i.e., none of its ancestors are collapsed)
+        let isVisible = true;
+        let ancestor = node.parent;
+        while (ancestor && ancestor !== treeState.displayedRoot) {
+          if (ancestor.collapsedChildren) {
+            isVisible = false;
+            break;
+          }
+          ancestor = ancestor.parent;
+        }
+
+        if (isVisible) {
+          nodesToExpand.push(node);
+        }
+      }
+    });
+
+    // Expand all visible collapsed nodes
+    nodesToExpand.forEach(node => {
+      treeState.expandSubtree(node);
+    });
+
+    // Update button states immediately
+    updateExpandButtonStates();
+  });
+
+  // Store reference to button
+  setExpandSubtreesBtn(expandSubtreesBtn);
+
   container.appendChild(expandSubtreesBtn);
 
   // Expand root button
   const expandRootBtn = createButton('Expand root', 'Expand the collapsed root', controlHeight);
+
+  // Set initial disabled state based on whether root is collapsed
+  expandRootBtn.disabled = !treeState.displayedRoot.collapsedParent;
+
+  expandRootBtn.addEventListener('click', () => {
+    if (treeState.displayedRoot.collapsedParent) {
+      treeState.expandRoot();
+      // Update button states immediately
+      updateExpandButtonStates();
+    }
+  });
+
+  // Store reference to button
+  setExpandRootBtn(expandRootBtn);
+
   container.appendChild(expandRootBtn);
 
   // Scale branch length
