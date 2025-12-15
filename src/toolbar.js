@@ -528,7 +528,32 @@ function populateTreeManipulationControls(
   const branchLengthLabel = createLabel('Scale branch length:', controlHeight);
   container.appendChild(branchLengthLabel);
 
-  const branchLengthSlider = createSlider(0, 2, 1, 0.1, controlHeight);
+  // Convert actual scale value to slider position (logarithmic)
+  // Range: 0.01 to 100, with 1 at center (50%)
+  // log(0.01) = -2, log(1) = 0, log(100) = 2
+  const scaleToSlider = (scale) => {
+    const logMin = Math.log10(0.01); // -2
+    const logMax = Math.log10(100);  // 2
+    const logScale = Math.log10(scale);
+    return ((logScale - logMin) / (logMax - logMin)) * 100;
+  };
+
+  // Convert slider position to actual scale value (logarithmic)
+  const sliderToScale = (sliderValue) => {
+    const logMin = Math.log10(0.01); // -2
+    const logMax = Math.log10(100);  // 2
+    const logScale = logMin + (sliderValue / 100) * (logMax - logMin);
+    return Math.pow(10, logScale);
+  };
+
+  const branchLengthSlider = createSlider(0, 100, scaleToSlider(treeState.state.branchLengthScale), 0.1, controlHeight);
+  
+  branchLengthSlider.addEventListener('input', (e) => {
+    const sliderValue = parseFloat(e.target.value);
+    const scale = sliderToScale(sliderValue);
+    treeState.setBranchLengthScale(scale);
+  });
+  
   container.appendChild(branchLengthSlider);
 
   // Scale tree height

@@ -62,6 +62,7 @@ export class TreeState extends Subscribable {
     minBranchThicknessPx: 1,
     minBranchLenProp: 0.5,
     collapsedRootLineProp: 0.04,
+    branchLengthScale: 1,
   }
 
   textSizeEstimator;
@@ -121,6 +122,17 @@ export class TreeState extends Subscribable {
       this.update();
       this.notify('layoutChange', { layout });
     }
+  }
+
+  setBranchLengthScale(scale) {
+    if (scale < 0.01 || scale > 100) {
+      console.warn(`Branch length scale out of range: ${scale}`);
+      return;
+    }
+
+    this.state.branchLengthScale = scale;
+    this.updateCoordinates();
+    this.notify('branchLengthScaleChange', { scale });
   }
 
   setAesthetics(values, force = false) {
@@ -323,7 +335,7 @@ export class TreeState extends Subscribable {
       scalingFactors = calculateScalingFactors(this.displayedRoot, this.state);
     }
 
-    this.branchLenToPxFactor = scalingFactors.branchLenToPxFactor_max;
+    this.branchLenToPxFactor = scalingFactors.branchLenToPxFactor_max * this.state.branchLengthScale;
     this.labelSizeToPxFactor = scalingFactors.labelSizeToPxFactor_min;
 
     // Calculate pixel coordinates and sizes based on scaling factors
