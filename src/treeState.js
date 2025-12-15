@@ -63,6 +63,7 @@ export class TreeState extends Subscribable {
     minBranchLenProp: 0.5,
     collapsedRootLineProp: 0.04,
     branchLengthScale: 1,
+    treeHeightScale: 1,
   }
 
   textSizeEstimator;
@@ -133,6 +134,17 @@ export class TreeState extends Subscribable {
     this.state.branchLengthScale = scale;
     this.updateCoordinates();
     this.notify('branchLengthScaleChange', { scale });
+  }
+
+  setTreeHeightScale(scale) {
+    if (scale < 0.1 || scale > 10) {
+      console.warn(`Tree height scale out of range: ${scale}`);
+      return;
+    }
+
+    this.state.treeHeightScale = scale;
+    this.updateCoordinates();
+    this.notify('treeHeightScaleChange', { scale });
   }
 
   setAesthetics(values, force = false) {
@@ -366,7 +378,7 @@ export class TreeState extends Subscribable {
     } else {
       this.displayedRoot.each(d => {
         d.xPx = d.x * this.branchLenToPxFactor;
-        d.yPx = d.y * this.displayedRoot.leaves().length * this.labelSizeToPxFactor * (1 + this.state.labelSpacing);
+        d.yPx = d.y * this.displayedRoot.leaves().length * this.labelSizeToPxFactor * (1 + this.state.labelSpacing) * this.state.treeHeightScale;
       });
     }
 

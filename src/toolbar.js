@@ -525,7 +525,7 @@ function populateTreeManipulationControls(
   container.appendChild(expandRootBtn);
 
   // Scale branch length
-  const branchLengthLabel = createLabel('Scale branch length:', controlHeight);
+  const branchLengthLabel = createLabel('Branch length:', controlHeight);
   container.appendChild(branchLengthLabel);
 
   // Convert actual scale value to slider position (logarithmic)
@@ -547,20 +547,45 @@ function populateTreeManipulationControls(
   };
 
   const branchLengthSlider = createSlider(0, 100, scaleToSlider(treeState.state.branchLengthScale), 0.1, controlHeight);
-  
+
   branchLengthSlider.addEventListener('input', (e) => {
     const sliderValue = parseFloat(e.target.value);
     const scale = sliderToScale(sliderValue);
     treeState.setBranchLengthScale(scale);
   });
-  
+
   container.appendChild(branchLengthSlider);
 
   // Scale tree height
-  const treeHeightLabel = createLabel('Scale tree height:', controlHeight);
+  const treeHeightLabel = createLabel('Tree height:', controlHeight);
   container.appendChild(treeHeightLabel);
 
-  const treeHeightSlider = createSlider(0, 2, 1, 0.1, controlHeight);
+  // Convert actual scale value to slider position (logarithmic)
+  // Range: 0.1 to 10, with 1 at center (50%)
+  // log(0.1) = -1, log(1) = 0, log(10) = 1
+  const heightScaleToSlider = (scale) => {
+    const logMin = Math.log10(0.1);  // -1
+    const logMax = Math.log10(10);   // 1
+    const logScale = Math.log10(scale);
+    return ((logScale - logMin) / (logMax - logMin)) * 100;
+  };
+
+  // Convert slider position to actual scale value (logarithmic)
+  const heightSliderToScale = (sliderValue) => {
+    const logMin = Math.log10(0.1);  // -1
+    const logMax = Math.log10(10);   // 1
+    const logScale = logMin + (sliderValue / 100) * (logMax - logMin);
+    return Math.pow(10, logScale);
+  };
+
+  const treeHeightSlider = createSlider(0, 100, heightScaleToSlider(treeState.state.treeHeightScale), 0.1, controlHeight);
+
+  treeHeightSlider.addEventListener('input', (e) => {
+    const sliderValue = parseFloat(e.target.value);
+    const scale = heightSliderToScale(sliderValue);
+    treeState.setTreeHeightScale(scale);
+  });
+
   container.appendChild(treeHeightSlider);
 
   // Radial layout toggle
