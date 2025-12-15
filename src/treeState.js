@@ -26,7 +26,6 @@ export class TreeState extends Subscribable {
       scaleType: 'text',
       downstream: ['updateCoordinates'],
       default: 'sans-serif'
-
     },
     tipLabelStyle: {
       scaleType: 'text',

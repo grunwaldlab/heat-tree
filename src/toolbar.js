@@ -730,14 +730,33 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   tipLabelFontSelect.style.height = `${controlHeight}px`;
 
   const fonts = ['sans-serif', 'serif', 'monospace', 'Arial', 'Times New Roman', 'Courier New'];
+  
+  // Get current font value - check if it's set via aesthetic or use default
+  const currentFont = treeState.state.aesthetics.tipLabelFont !== undefined 
+    ? treeState.aestheticsScales.tipLabelFont.getValue()
+    : 'sans-serif';
+
   fonts.forEach(font => {
     const option = document.createElement('option');
     option.value = font;
     option.textContent = font;
-    if (font === treeState.state.aesthetics.tipLabelFont || (font === 'sans-serif' && !treeState.state.aesthetics.tipLabelFont)) {
+    if (font === currentFont) {
       option.selected = true;
     }
     tipLabelFontSelect.appendChild(option);
+  });
+
+  // Handle font selection change
+  tipLabelFontSelect.addEventListener('change', (e) => {
+    const selectedFont = e.target.value;
+    // Set the font as a direct value (not from metadata)
+    treeState.setAesthetics({ tipLabelFont: undefined });
+    // Then update all nodes to use this font
+    treeState.state.treeData.tree.each(d => {
+      d.tipLabelFont = selectedFont;
+    });
+    // Trigger coordinate update since font affects text size
+    treeState.updateCoordinates();
   });
 
   container.appendChild(tipLabelFontSelect);
@@ -799,7 +818,7 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
     let columnId;
     if (e.target.value === 'none') {
       // Special handling for "None" - set aesthetic to null to disable it
-      columnId = null;
+      columnId =null;
     } else if (e.target.value === '') {
       // Empty string means use default behavior
       columnId = undefined;
