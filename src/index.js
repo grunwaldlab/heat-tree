@@ -127,6 +127,29 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
   let refreshToolbar = null;
 
   /**
+   * Add a new tree to the visualization
+   * @param {string} treeName - Name for the new tree
+   * @param {string} newickStr - Newick string for the tree
+   * @param {Array} metadataTables - Optional array of metadata table strings
+   * @param {Array} metadataNames - Optional array of metadata table names
+   */
+  function addNewTree(treeName, newickStr, metadataTables = [], metadataNames = []) {
+    // Ensure unique name
+    let uniqueName = treeName;
+    let counter = 1;
+    while (treeDataInstances.has(uniqueName)) {
+      uniqueName = `${treeName} (${counter})`;
+      counter++;
+    }
+
+    // Create new TreeData instance
+    const treeData = new TreeData(newickStr, metadataTables, metadataNames);
+    treeDataInstances.set(uniqueName, treeData);
+
+    return uniqueName;
+  }
+
+  /**
    * Switch to a different tree
    * @param {string} treeName - Name of the tree to switch to
    */
@@ -191,6 +214,7 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     treeDataInstances,
     () => currentTreeState,
     switchToTree,
+    addNewTree,
     options
   );
 
@@ -207,6 +231,7 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     getCurrentTreeView: () => currentTreeView,
     getCurrentTreeName: () => currentTreeName,
     switchToTree,
+    addNewTree,
     container: widgetDiv
   };
 }

@@ -4,6 +4,7 @@
  * @param {Map} treeDataInstances - Map of tree names to TreeData instances
  * @param {Function} getCurrentTreeState - Function that returns the current TreeState
  * @param {Function} switchToTree - Function to switch to a different tree
+ * @param {Function} addNewTree - Function to add a new tree
  * @param {Object} options - Configuration options
  * @returns {Function} Function to refresh the current tab's controls
  */
@@ -12,6 +13,7 @@ export function createToolbar(
   treeDataInstances,
   getCurrentTreeState,
   switchToTree,
+  addNewTree,
   options
 ) {
   const CONTROL_HEIGHT = 24; // Standard height for all controls
@@ -128,10 +130,12 @@ export function createToolbar(
           treeDataInstances,
           getCurrentTreeState,
           switchToTree,
+          addNewTree,
           getCurrentMetadataNames,
           getSelectedMetadata,
           setSelectedMetadata,
           resetSelectedMetadata,
+          refreshCurrentTab,
           options,
           CONTROL_HEIGHT
         );
@@ -178,10 +182,12 @@ function populateDataControls(
   treeDataInstances,
   getCurrentTreeState,
   switchToTree,
+  addNewTree,
   getCurrentMetadataNames,
   getSelectedMetadata,
   setSelectedMetadata,
   resetSelectedMetadata,
+  refreshCurrentTab,
   options,
   controlHeight
 ) {
@@ -217,7 +223,54 @@ function populateDataControls(
 
   container.appendChild(treeSelect);
 
+  // Create hidden file input for tree upload
+  const treeFileInput = document.createElement('input');
+  treeFileInput.type = 'file';
+  treeFileInput.accept = '.nwk,.newick,.tree,.tre,.treefile';
+  treeFileInput.style.display = 'none';
+
+  // Handle file selection
+  treeFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const newickStr = await file.text();
+
+      // Derive tree name from filename (remove extension)
+      let treeName = file.name.replace(/\.(nwk|newick|tree|tre)$/i, '');
+
+      // Ensure unique name
+      let uniqueName = treeName;
+      let counter = 1;
+      while (treeDataInstances.has(uniqueName)) {
+        uniqueName = `${treeName} (${counter})`;
+        counter++;
+      }
+
+      // Add the new tree
+      addNewTree(uniqueName, newickStr);
+
+      // Reset the file input so the same file can be selected again
+      treeFileInput.value = '';
+
+      // Refresh the controls to show the new tree
+      refreshCurrentTab();
+
+      // Switch to the newly added tree
+      switchToTree(uniqueName);
+    } catch (error) {
+      console.error('Error loading tree file:', error);
+      alert(`Error loading tree file: ${error.message}`);
+    }
+  });
+
+  container.appendChild(treeFileInput);
+
   const addTreeBtn = createButton('+', 'Add tree from Newick file', controlHeight);
+  addTreeBtn.addEventListener('click', () => {
+    treeFileInput.click();
+  });
   container.appendChild(addTreeBtn);
 
   // Select metadata control
@@ -257,7 +310,68 @@ function populateDataControls(
 
   container.appendChild(metadataSelect);
 
+  // Create hidden file input for metadata upload
+  const metadataFileInput = document.createElement('input');
+  metadataFileInput.type = 'file';
+  metadataFileInput.accept = '.tsv,.csv,.txt';
+  metadataFileInput.style.display = 'none';
+
+  // Handle metadata file selection
+  metadataFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const treeState = getCurrentTreeState();
+    if (!treeState || !treeState.state.treeData) {
+      alert('No tree selected. Please select a tree first.');
+      metadataFileInput.value = '';
+      return;
+    }
+
+    try {
+      const metadataStr = await file.text();
+
+      // Derive metadata table name from filename (remove extension)
+      let metadataName = file.name.replace(/\.(tsv|csv|txt)$/i, '');
+
+      // Determine separator based on file extension
+      let separator = '\t'; // default to tab
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        separator = ',';
+      }
+
+      // Add the metadata table to the current tree
+      const tableId = treeState.state.treeData.addTable(metadataStr, metadataName, separator);
+
+      // Get the display name that was actually used (might be modified for uniqueness)
+      const actualName = treeState.state.treeData.metadataTableNames.get(tableId);
+
+      // Reset the file input so the same file can be selected again
+      metadataFileInput.value = '';
+
+      // Set this as the selected metadata
+      setSelectedMetadata(actualName);
+
+      // Refresh the controls to show the new metadata table
+      refreshCurrentTab();
+    } catch (error) {
+      console.error('Error loading metadata file:', error);
+      alert(`Error loading metadata file: ${error.message}`);
+      metadataFileInput.value = '';
+    }
+  });
+
+  container.appendChild(metadataFileInput);
+
   const addMetadataBtn = createButton('+', 'Add metadata table', controlHeight);
+  addMetadataBtn.addEventListener('click', () => {
+    const treeState = getCurrentTreeState();
+    if (!treeState || !treeState.state.treeData) {
+      alert('No tree selected. Please select a tree first.');
+      return;
+    }
+    metadataFileInput.click();
+  });
   container.appendChild(addMetadataBtn);
 }
 
