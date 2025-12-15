@@ -234,7 +234,7 @@ function populateDataControls(
 
   if (metadataNames.length === 0) {
     const option = document.createElement('option');
-    option.textContent =  'No metadata';
+    option.textContent = 'No metadata';
     option.value = '';
     metadataSelect.appendChild(option);
     metadataSelect.disabled = true;
@@ -301,7 +301,7 @@ function populateTreeManipulationControls(container, getCurrentTreeState, option
 
   const isCircular = treeState.state.layout === 'circular';
   const radialLayoutToggle = createToggle(isCircular, controlHeight);
-  
+
   // Update toggle state based on layout changes
   const updateToggleState = () => {
     const currentLayout = treeState.state.layout;
@@ -311,16 +311,16 @@ function populateTreeManipulationControls(container, getCurrentTreeState, option
       radialLayoutToggle.classList.remove('active');
     }
   };
-  
+
   // Subscribe to layout changes
   treeState.subscribe('layoutChange', updateToggleState);
-  
+
   // Handle click - switch layout based on current state
   radialLayoutToggle.addEventListener('click', () => {
     const currentLayout = treeState.state.layout;
     treeState.setLayout(currentLayout === 'circular' ? 'rectangular' : 'circular');
   });
-  
+
   container.appendChild(radialLayoutToggle);
 }
 
@@ -336,15 +336,8 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     return;
   }
 
-  // Enable tip labels toggle
-  const enableTipLabelsLabel = createLabel('Enable tip labels:', controlHeight);
-  container.appendChild(enableTipLabelsLabel);
-
-  const enableTipLabelsToggle = createToggle(true, controlHeight);
-  container.appendChild(enableTipLabelsToggle);
-
   // Tip label text
-  const tipLabelTextLabel = createLabel('Tip label text:', controlHeight);
+  const tipLabelTextLabel = createLabel('Text:', controlHeight);
   container.appendChild(tipLabelTextLabel);
 
   const tipLabelTextContainer = document.createElement('div');
@@ -354,8 +347,9 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelTextSelect = createMetadataColumnSelect(
     treeState,
     'tipLabelText',
-    'Node IDs',
-    controlHeight
+    'Default',
+    controlHeight,
+    true
   );
   tipLabelTextContainer.appendChild(tipLabelTextSelect);
 
@@ -367,7 +361,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   container.appendChild(tipLabelTextContainer);
 
   // Tip label color
-  const tipLabelColorLabel = createLabel('Tip label color:', controlHeight);
+  const tipLabelColorLabel = createLabel('Color:', controlHeight);
   container.appendChild(tipLabelColorLabel);
 
   const tipLabelColorContainer = document.createElement('div');
@@ -377,8 +371,9 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelColorSelect = createMetadataColumnSelect(
     treeState,
     'tipLabelColor',
-    'None',
-    controlHeight
+    'Default',
+    controlHeight,
+    false
   );
   tipLabelColorContainer.appendChild(tipLabelColorSelect);
 
@@ -390,7 +385,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   container.appendChild(tipLabelColorContainer);
 
   // Tip label size
-  const tipLabelSizeLabel = createLabel('Tip label size:', controlHeight);
+  const tipLabelSizeLabel = createLabel('Size:', controlHeight);
   container.appendChild(tipLabelSizeLabel);
 
   const tipLabelSizeContainer = document.createElement('div');
@@ -400,8 +395,9 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelSizeSelect = createMetadataColumnSelect(
     treeState,
     'tipLabelSize',
-    'None',
-    controlHeight
+    'Default',
+    controlHeight,
+    false
   );
   tipLabelSizeContainer.appendChild(tipLabelSizeSelect);
 
@@ -413,7 +409,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   container.appendChild(tipLabelSizeContainer);
 
   // Tip label style
-  const tipLabelStyleLabel = createLabel('Tip label style:', controlHeight);
+  const tipLabelStyleLabel = createLabel('Style:', controlHeight);
   container.appendChild(tipLabelStyleLabel);
 
   const tipLabelStyleContainer = document.createElement('div');
@@ -423,8 +419,9 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelStyleSelect = createMetadataColumnSelect(
     treeState,
     'tipLabelStyle',
-    'None',
-    controlHeight
+    'Default',
+    controlHeight,
+    false
   );
   tipLabelStyleContainer.appendChild(tipLabelStyleSelect);
 
@@ -436,7 +433,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   container.appendChild(tipLabelStyleContainer);
 
   // Tip label font
-  const tipLabelFontLabel = createLabel('Tip label font:', controlHeight);
+  const tipLabelFontLabel = createLabel('Font:', controlHeight);
   container.appendChild(tipLabelFontLabel);
 
   const tipLabelFontSelect = document.createElement('select');
@@ -460,11 +457,19 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
 /**
  * Create a metadata column select dropdown
  */
-function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight) {
+function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight, includeNone = false) {
   const select = document.createElement('select');
   select.className = 'ht-select';
   select.style.height = `${controlHeight}px`;
   select.style.flex = '1';
+
+  // Add "None" option if requested (for disabling the aesthetic)
+  if (includeNone) {
+    const noneOption = document.createElement('option');
+    noneOption.value = 'none';
+    noneOption.textContent = 'None';
+    select.appendChild(noneOption);
+  }
 
   // Add default option
   const defaultOption = document.createElement('option');
@@ -481,18 +486,37 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
     const option = document.createElement('option');
     option.value = columnId;
     option.textContent = treeData.columnDisplayName.get(columnId);
-    
+
     // Check if this column is currently selected for this aesthetic
     if (treeState.state.aesthetics[aesthetic] === columnId) {
       option.selected = true;
     }
-    
+
     select.appendChild(option);
   });
 
+  // Set the selected option based on current aesthetic value
+  const currentValue = treeState.state.aesthetics[aesthetic];
+  if (currentValue === null) {
+    select.value = 'none';
+  } else if (currentValue === undefined || currentValue === '') {
+    select.value = '';
+  } else {
+    select.value = currentValue;
+  }
+
   // Handle selection change
   select.addEventListener('change', (e) => {
-    const columnId = e.target.value || null;
+    let columnId;
+    if (e.target.value === 'none') {
+      // Special handling for "None" - set aesthetic to null to disable it
+      columnId = null;
+    } else if (e.target.value === '') {
+      // Empty string means use default behavior
+      columnId = undefined;
+    } else {
+      columnId = e.target.value;
+    }
     const aestheticUpdate = {};
     aestheticUpdate[aesthetic] = columnId;
     treeState.setAesthetics(aestheticUpdate);

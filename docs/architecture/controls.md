@@ -48,8 +48,7 @@ Controls are grouped into tabs like so:
 
 Each dropdown element in the controls in this section have a button to the right of the option that modifies the associated scale settings.
 
-- **Enable tip labels**: Toggle button to enable tip labels
-- **Tip label text**: Dropdown to select metadata column to derive tip label text from. Defaults to node IDs.
+- **Tip label text**: Dropdown to select metadata column to derive tip label text from. Includes a "none" option to disable tip labels. Defaults to node IDs.
 - **Tip label color**: Dropdown to select metadata column to derive tip label color from
 - **Tip label size**: Dropdown to select metadata column to derive tip label size from
 - **Tip label style**: Dropdown to select metadata column to derive tip label style (bold, italic, etc) from

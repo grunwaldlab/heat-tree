@@ -48,7 +48,7 @@ export class TreeState extends Subscribable {
   state = {
     treeData: null,
     layout: 'rectangular',
-    aesthetics: Object.fromEntries(Object.keys(this.#AESTHETICS).map(key => [key, null])),
+    aesthetics: Object.fromEntries(Object.keys(this.#AESTHETICS).map(key => [key, undefined])),
     viewWidth: 800,
     viewHeight: 600,
     labelSpacing: 0.1,
@@ -99,7 +99,7 @@ export class TreeState extends Subscribable {
       this.#initalize();
     })
     this.state.treeData.subscribe('metadataRemoved', (info) => {
-      this.setAesthetics(Object.fromEntries(info.columnIds.map(key => [key, null])));
+      this.setAesthetics(Object.fromEntries(info.columnIds.map(key => [key, undefined])));
     })
   }
 
@@ -127,12 +127,12 @@ export class TreeState extends Subscribable {
     const downstreams = new Set();
     for (const [aesthetic, columnId] of Object.entries(values)) {
       const aesData = this.#AESTHETICS[aesthetic];
-      if (force || columnId != this.state.aesthetics[aesthetic]) {
+      if (force || columnId !== this.state.aesthetics[aesthetic]) {
         // Record the name of the defined aestheric
         this.state.aesthetics[aesthetic] = columnId;
 
         // Update the scale for the aesthetic
-        if (columnId === null) {
+        if (!columnId) {
           this.aestheticsScales[aesthetic] = new NullScale(aesData.default);
         } else {
           this.aestheticsScales[aesthetic] = this.state.treeData.getScale(columnId, aesData.scaleType);
@@ -140,7 +140,7 @@ export class TreeState extends Subscribable {
 
         // Update the tree data directly modified by the aesthetic
         this.state.treeData.tree.each(d => {
-          if (columnId) {
+          if (columnId && columnId !== null && columnId !== undefined) {
             if (d.metadata && d.metadata[columnId]) {
               d[aesthetic] = this.aestheticsScales[aesthetic].getValue(d.metadata[columnId]);
             } else {
@@ -228,9 +228,14 @@ export class TreeState extends Subscribable {
 
   updateTipLabelText() {
     this.state.treeData.tree.each(d => {
-      if ((d.children || d.collapsedChildren) && (this.state.aesthetics.tipLabelText === null || !d.tipLabelText)) {
+      // If tipLabelText aesthetic is set to null (None), don't show any labels
+      if (this.state.aesthetics.tipLabelText === null) {
+        d.tipLabelText = '';
+      } else if ((d.children || d.collapsedChildren) && (this.state.aesthetics.tipLabelText === undefined || !d.tipLabelText)) {
+        // For internal nodes with default or no aesthetic set
         d.tipLabelText = `Clade with ${d.leafCount} tips`;
       } else if (!d.tipLabelText) {
+        // For leaf nodes with no label set
         d.tipLabelText = d.data.name || '';
       }
     })
@@ -326,14 +331,14 @@ export class TreeState extends Subscribable {
       d.branchLenPx = d.branchLen * this.branchLenToPxFactor;
       d.tipLabelSizePx = d.tipLabelSize * this.labelSizeToPxFactor;
       d.nodeLabelSizePx = d.nodeLabelSize * this.labelSizeToPxFactor * this.state.nodeLabelSizeScale;
-      
+
       // Calculate tip label offset, incorporating collapsed triangle if present
       let tipLabelXOffset = d.tipLabelSizePx * this.state.nodeLabelOffset;
       if (d.collapsedChildren) {
         tipLabelXOffset += this.getCollapsedTriangleOffset(d) * 1.3;
       }
       d.tipLabelXOffsetPx = tipLabelXOffset;
-      
+
       d.nodeLabelXOffsetPx = d.nodeLabelSizePx * this.state.nodeLabelOffset;
       d.tipLabelYOffsetPx = d.tipLabelSizePx * d.tipLabelBounds.height / 2;
       d.nodeLabelYOffsetPx = d.nodeLabelSizePx * d.nodeLabelBounds.height / 2;
