@@ -641,7 +641,8 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     'tipLabelText',
     'Default',
     controlHeight,
-    true
+    true,
+    false
   );
   tipLabelTextContainer.appendChild(tipLabelTextSelect);
 
@@ -664,6 +665,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     'tipLabelColor',
     'Default',
     controlHeight,
+    false,
     false
   );
   tipLabelColorContainer.appendChild(tipLabelColorSelect);
@@ -687,7 +689,8 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     'tipLabelSize',
     'Default',
     controlHeight,
-    false
+    false,
+    true
   );
   tipLabelSizeContainer.appendChild(tipLabelSizeSelect);
 
@@ -782,7 +785,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
 /**
  * Create a metadata column select dropdown
  */
-function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight, includeNone = false) {
+function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight, includeNone = false, onlyContinuous = false) {
   const select = document.createElement('select');
   select.className = 'ht-select';
   select.style.height = `${controlHeight}px`;
@@ -806,8 +809,13 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
   const treeData = treeState.state.treeData;
   const columnIds = Array.from(treeData.columnDisplayName.keys());
 
+  // Filter columns if onlyContinuous is true
+  const filteredColumnIds = onlyContinuous
+    ? columnIds.filter(columnId => treeData.columnType.get(columnId) === 'continuous')
+    : columnIds;
+
   // Add options for each metadata column
-  columnIds.forEach(columnId => {
+  filteredColumnIds.forEach(columnId => {
     const option = document.createElement('option');
     option.value = columnId;
     option.textContent = treeData.columnDisplayName.get(columnId);

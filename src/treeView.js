@@ -1,7 +1,7 @@
 import { select, symbol, symbolTriangle, zoom, zoomIdentity } from 'd3';
 import { triangleAreaFromSide, calculateTreeBounds, createDashArray } from './utils.js';
 import { appendIcon } from './icons.js';
-import { TextSizeLegend } from './legends.js';
+import { TextSizeLegend, BranchLengthLegend } from './legends.js';
 
 export class TreeView {
   constructor(treeState, svgContainer, options = {}) {
@@ -400,6 +400,22 @@ export class TreeView {
     let currentX = treeBounds.minX;
     let currentY = treeBounds.maxY + this.options.legendSpacing;
 
+    // Always add branch length legend first
+    const branchLengthLegend = new BranchLengthLegend({
+      branchLenToPxFactor: this.treeState.branchLenToPxFactor,
+      x: currentX,
+      y: currentY,
+      origin: 'top left',
+      maxX: treeBounds.maxX,
+      maxY: Infinity
+    });
+
+    branchLengthLegend.render(this.layers.legendLayer);
+    this.legendInstances.push(branchLengthLegend);
+
+    // Update position for next legend
+    currentY += branchLengthLegend.coordinates.height + this.options.legendSpacing;
+
     // Process each legend from TreeState
     for (const legendData of this.treeState.legends) {
       let legend;
@@ -746,7 +762,7 @@ export class TreeView {
     const branchWidth = this.treeState.labelSizeToPxFactor * this.treeState.state.branchThicknessProp;
     const collapsedRootLineLength = this.#getCollapsedRootLineLength();
 
-    // Update hit areas for subtree selection
+    // Update hit areas for subt ree selection
     const hits = this.layers.hitLayer.selectAll('.hit')
       .data(root.descendants().filter(d => d.children), d => d.id);
 
