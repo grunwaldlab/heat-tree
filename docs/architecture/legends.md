@@ -40,25 +40,27 @@ This state data is used to infer the following:
 ## Legends
 
 There are different types of legends, many corresponding to the different scale types.
-Each legend keeps track of the following state:
+The legends classes: 
 
-- An instance of the `Aesthetic` class
-- A x,y position to print the legend
-- Which corner of the legend corresponds to the x,y position
-- The maximum width/height available to print the legend
-
-This is used to:
-
-- Inferr the dimensions of the legend
+- Create an object with coordinates used to arrange legend elements
+- Infer the dimensions of the legend based on above object
 - Draw the legend in an SVG element at the specified place
 - Handle changes to location 
 
-All legend types have their title above them, aligned right and underlined.
-
 All legend classes extend the `LegendBase` class and implement the following methods:
 
-- `render`: 
-- `changePostion`:
+- `render`: Creates legend DOM in specificed SVG.
+- `updateCoordinates`: calculates the size and location of legend elements and store in object `this.coordinates`
+- `updatePostion`: moves rendered legend DOM (`g` groups in SVG)
+
+and have the following in `this.state`:
+
+- `aesthetic`: An instance of the Aesthetic class
+- `x` and `y`: position to print the legend
+- `origin`: Which corner of the legend corresponds to the x,y position. One of "top left", "top right", "bottom left", "bottom right"
+- `maxX` and `maxY`: The maximum width/height available to print the legend 
+
+All legend types have their title above them, aligned right and underlined.
 
 ### `TextStyleLegend`
 
@@ -77,16 +79,16 @@ Below are ticks with examples of numeric input value corresponding to the letter
 Sizes shown are chosen such that the numeric values have limited significant figures and are mostly evenly spaced.
 Centered below the numbers is the units of the numeric inputs.
 
-### `CategoricalTextColorLegend`
+### `TextColorLegend`
 
-Shows how categorical input values map to text color in labels.
+Shows how categorical or continuous input values map to text color in labels.
+
+For categorical:
 
 Visually consists of a series of colored squares followed by labels of the input text value.
 These are continued on new rows as needed to avoid extending past the maximum width.
 
-### `ContinuousTextColorLegend`
-
-Shows how numeric input values map to text color in labels.
+For continuous:
 
 Visually consists of a series of colored letters above a short rectangular gradient/
 Below are ticks with examples of numeric input value corresponding to the letter color.
