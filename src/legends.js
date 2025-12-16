@@ -75,7 +75,7 @@ export class LegendBase {
       .attr("class", "legend-title")
       .attr("x", 0)
       .attr("y", 0)
-      .attr("text-anchor", "end")
+      .attr("text-anchor", "start")
       .style("font-size", "14px")
       .style("font-weight", "bold")
       .style("text-decoration", "underline")
@@ -135,8 +135,8 @@ export class TextSizeLegend extends LegendBase {
       width,
       height,
       title: {
-        x: width,
-        y: 0,
+        x: 0,
+        y: titleHeight,
         text: title
       },
       letters: [],
@@ -145,7 +145,7 @@ export class TextSizeLegend extends LegendBase {
       labels: [],
       units: {
         x: width / 2,
-        y: height - 5,
+        y: height - unitsHeight + verticalSpacing,
         text: this.state.aesthetic.state.inputUnits || ""
       }
     };
@@ -157,6 +157,7 @@ export class TextSizeLegend extends LegendBase {
       const x = (i / (ticks.length - 1)) * width;
       const size = minSize + t * (maxSize - minSize);
       const fontSize = this.letterSize * size;
+      console.log(t, size, x, fontSize)
 
       this.coordinates.letters.push({
         x,
@@ -168,15 +169,15 @@ export class TextSizeLegend extends LegendBase {
       // Tick marks
       this.coordinates.ticks.push({
         x1: x,
-        y1: letterY + tickHeight / 2,
+        y1: letterY,
         x2: x,
-        y2: letterY + tickHeight / 2 + tickHeight
+        y2: letterY + tickHeight
       });
 
       // Labels
       this.coordinates.labels.push({
         x,
-        y: letterY + tickHeight + labelHeight,
+        y: letterY + tickHeight,
         text: formatTickLabel(tickValue, ticks)
       });
     });
