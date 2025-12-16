@@ -2,6 +2,267 @@ import { niceNumber, columnToHeader, generateNiceTicks, formatTickLabel, interpo
 import { interpolateViridis } from "d3";
 
 /**
+ * Base class for all legend types
+ * Manages common legend functionality like positioning and rendering
+ */
+export class LegendBase {
+  constructor(options = {}) {
+    this.state = {
+      aesthetic: null,
+      x: 0,
+      y: 0,
+      origin: "top left",
+      maxX: Infinity,
+      maxY: Infinity,
+      ...options
+    };
+
+    this.coordinates = {};
+    this.group = null;
+  }
+
+  /**
+   * Render the legend in the specified SVG element
+   * @param {Selection} svg - D3 selection of the SVG element
+   */
+  render(svg) {
+    // Create main group for this legend
+    this.group = svg.append("g")
+      .attr("class", "ht-legend");
+
+    // Update coordinates and position
+    this.updateCoordinates();
+    this.updatePosition();
+  }
+
+  /**
+   * Calculate the size and location of legend elements
+   * Must be implemented by subclasses
+   */
+  updateCoordinates() {
+    throw new Error("updateCoordinates must be implemented by subclass");
+  }
+
+  /**
+   * Update the position of the rendered legend
+   */
+  updatePosition() {
+    if (!this.group) return;
+
+    let translateX = this.state.x;
+    let translateY = this.state.y;
+
+    // Adjust based on origin
+    const { width, height } = this.coordinates;
+
+    if (this.state.origin.includes("right")) {
+      translateX -= width;
+    }
+    if (this.state.origin.includes("bottom")) {
+      translateY -= height;
+    }
+
+    this.group.attr("transform", `translate(${translateX}, ${translateY})`);
+  }
+
+  /**
+   * Render the legend title
+   * @param {string} title - The title text
+   * @returns {Selection} The title text element
+   */
+  renderTitle(title) {
+    const titleText = this.group.append("text")
+      .attr("class", "legend-title")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("text-anchor", "end")
+      .style("font-size", "14px")
+      .style("font-weight", "bold")
+      .style("text-decoration", "underline")
+      .text(title);
+
+    return titleText;
+  }
+}
+
+/**
+ * Legend for text size mappings
+ * Shows how numeric input values map to text size in labels
+ */
+export class TextSizeLegend extends LegendBase {
+  constructor(aesthetic, options = {}) {
+    super(aesthetic, options);
+    this.letterSize = 16; // Base size for the "A" characters
+    this.padding = 10;
+  }
+
+  /**
+   * Calculate the size and location of legend elements
+   */
+  updateCoordinates() {
+    const scale = this.state.aesthetic.scale;
+    const title = this.state.aesthetic.state.title ||
+      columnToHeader(this.state.aesthetic.state.columnName || "Size");
+
+    // Get the data range from the scale
+    const minValue = scale.dataMin;
+    const maxValue = scale.dataMax;
+    const minSize = scale.sizeMin;
+    const maxSize = scale.sizeMax;
+
+    // Generate nice tick values
+    const ticks = generateNiceTicks(minValue, maxValue, 5);
+
+    // Calculate dimensions
+    const titleHeight = 20;
+    const maxLetterHeight = this.letterSize * maxSize;
+    const tickHeight = 5;
+    const labelHeight = 12;
+    const unitsHeight = 14;
+    const verticalSpacing = 5;
+
+    // Calculate width based on number of ticks
+    const letterSpacing = 30;
+    const width = Math.max(ticks.length * letterSpacing, 100);
+
+    // Calculate total height
+    const height = titleHeight + verticalSpacing +
+      maxLetterHeight + tickHeight + labelHeight +
+      verticalSpacing + unitsHeight;
+
+    // Store coordinates for each element
+    this.coordinates = {
+      width,
+      height,
+      title: {
+        x: width,
+        y: 0,
+        text: title
+      },
+      letters: [],
+      polygon: [],
+      ticks: [],
+      labels: [],
+      units: {
+        x: width / 2,
+        y: height - 5,
+        text: this.state.aesthetic.state.inputUnits || ""
+      }
+    };
+
+    // Calculate letter positions and sizes
+    const letterY = titleHeight + verticalSpacing + maxLetterHeight;
+    ticks.forEach((tickValue, i) => {
+      const t = (tickValue - minValue) / (maxValue - minValue);
+      const x = (i / (ticks.length - 1)) * width;
+      const size = minSize + t * (maxSize - minSize);
+      const fontSize = this.letterSize * size;
+
+      this.coordinates.letters.push({
+        x,
+        y: letterY,
+        size: fontSize,
+        value: tickValue
+      });
+
+      // Tick marks
+      this.coordinates.ticks.push({
+        x1: x,
+        y1: letterY + tickHeight / 2,
+        x2: x,
+        y2: letterY + tickHeight / 2 + tickHeight
+      });
+
+      // Labels
+      this.coordinates.labels.push({
+        x,
+        y: letterY + tickHeight + labelHeight,
+        text: formatTickLabel(tickValue, ticks)
+      });
+    });
+
+    // Calculate polygon points (background shape)
+    const polygonY = titleHeight + verticalSpacing;
+    this.coordinates.polygon = [
+      { x: 0, y: polygonY + maxLetterHeight },
+      { x: 0, y: polygonY + maxLetterHeight - this.letterSize * minSize },
+      { x: width, y: polygonY + maxLetterHeight - this.letterSize * maxSize },
+      { x: width, y: polygonY + maxLetterHeight }
+    ];
+  }
+
+  /**
+   * Render the legend in the specified SVG element
+   * @param {Selection} svg - D3 selection of the SVG element
+   */
+  render(svg) {
+    super.render(svg);
+
+    // Render title
+    this.renderTitle(this.coordinates.title.text)
+      .attr("x", this.coordinates.title.x)
+      .attr("y", this.coordinates.title.y);
+
+    // Render background polygon
+    const polygonPoints = this.coordinates.polygon
+      .map(p => `${p.x},${p.y}`)
+      .join(" ");
+
+    this.group.append("polygon")
+      .attr("points", polygonPoints)
+      .attr("fill", "#f0f0f0")
+      .attr("stroke", "#ccc")
+      .attr("stroke-width", 1);
+
+    // Render letters
+    this.coordinates.letters.forEach(letter => {
+      this.group.append("text")
+        .attr("x", letter.x)
+        .attr("y", letter.y)
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "alphabetic")
+        .style("font-size", `${letter.size}px`)
+        .style("fill", "#000")
+        .text("A");
+    });
+
+    // Render tick marks
+    this.coordinates.ticks.forEach(tick => {
+      this.group.append("line")
+        .attr("x1", tick.x1)
+        .attr("y1", tick.y1)
+        .attr("x2", tick.x2)
+        .attr("y2", tick.y2)
+        .attr("stroke", "#000")
+        .attr("stroke-width", 1);
+    });
+
+    // Render labels
+    this.coordinates.labels.forEach(label => {
+      this.group.append("text")
+        .attr("x", label.x)
+        .attr("y", label.y)
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "hanging")
+        .style("font-size", "12px")
+        .text(label.text);
+    });
+
+    // Render units label
+    if (this.coordinates.units.text) {
+      this.group.append("text")
+        .attr("x", this.coordinates.units.x)
+        .attr("y", this.coordinates.units.y)
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "alphabetic")
+        .style("font-size", "12px")
+        .style("font-style", "italic")
+        .text(this.coordinates.units.text);
+    }
+  }
+}
+
+/**
  * Initialize the zoom indicator legend element
  * @param {Selection} legendDiv - D3 selection of the legend container
  * @param {Object} options - Configuration options
