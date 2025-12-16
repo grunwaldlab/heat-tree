@@ -157,7 +157,6 @@ export class TextSizeLegend extends LegendBase {
       const x = (i / (ticks.length - 1)) * width;
       const size = minSize + t * (maxSize - minSize);
       const fontSize = this.letterSize * size;
-      console.log(t, size, x, fontSize)
 
       this.coordinates.letters.push({
         x,
