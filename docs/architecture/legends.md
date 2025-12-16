@@ -98,3 +98,12 @@ Sizes shown are chosen such that the numeric values have limited significant fig
 
 reimplement the current branch length legend.
 
+
+
+## Legend positioning
+
+Legends are displayed as part of the tree the same as other tree elelment in `treeView`.
+By default, legends are placed below the tree and arranged from left to right and can be wrapped to new "rows" if needed.
+Legends with fixed sizes (continuous size and color legends and the branch length scale bar) are placed at the start of each row and legends with flexible sizes are allowed to use up to the remaining horizontal space (the width of the tree).
+The space taken up by legends is calcualted before they are rendered and this space is subtracted from the avaialbe space to print the tree, so that when possible the legends and tree are made to both fit in the view window. 
+Each aesthetic in treeSTate besides identity and null scales has a legend displayed for it and legends are updated when the assocaited aesthetic is changed.
