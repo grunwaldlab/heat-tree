@@ -90,8 +90,8 @@ export class LegendBase {
  * Shows how numeric input values map to text size in labels
  */
 export class TextSizeLegend extends LegendBase {
-  constructor(aesthetic, options = {}) {
-    super(aesthetic, options);
+  constructor(options = {}) {
+    super(options);
     this.letterSize = 16; // Base size for the "A" characters
     this.padding = 10;
   }
