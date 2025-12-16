@@ -17,11 +17,108 @@ export class NullScale {
 }
 
 /**
- * Placeholder scale for contant output when a mapping variable is not used
+ * Identity scale that passes through filtered text values
+ * Can optionally apply a custom transformation function and validate against a list of valid values
  */
-export class TextScale {
+export class IdentityScale {
+  constructor(defaultValue = null, validValues = null, transformFn = null) {
+    this.validValues = validValues ? new Set(validValues) : null;
+    this.transformFn = transformFn;
+    this.defaultValue = defaultValue;
+  }
+
+  /**
+   * Get the value, optionally transformed and validated
+   * @param {*} value - The input value
+   * @returns {*} The output value, or null if invalid
+   */
   getValue(value) {
-    return value;
+    // Apply transformation if provided
+    let result = this.transformFn ? this.transformFn(value) : value;
+
+    // Validate against valid values if provided
+    if (this.validValues !== null && !this.validValues.has(result)) {
+      result = null;
+    }
+
+    // Handle null/undefined/empty values
+    if (result === null || result === undefined || result === '') {
+      result = this.defaultValue;
+    }
+
+    return result;
+  }
+}
+
+/**
+ * Scale for mapping categorical text to font styles
+ * If all input values are already valid font styles, functions like an IdentityScale
+ */
+export class CategoricalFontStyleScale {
+  constructor(categoryData) {
+    if (!Array.isArray(categoryData) || categoryData.length === 0) {
+      throw new Error('categoryData must be a non-empty array');
+    }
+
+    // Valid CSS font-style values
+    this.validFontStyles = new Set(['normal', 'italic', 'oblique']);
+
+    // Calculate unique categories
+    const uniqueCategories = [...new Set(categoryData)];
+
+    // Check if all categories are already valid font styles
+    this.isIdentity = uniqueCategories.every(cat => this.validFontStyles.has(cat));
+
+    if (this.isIdentity) {
+      // Function as identity scale
+      this.categoryStyleMap = new Map();
+      for (const category of uniqueCategories) {
+        this.categoryStyleMap.set(category, category);
+      }
+    } else {
+      // Map categories to font styles
+      this.categoryStyleMap = new Map();
+      const fontStyleArray = ['normal', 'italic', 'oblique'];
+
+      // Sort categories by frequency (descending)
+      const frequencyMap = new Map();
+      for (const category of categoryData) {
+        if (frequencyMap.has(category)) {
+          frequencyMap.set(category, frequencyMap.get(category) + 1);
+        } else {
+          frequencyMap.set(category, 1);
+        }
+      }
+
+      const sortedCategories = [...frequencyMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(entry => entry[0]);
+
+      // Assign font styles to categories
+      for (let i = 0; i < sortedCategories.length; i++) {
+        const styleIndex = i % fontStyleArray.length;
+        this.categoryStyleMap.set(sortedCategories[i], fontStyleArray[styleIndex]);
+      }
+    }
+  }
+
+  /**
+   * Get the font style corresponding to the given category
+   * @param {*} category - The category value to map
+   * @returns {string} The corresponding font style
+   */
+  getValue(category) {
+    // Handle null/undefined/empty values
+    if (category === null || category === undefined || category === '') {
+      return 'normal';
+    }
+
+    if (this.categoryStyleMap.has(category)) {
+      return this.categoryStyleMap.get(category);
+    }
+
+    // Default to normal for unknown categories
+    return 'normal';
   }
 }
 

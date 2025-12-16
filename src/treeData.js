@@ -1,13 +1,7 @@
 import { hierarchy, ascending } from "d3";
 import { parseNewick, parseTable } from "./parsers.js";
 import { Subscribable, columnToHeader } from "./utils.js";
-import {
-  NullScale,
-  TextScale,
-  ContinuousSizeScale,
-  ContinuousColorScale,
-  CategoricalColorScale
-} from "./scales.js";
+import { Aesthetic } from "./aesthetic.js";
 
 /**
  * Manages tree data and metadata tables
@@ -21,11 +15,7 @@ export class TreeData extends Subscribable {
   columnType = new Map(); // e.g. 'continuous' or 'categorical', keyed by unique column ID
   columnName = new Map(); // Original column name, keyed by unique column ID
   columnDisplayName = new Map(); // Display-friendly column name, keyed by unique column ID
-  columnScale = {
-    color: new Map(),
-    size: new Map(),
-    text: new Map()
-  }
+  columnAesthetic = new Map(); // Map of columnId -> Map of aestheticId -> Aesthetic
   #nextTableId = 0;
 
   constructor(newickStr, metadataTables = [], metadataTableNames = []) {
@@ -153,9 +143,7 @@ export class TreeData extends Subscribable {
       this.columnType.delete(uniqueId);
       this.columnName.delete(uniqueId);
       this.columnDisplayName.delete(uniqueId);
-      this.columnScale.color.delete(uniqueId);
-      this.columnScale.size.delete(uniqueId);
-      this.columnScale.text.delete(uniqueId);
+      this.columnAesthetic.delete(uniqueId);
     }
 
     this.#detachTable(tableId);
@@ -168,42 +156,56 @@ export class TreeData extends Subscribable {
   }
 
   /**
-   * Get the color scale for a column, creating it if needed
+   * Get the aesthetic for a column and aesthetic ID combination, creating it if needed
    * @param {string} columnId - The unique column ID
-   * @param {string} scaleType - The type of scale to create ('color', 'size', or 'text')
-   * @returns {object} The color scale instance
+   * @param {string} aestheticId - The aesthetic ID (user-defined)
+   * @param {object} defaultState - Default state to initialize the Aesthetic if it doesn't exist
+   * @returns {Aesthetic} The aesthetic instance
    */
-  getScale(columnId, scaleType) {
-    // Return existing scale if available
-    if (this.columnScale[scaleType].has(columnId)) {
-      return this.columnScale[scaleType].get(columnId);
+  getAesthetic(columnId, aestheticId, defaultState = {}) {
+    // Ensure the column has an aesthetic map
+    if (!this.columnAesthetic.has(columnId)) {
+      this.columnAesthetic.set(columnId, new Map());
     }
 
-    // Create new scale based on column type
-    const scale = this.#createScale(columnId, scaleType);
-    this.columnScale[scaleType].set(columnId, scale);
-    return scale;
+    const aestheticMap = this.columnAesthetic.get(columnId);
+
+    // Return existing aesthetic if available
+    if (aestheticMap.has(aestheticId)) {
+      return aestheticMap.get(aestheticId);
+    }
+
+    // Create new aesthetic based on column type and default state
+    const aesthetic = this.#createAesthetic(columnId, defaultState);
+    aestheticMap.set(aestheticId, aesthetic);
+    return aesthetic;
   }
 
   /**
-   * Set the scale for a column
+   * Set the aesthetic for a column and aesthetic ID combination
    * @param {string} columnId - The unique column ID
-   * @param {string} scaleType - The type of scale to create ('color', 'size', or 'text')
-   * @param {object} scale - The scale instance to set
+   * @param {string} aestheticId - The aesthetic ID (user-defined)
+   * @param {Aesthetic} aesthetic - The aesthetic instance to set
    */
-  setScale(columnId, scaleType, scale) {
-    this.columnScale[scaleType].set(columnId, scale);
+  setAesthetic(columnId, aestheticId, aesthetic) {
+    // Ensure the column has an aesthetic map
+    if (!this.columnAesthetic.has(columnId)) {
+      this.columnAesthetic.set(columnId, new Map());
+    }
+
+    this.columnAesthetic.get(columnId).set(aestheticId, aesthetic);
   }
 
   /**
-   * Create a scale for a column based on its type and the scale type requested
+   * Create an aesthetic for a column based on its type and provided state
    * @private
    * @param {string} columnId - The unique column ID
-   * @param {string} scaleType - The type of scale to create ('color', 'size', or 'text')
-   * @returns {object} The created scale instance
+   * @param {object} state - State options for the aesthetic
+   * @returns {Aesthetic} The created aesthetic instance
    */
-  #createScale(columnId, scaleType) {
+  #createAesthetic(columnId, state = {}) {
     const columnType = this.columnType.get(columnId);
+    const isCategorical = columnType === 'categorical';
 
     if (!columnType) {
       console.error(`Column ${columnId} not found`);
@@ -221,41 +223,18 @@ export class TreeData extends Subscribable {
       console.error(`No values found for column ${columnId}`);
     }
 
-    // Handle text scales
-    if (scaleType === 'text') {
-      return new TextScale();
-    }
+    // Get display name for titles
+    const displayName = this.columnDisplayName.get(columnId) || columnId;
 
-    // Convert to numeric values
-    if (columnType === 'continuous') {
-      values = values.map(v => Number(v)).filter(v => !isNaN(v));
+    // Create aesthetic with provided state, filling in defaults
+    const aesthetic = new Aesthetic({
+      values: values,
+      isCategorical: isCategorical,
+      inputUnits: displayName,
+      ...state
+    });
 
-      if (values.length === 0) {
-        console.warn(`No numeric values found for continuous column ${columnId}, returning NullScale`);
-        return new NullScale(1);
-      }
-    }
-
-    // Handle size scales (only for continuous data)
-    if (scaleType === 'size') {
-      if (columnType !== 'continuous') {
-        console.error(`Column ${columnId} is not continuous and cant be used for a size scale`);
-      }
-      return new ContinuousSizeScale(Math.min(...values), Math.max(...values), 0.5, 2);
-    }
-
-    // Handle color scales
-    if (scaleType === 'color') {
-      if (columnType === 'continuous') {
-        return new ContinuousColorScale(Math.min(...values), Math.max(...values));
-      } else if (columnType === 'categorical') {
-        return new CategoricalColorScale(values);
-      } else {
-        console.error(`Unknown column type ${columnType} for column ${columnId}`);
-      }
-    }
-
-    console.error(`Unknown scale type ${scaleType}`);
+    return aesthetic;
   }
 
   /**

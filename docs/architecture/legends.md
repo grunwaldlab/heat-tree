@@ -14,45 +14,6 @@ The following scale classes are implemented:
 - **CategoricalColorScale**: Maps categorical data to a categorical color output with a specified palette
 
 
-## Legends
-
-There are different types of legends, many corresponding to the different scale types.
-Each legend keeps track of the following state:
-
-- An instance of the `Aesthetic` class
-- A x,y position to print the legend
-- Which corner of the legend corresponds to the x,y position
-
-This is used to:
-
-- Inferr the dimensions of the legend
-- Draw the legend in an SVG element at the specified place
-
-All legend types have their title above them, aligned right and underlined.
-
-### `TextStyleLegend`
-
-Used to show which input values correspond to which font style (italic, bold, normal, etc).
-Not shown if functioning like a IdentityScale.
-
-Visually consists of the names of the input categories rendered in the output font style. 
-
-### `TextSizeLegend`
-
-Shows how numeric input values map to text size in labels.
-
-Visually consists of a series of "A" characters of different sizes, distributed along the output range present in the plot.
-Below each character is the numeric value corresponding to the letter size.
-Sizes shown are chosen such that the numeric values have limited significant figures and are mostly evenly spaced.
-Centered below the numbers is the units of the numeric inputs.
-
-### `TextColorLegend`
-
-
-### `BranchLengthLegend`
-
-
-
 
 ## The `Aesthetic` class
 
@@ -73,10 +34,65 @@ This class includes the following state data:
 This state data is used to infer the following:
 
 - A scale from `src/scales.js`
-- A legend 
 
 
 
 ## Legends
 
-The layout of
+There are different types of legends, many corresponding to the different scale types.
+Each legend keeps track of the following state:
+
+- An instance of the `Aesthetic` class
+- A x,y position to print the legend
+- Which corner of the legend corresponds to the x,y position
+- The maximum width/height available to print the legend
+
+This is used to:
+
+- Inferr the dimensions of the legend
+- Draw the legend in an SVG element at the specified place
+- Handle changes to location 
+
+All legend types have their title above them, aligned right and underlined.
+
+All legend classes extend the `LegendBase` class and implement the following methods:
+
+- `render`: 
+- `changePostion`:
+
+### `TextStyleLegend`
+
+Used to show which input values correspond to which font style (italic, bold, normal, etc).
+Not shown if functioning like a IdentityScale.
+
+Visually consists of the names of the input categories rendered in the output font style. 
+
+### `TextSizeLegend`
+
+Shows how numeric input values map to text size in labels.
+
+Visually consists of a series of black "A" characters of different sizes, distributed along the output range present in the plot.
+Behind the characters is a polygon with a horizontal base, vertical sides, and a sloped top that matches the height of the letters.
+Below are ticks with examples of numeric input value corresponding to the letter size.
+Sizes shown are chosen such that the numeric values have limited significant figures and are mostly evenly spaced.
+Centered below the numbers is the units of the numeric inputs.
+
+### `CategoricalTextColorLegend`
+
+Shows how categorical input values map to text color in labels.
+
+Visually consists of a series of colored squares followed by labels of the input text value.
+These are continued on new rows as needed to avoid extending past the maximum width.
+
+### `ContinuousTextColorLegend`
+
+Shows how numeric input values map to text color in labels.
+
+Visually consists of a series of colored letters above a short rectangular gradient/
+Below are ticks with examples of numeric input value corresponding to the letter color.
+Sizes shown are chosen such that the numeric values have limited significant figures and are mostly evenly spaced.
+
+### `BranchLengthLegend`
+
+reimplement the current branch length legend.
+

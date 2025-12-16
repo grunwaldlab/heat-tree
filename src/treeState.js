@@ -8,39 +8,51 @@ export class TreeState extends Subscribable {
 
   #AESTHETICS = {
     tipLabelText: {
-      scaleType: 'text',
+      title: 'Tip label text',
+      scaleType: 'identity',
+      default: '',
       downstream: ['updateTipLabelText', 'updateCoordinates'],
-      default: ''
     },
     tipLabelColor: {
+      title: 'Tip label color',
       scaleType: 'color',
+      default: '#000000',
+      otherCategoryColor: "#555555",
       downstream: [],
-      default: '#000000'
     },
     tipLabelSize: {
+      title: 'Tip label size',
       scaleType: 'size',
+      default: 1,
+      isCategorical: false,
+      outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
-      default: 1
     },
     tipLabelFont: {
-      scaleType: 'text',
+      title: 'Tip label font',
+      scaleType: 'identity',
+      default: 'sans-serif',
       downstream: ['updateCoordinates'],
-      default: 'sans-serif'
     },
     tipLabelStyle: {
-      scaleType: 'text',
+      title: 'Tip label font style',
+      scaleType: 'fontStyle',
+      default: 'normal',
       downstream: ['updateCoordinates'],
-      default: 'normal'
     },
     nodeLabelText: {
-      scaleType: 'text',
+      title: 'Node label text',
+      scaleType: 'identity',
+      default: '',
       downstream: ['updateNodeLabelText'],
-      default: ''
     },
     nodeLabelSize: {
+      title: 'Node label size',
       scaleType: 'size',
+      default: 1,
+      isCategorical: false,
+      outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
-      default: 1
     },
   }
 
@@ -148,29 +160,35 @@ export class TreeState extends Subscribable {
 
   setAesthetics(values, force = false) {
     const downstreams = new Set();
-    for (const [aesthetic, columnId] of Object.entries(values)) {
-      const aesData = this.#AESTHETICS[aesthetic];
-      if (force || columnId !== this.state.aesthetics[aesthetic]) {
-        // Record the name of the defined aestheric
-        this.state.aesthetics[aesthetic] = columnId;
+    for (const [aestheticId, columnId] of Object.entries(values)) {
+      const aesData = this.#AESTHETICS[aestheticId];
+      if (!aesData) {
+        console.warn(`Unknown aesthetic: ${aestheticId}`);
+        continue;
+      }
 
-        // Update the scale for the aesthetic
+      if (force || columnId !== this.state.aesthetics[aestheticId]) {
+        // Record the name of the defined aesthetic
+        this.state.aesthetics[aestheticId] = columnId;
+
+        // Update the aesthetic for the column
         if (!columnId) {
-          this.aestheticsScales[aesthetic] = new NullScale(aesData.default);
+          this.aestheticsScales[aestheticId] = new NullScale(aesData.default);
         } else {
-          this.aestheticsScales[aesthetic] = this.state.treeData.getScale(columnId, aesData.scaleType);
+          // Get or create the aesthetic with default state from #AESTHETICS
+          this.aestheticsScales[aestheticId] = this.state.treeData.getAesthetic(columnId, aestheticId, aesData);
         }
 
         // Update the tree data directly modified by the aesthetic
         this.state.treeData.tree.each(d => {
           if (columnId && columnId !== null && columnId !== undefined) {
-            if (d.metadata && d.metadata[columnId]) {
-              d[aesthetic] = this.aestheticsScales[aesthetic].getValue(d.metadata[columnId]);
+            if (d.metadata && d.metadata[columnId] !== undefined) {
+              d[aestheticId] = this.aestheticsScales[aestheticId].getValue(d.metadata[columnId]);
             } else {
-              d[aesthetic] = aesData.default;
+              d[aestheticId] = aesData.default;
             }
           } else {
-            d[aesthetic] = this.aestheticsScales[aesthetic].getValue();
+            d[aestheticId] = this.aestheticsScales[aestheticId].getValue();
           }
         });
 
@@ -181,7 +199,7 @@ export class TreeState extends Subscribable {
       }
 
       // notify subscribers of change to aesthetic
-      this.notify(`${aesthetic}Change`);
+      this.notify(`${aestheticId}Change`);
     }
 
     // Call all unique functions needed to update downstream data from all the aesthetics applied
