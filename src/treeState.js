@@ -12,6 +12,7 @@ export class TreeState extends Subscribable {
       scaleType: 'identity',
       default: '',
       downstream: ['updateTipLabelText', 'updateCoordinates'],
+      hasLegend: false,
     },
     tipLabelColor: {
       title: 'Tip label color',
@@ -19,6 +20,7 @@ export class TreeState extends Subscribable {
       default: '#000000',
       otherCategoryColor: "#555555",
       downstream: [],
+      hasLegend: false,
     },
     tipLabelSize: {
       title: 'Tip label size',
@@ -27,24 +29,28 @@ export class TreeState extends Subscribable {
       isCategorical: false,
       outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
+      hasLegend: true,
     },
     tipLabelFont: {
       title: 'Tip label font',
       scaleType: 'identity',
       default: 'sans-serif',
       downstream: ['updateCoordinates'],
+      hasLegend: false,
     },
     tipLabelStyle: {
       title: 'Tip label font style',
       scaleType: 'fontStyle',
       default: 'normal',
       downstream: ['updateCoordinates'],
+      hasLegend: false,
     },
     nodeLabelText: {
       title: 'Node label text',
       scaleType: 'identity',
       default: '',
       downstream: ['updateNodeLabelText'],
+      hasLegend: false,
     },
     nodeLabelSize: {
       title: 'Node label size',
@@ -53,6 +59,7 @@ export class TreeState extends Subscribable {
       isCategorical: false,
       outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
+      hasLegend: false,
     },
   }
 
@@ -84,6 +91,7 @@ export class TreeState extends Subscribable {
   branchLenToPxFactor;
   labelSizeToPxFactor;
   aestheticsScales = {};
+  legends = [];
 
 
   constructor(state = {}, textSizeEstimator = new TextSizeEstimator()) {
@@ -160,6 +168,8 @@ export class TreeState extends Subscribable {
 
   setAesthetics(values, force = false) {
     const downstreams = new Set();
+    let legendsChanged = false;
+
     for (const [aestheticId, columnId] of Object.entries(values)) {
       const aesData = this.#AESTHETICS[aestheticId];
       if (!aesData) {
@@ -196,10 +206,20 @@ export class TreeState extends Subscribable {
         for (const methodName of aesData.downstream) {
           downstreams.add(methodName);
         }
+
+        // Check if this aesthetic has a legend
+        if (aesData.hasLegend) {
+          legendsChanged = true;
+        }
       }
 
       // notify subscribers of change to aesthetic
       this.notify(`${aestheticId}Change`);
+    }
+
+    // Update legends if any aesthetic with a legend changed
+    if (legendsChanged) {
+      this.#updateLegends();
     }
 
     // Call all unique functions needed to update downstream data from all the aesthetics applied
@@ -207,6 +227,41 @@ export class TreeState extends Subscribable {
       this[methodName]();
     }
 
+  }
+
+  #updateLegends() {
+    // Clear existing legends
+    this.legends = [];
+
+    // Create legends for each aesthetic that has one and is not using the default
+    for (const [aestheticId, columnId] of Object.entries(this.state.aesthetics)) {
+      const aesData = this.#AESTHETICS[aestheticId];
+      
+      // Skip if no legend for this aesthetic or using default (undefined/null)
+      if (!aesData.hasLegend || !columnId) {
+        continue;
+      }
+
+      // Get the aesthetic scale
+      const aesthetic = this.aestheticsScales[aestheticId];
+      if (!aesthetic) {
+        continue;
+      }
+
+      // Create legend based on scale type
+      if (aesData.scaleType === 'size') {
+        // Add size legend metadata
+        this.legends.push({
+          aestheticId,
+          aesthetic,
+          type: 'size'
+        });
+      }
+      // Add other legend types here as they are implemented
+    }
+
+    // Notify that legends have changed
+    this.notify('legendsChange');
   }
 
   setTargetTreeDimensions(width, height) {

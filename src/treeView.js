@@ -1,6 +1,7 @@
 import { select, symbol, symbolTriangle, zoom, zoomIdentity } from 'd3';
 import { triangleAreaFromSide, calculateTreeBounds, createDashArray } from './utils.js';
 import { appendIcon } from './icons.js';
+import { TextSizeLegend } from './legends.js';
 
 export class TreeView {
   constructor(treeState, svgContainer, options = {}) {
@@ -27,6 +28,8 @@ export class TreeView {
       autoZoomEnabled: true,
       autoPanEnabled: true,
       transitionDuration: 500,
+      legendSpacing: 10,
+      legendPadding: 10,
       ...options
     };
 
@@ -35,6 +38,9 @@ export class TreeView {
 
     // Object containing D3 selections for reusable elements
     this.selections = {};
+
+    // Array of legend instances
+    this.legendInstances = [];
 
     // Current zoom/pan transform
     this.currentTransform = { x: 0, y: 0, k: 1 };
@@ -87,6 +93,7 @@ export class TreeView {
     this.layers = {};
     this.selections = {};
     this.selectedNode = null;
+    this.legendInstances = [];
   }
 
   /**
@@ -107,6 +114,7 @@ export class TreeView {
     this.#updateBranches(false);
     this.#updateNodes(false);
     this.#updateHitAreas(false);
+    this.#updateLegends(false);
     this.#fitToView(false);
   }
 
@@ -218,6 +226,11 @@ export class TreeView {
       this.#handleCoordinateChange();
     });
 
+    // Subscribe to legend changes
+    this.treeState.subscribe('legendsChange', () => {
+      this.#updateLegends(true);
+    });
+
     // Subscribe to aesthetic changes
     this.treeState.subscribe('tipLabelTextChange', () => {
       this.#updateTipLabelText();
@@ -229,6 +242,7 @@ export class TreeView {
 
     this.treeState.subscribe('tipLabelSizeChange', () => {
       this.#updateTipLabelSize();
+      this.#updateLegends(true);
     });
 
     this.treeState.subscribe('tipLabelFontChange', () => {
@@ -251,6 +265,7 @@ export class TreeView {
     this.#updateBranches(false);
     this.#updateNodes(false);
     this.#updateHitAreas(false);
+    this.#updateLegends(false);
     this.#fitToView(false);
   }
 
@@ -263,6 +278,7 @@ export class TreeView {
     const branchGroupsEnter = this.#updateBranches(true);
     const nodeGroupsEnter = this.#updateNodes(true);
     this.#updateHitAreas(true);
+    this.#updateLegends(true);
 
     // Update selection rectangle if a node is selected
     if (this.selectedNode && this.selectedNode.children) {
@@ -365,6 +381,55 @@ export class TreeView {
   }
 
   /**
+   * Update legends based on current TreeState
+   * @param {boolean} transition - Whether to animate the update
+   */
+  #updateLegends(transition = true) {
+    // Clear existing legend instances
+    this.layers.legendLayer.selectAll('*').remove();
+    this.legendInstances = [];
+
+    // Get tree bounds
+    const treeBounds = this.#getCurrentBounds();
+    if (!treeBounds) return;
+
+    // Get available width (tree width)
+    const availableWidth = treeBounds.maxX - treeBounds.minX;
+
+    // Starting position for legends (below tree)
+    let currentX = treeBounds.minX;
+    let currentY = treeBounds.maxY + this.options.legendSpacing;
+
+    // Process each legend from TreeState
+    for (const legendData of this.treeState.legends) {
+      let legend;
+
+      // Create appropriate legend type
+      if (legendData.type === 'size') {
+        legend = new TextSizeLegend({
+          aesthetic: legendData.aesthetic,
+          x: currentX,
+          y: currentY,
+          origin: 'top left',
+          maxX: treeBounds.maxX,
+          maxY: Infinity
+        });
+      }
+      // Add other legend types here as they are implemented
+
+      if (legend) {
+        // Render the legend
+        legend.render(this.layers.legendLayer);
+        this.legendInstances.push(legend);
+
+        // Update position for next legend
+        // For now, stack legends vertically
+        currentY += legend.coordinates.height + this.options.legendSpacing;
+      }
+    }
+  }
+
+  /**
    * Enable or disable manual zoom and pan
    * @param {boolean} enabled - Whether to enable manual zoom/pan
    */
@@ -395,8 +460,8 @@ export class TreeView {
   #fitToView(transition = true) {
     const { width: viewW, height: viewH } = this.svg.node().getBoundingClientRect();
 
-    // Calculate bounds of all tree elements
-    const bounds = this.#getCurrentBounds();
+    // Calculate bounds of all tree elements (including legends)
+    const bounds = this.#getCurrentBoundsWithLegends();
     if (!bounds) return;
 
     const treeWidth = bounds.maxX - bounds.minX;
@@ -491,6 +556,31 @@ export class TreeView {
       maxX: root.bounds.maxX,
       minY: root.bounds.minY,
       maxY: root.bounds.maxY
+    };
+  }
+
+  /**
+   * Get current bounds including legends
+   * @returns {Object} Bounds object with minX, maxX, minY, maxY
+   */
+  #getCurrentBoundsWithLegends() {
+    const treeBounds = this.#getCurrentBounds();
+    if (!treeBounds) return null;
+
+    let maxY = treeBounds.maxY;
+
+    // Add legend heights
+    for (const legend of this.legendInstances) {
+      if (legend.coordinates) {
+        maxY = Math.max(maxY, legend.state.y + legend.coordinates.height);
+      }
+    }
+
+    return {
+      minX: treeBounds.minX,
+      maxX: treeBounds.maxX,
+      minY: treeBounds.minY,
+      maxY: maxY
     };
   }
 
@@ -635,7 +725,7 @@ export class TreeView {
     if (transition) {
       // Hide buttons immediately, then move and fade in after transition
       this.layers.selectionBtns
-        .attr('opacity', 0)
+        .attr('opacity',0)
         .attr('transform', `translate(${screenX},${screenY})`);
     } else {
       this.layers.selectionBtns
