@@ -74,12 +74,15 @@ Each dropdown element in the controls in this section have a button to the right
 
 ### Export settings tab
 
-When this tab is selected a border with a drop shadow is shown representing the boundries of the exported file.
-The aspect ratio is fixed based on the boudries of the tree and legends plus the margin, but the "Height" and "Width" controls described below can adjust one dimension and the other dimension will automatically change to maintain the aspect ratio.
-In units of the "Height", "Width", and "Margin" settingare in pixels for PNG and cm for vector formats. The units are automatically converted assuming a 300 ppi for conversion between the two.
+When this tab is selected a border with a drop shadow is shown representing the boundries of the exported file (if enabled).
+In units of the "Height", "Width", and "Margin" setting are in pixels for PNG and cm for vector formats. The units are automatically converted assuming a 300 ppi for conversion between the two.
+When this tab is selected, the pixel coordinates of the tree are controlled by the "Height" and "Width" settings rather than the size of the viewport, like in other tabs.
+This effect is undone when a different tab is selected.
 
 - **Export**: A button that exports the tree to a SVG file that the user can download
-- **Output format**: A dropdown with options SVG (default), PDF, and PNG
+- **Output format**: A dropdown with options SVG, PDF, and PNG. Default: SVG.
 - **Height**: The height of the exported file. Defaults to the current tree height in pixels
 - **Width**: The width of the exported file. Defaults to the current tree width in pixels
-- **Margin**: The size of empty space around the tree in the exported output file. Defaults to 0.
+- **Margin**: The size of empty space around the tree in the exported output file. Default: 0.
+- **Fixed aspect ratio**: A toggle that when activated locks the current aspect ratio. When locked, changes to the "Height" or "Width" will result the other dimension automatically changing to maintain the aspect ratio. Default: on.
+- **Show border**: A toggle button to show/hide the boundary rectangle representing the bounds of the exported figure. Default: on.
