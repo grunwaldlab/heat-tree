@@ -414,13 +414,13 @@ export class TreeView {
     this.legendInstances.push(branchLengthLegend);
 
     // Update position for next legend
-    currentY += branchLengthLegend.coordinates.height + this.options.legendSpacing;
+    currentX += branchLengthLegend.coordinates.width + this.options.legendSpacing;
 
     // Process each legend from TreeState
     for (const legendData of this.treeState.legends) {
-      let legend;
 
       // Create appropriate legend type
+      let legend;
       if (legendData.type === 'size') {
         legend = new TextSizeLegend({
           treeState: this.treeState,
@@ -442,7 +442,11 @@ export class TreeView {
           maxY: Infinity
         });
       }
-      // Add other legend types here as they are implemented
+
+      if (currentX + legend.coordinates.width + this.options.legendSpacing > treeBounds.maxX) {
+        currentX = treeBounds.minX;
+        currentY += Math.max(...this.legendInstances.map(x => x.coordinates.height));
+      }
 
       if (legend) {
         // Render the legend
@@ -450,8 +454,7 @@ export class TreeView {
         this.legendInstances.push(legend);
 
         // Update position for next legend
-        // For now, stack legends vertically
-        currentY += legend.coordinates.height + this.options.legendSpacing;
+        currentX += legend.coordinates.width + this.options.legendSpacing;
       }
     }
   }
