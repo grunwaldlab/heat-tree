@@ -1,7 +1,7 @@
 import { select, symbol, symbolTriangle, zoom, zoomIdentity } from 'd3';
 import { triangleAreaFromSide, calculateTreeBounds, createDashArray } from './utils.js';
 import { appendIcon } from './icons.js';
-import { TextSizeLegend, BranchLengthLegend } from './legends.js';
+import { TextSizeLegend, TextColorLegend, BranchLengthLegend } from './legends.js';
 
 export class TreeView {
   constructor(treeState, svgContainer, options = {}) {
@@ -431,6 +431,16 @@ export class TreeView {
           maxX: treeBounds.maxX,
           maxY: Infinity
         });
+      } else if (legendData.type === 'color') {
+        legend = new TextColorLegend({
+          treeState: this.treeState,
+          aesthetic: legendData.aesthetic,
+          x: currentX,
+          y: currentY,
+          origin: 'top left',
+          maxX: treeBounds.maxX,
+          maxY: Infinity
+        });
       }
       // Add other legend types here as they are implemented
 
@@ -763,7 +773,7 @@ export class TreeView {
     const branchWidth = this.treeState.labelSizeToPxFactor * this.treeState.state.branchThicknessProp;
     const collapsedRootLineLength = this.#getCollapsedRootLineLength();
 
-    // Update hit areas for subt ree selection
+    // Update hit areas for subtree selection
     const hits = this.layers.hitLayer.selectAll('.hit')
       .data(root.descendants().filter(d => d.children), d => d.id);
 

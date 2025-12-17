@@ -20,7 +20,7 @@ export class TreeState extends Subscribable {
       default: '#000000',
       otherCategoryColor: "#555555",
       downstream: [],
-      hasLegend: false,
+      hasLegend: true,
     },
     tipLabelSize: {
       title: 'Tip label size',
@@ -236,7 +236,7 @@ export class TreeState extends Subscribable {
     // Create legends for each aesthetic that has one and is not using the default
     for (const [aestheticId, columnId] of Object.entries(this.state.aesthetics)) {
       const aesData = this.#AESTHETICS[aestheticId];
-      
+
       // Skip if no legend for this aesthetic or using default (undefined/null)
       if (!aesData.hasLegend || !columnId) {
         continue;
@@ -255,6 +255,13 @@ export class TreeState extends Subscribable {
           aestheticId,
           aesthetic,
           type: 'size'
+        });
+      } else if (aesData.scaleType === 'color') {
+        // Add color legend metadata
+        this.legends.push({
+          aestheticId,
+          aesthetic,
+          type: 'color'
         });
       }
       // Add other legend types here as they are implemented

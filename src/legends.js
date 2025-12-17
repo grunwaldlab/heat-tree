@@ -258,14 +258,12 @@ export class TextSizeLegend extends LegendBase {
     const ticks = generateNiceTicks(minValue, maxValue, 5);
 
     // Calculate dimensions
-    console.log(this.state.treeState)
     const maxLetterFont = maxSize * this.state.treeState.labelSizeToPxFactor;
     const maxLetterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, maxLetterFont);
     const minLetterFont = minSize * this.state.treeState.labelSizeToPxFactor;
     const minLetterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, minLetterFont);
     const titleSize = this.textSizeEstimator.getTextSize(this.state.aesthetic.state.title, this.state.titleFontSize);
 
-    console.log(maxLetterSize)
     // Calculate width based on number of ticks
     const letterSpacing = 30;
     const baseWidth = Math.max(ticks.length * letterSpacing, 100);
@@ -406,6 +404,341 @@ export class TextSizeLegend extends LegendBase {
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "ideographic")
         .style("font-size", "12px")
+        .style("font-style", "italic")
+        .text(this.coordinates.units.text);
+    }
+  }
+}
+
+/**
+ * Legend for text color mappings
+ * Shows how categorical or continuous input values map to text color in labels
+ */
+export class TextColorLegend extends LegendBase {
+  constructor(options = {}) {
+    super(options);
+    this.exampleLetter = 'A';
+    this.verticalSpacing = 5;
+    this.horizontalSpacing = 10;
+    this.showTitle = true;
+
+    // Categorical-specific settings
+    this.squareSize = 12;
+    this.itemLabelGap = 5;
+    this.itemGap = 15;
+    this.maxCategoriesPerRow = 5;
+
+    // Continuous-specific settings
+    this.gradientHeight = 20;
+    this.tickHeight = 5;
+    this.numGradientStops = 20;
+  }
+
+  /**
+   * Calculate the size and location of legend elements
+   */
+  updateCoordinates() {
+    const aesthetic = this.state.aesthetic;
+    const isCategorical = aesthetic.state.isCategorical;
+    const titleSize = this.textSizeEstimator.getTextSize(aesthetic.state.title, this.state.titleFontSize);
+
+    let titleHeightOffset = 0;
+    if (this.showTitle) {
+      titleHeightOffset = titleSize.heightPx + this.verticalSpacing;
+    }
+
+    if (isCategorical) {
+      this.#updateCoordinatesCategorical(titleHeightOffset, titleSize);
+    } else {
+      this.#updateCoordinatesContinuous(titleHeightOffset, titleSize);
+    }
+  }
+
+  /**
+   * Calculate coordinates for categorical color legend
+   */
+  #updateCoordinatesCategorical(titleHeightOffset, titleSize) {
+    const aesthetic = this.state.aesthetic;
+    const categories = aesthetic.scale.categories;
+    const maxWidth = this.state.maxX - this.state.x;
+
+    this.coordinates = {
+      width: 0,
+      height: titleHeightOffset,
+      title: {
+        x: 0,
+        y: titleSize.heightPx,
+        text: aesthetic.state.title
+      },
+      items: [],
+      isCategorical: true
+    };
+
+    let currentX = 0;
+    let currentY = titleHeightOffset + this.squareSize / 2;
+    let rowHeight = this.squareSize;
+
+    categories.forEach((category, i) => {
+      const color = aesthetic.scale.getValue(category);
+      const labelSize = this.textSizeEstimator.getTextSize(category, this.state.labelFontSize);
+      const itemWidth = this.squareSize + this.itemLabelGap + labelSize.widthPx;
+
+      // Check if we need to wrap to next row
+      if (currentX > 0 && currentX + itemWidth > maxWidth) {
+        currentX = 0;
+        currentY += rowHeight + this.verticalSpacing;
+        rowHeight = this.squareSize;
+      }
+
+      this.coordinates.items.push({
+        x: currentX,
+        y: currentY,
+        color: color,
+        label: category,
+        squareX: currentX,
+        squareY: currentY - this.squareSize / 2,
+        labelX: currentX + this.squareSize + this.itemLabelGap,
+        labelY: currentY
+      });
+
+      currentX += itemWidth + this.itemGap;
+      this.coordinates.width = Math.max(this.coordinates.width, currentX - this.itemGap);
+    });
+
+    this.coordinates.height = currentY + this.squareSize / 2;
+  }
+
+  /**
+   * Calculate coordinates for continuous color legend
+   */
+  #updateCoordinatesContinuous(titleHeightOffset, titleSize) {
+    const aesthetic = this.state.aesthetic;
+    const minValue = aesthetic.scale.dataMin;
+    const maxValue = aesthetic.scale.dataMax;
+
+    // Generate nice tick values
+    const ticks = generateNiceTicks(minValue, maxValue, 5);
+
+    // Calculate dimensions for letters above gradient
+    const letterFontSize = this.state.labelFontSize * 1.2;
+    const letterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, letterFontSize);
+
+    // Calculate width based on number of ticks
+    const letterSpacing = 30;
+    const baseWidth = Math.max(ticks.length * letterSpacing, 120);
+
+    // Calculate tick label sizes to account for overhang
+    const tickLabelSizes = ticks.map(tickValue => {
+      const labelText = formatTickLabel(tickValue, ticks);
+      return this.textSizeEstimator.getTextSize(labelText, this.state.labelFontSize);
+    });
+
+    // Calculate overhang on left (first tick label)
+    const leftOverhang = tickLabelSizes[0].widthPx / 2;
+
+    // Calculate overhang on right (last tick label)
+    const rightOverhang = tickLabelSizes[tickLabelSizes.length - 1].widthPx / 2;
+
+    // Total width includes base width plus overhangs
+    const width = baseWidth + leftOverhang + rightOverhang;
+
+    // Calculate positions
+    const lettersY = titleHeightOffset + letterSize.heightPx * 0.7;
+    const gradientY = lettersY + this.verticalSpacing;
+    const ticksY = gradientY + this.gradientHeight;
+    const labelsY = ticksY + this.tickHeight;
+
+    // Calculate total height
+    const unitsSize = this.textSizeEstimator.getTextSize(aesthetic.state.inputUnits || "", this.state.labelFontSize);
+    const height = labelsY + this.state.labelFontSize + this.verticalSpacing + unitsSize.heightPx;
+
+    this.coordinates = {
+      width,
+      height,
+      leftOverhang,
+      isCategorical: false,
+      title: {
+        x: leftOverhang,
+        y: titleSize.heightPx,
+        text: aesthetic.state.title
+      },
+      gradient: {
+        x: leftOverhang,
+        y: gradientY,
+        width: baseWidth,
+        height: this.gradientHeight
+      },
+      letters: [],
+      ticks: [],
+      labels: [],
+      units: {
+        x: width / 2,
+        y: height,
+        text: aesthetic.state.inputUnits || ""
+      }
+    };
+
+    // Calculate letter and tick positions
+    ticks.forEach((tickValue, i) => {
+      const t = (tickValue - minValue) / (maxValue - minValue);
+      const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
+      const color = aesthetic.scale.getValue(tickValue);
+
+      // Letters
+      this.coordinates.letters.push({
+        x,
+        y: lettersY,
+        text: this.exampleLetter,
+        color: color,
+        fontSize: letterFontSize
+      });
+
+      // Tick marks
+      this.coordinates.ticks.push({
+        x1: x,
+        y1: ticksY,
+        x2: x,
+        y2: ticksY + this.tickHeight
+      });
+
+      // Labels
+      this.coordinates.labels.push({
+        x,
+        y: labelsY,
+        text: formatTickLabel(tickValue, ticks)
+      });
+    });
+  }
+
+  /**
+   * Render the legend in the specified SVG element
+   * @param {Selection} svg - D3 selection of the SVG element
+   */
+  render(svg) {
+    super.render(svg);
+
+    // Render title
+    if (this.showTitle) {
+      this.renderTitle(this.coordinates.title.text)
+        .attr("x", this.coordinates.title.x)
+        .attr("y", this.coordinates.title.y);
+    }
+
+    if (this.coordinates.isCategorical) {
+      this.#renderCategorical();
+    } else {
+      this.#renderContinuous();
+    }
+  }
+
+  /**
+   * Render categorical color legend
+   */
+  #renderCategorical() {
+    // Render each category item
+    this.coordinates.items.forEach(item => {
+      // Color square
+      this.group.append("rect")
+        .attr("x", item.squareX)
+        .attr("y", item.squareY)
+        .attr("width", this.squareSize)
+        .attr("height", this.squareSize)
+        .attr("fill", item.color)
+        .attr("stroke", "#000")
+        .attr("stroke-width", 1);
+
+      // Category label
+      this.group.append("text")
+        .attr("x", item.labelX)
+        .attr("y", item.labelY)
+        .attr("text-anchor", "start")
+        .attr("dominant-baseline", "central")
+        .style("font-size", `${this.state.labelFontSize}px`)
+        .text(item.label);
+    });
+  }
+
+  /**
+   * Render continuous color legend
+   */
+  #renderContinuous() {
+    const aesthetic = this.state.aesthetic;
+    const minValue = aesthetic.scale.dataMin;
+    const maxValue = aesthetic.scale.dataMax;
+
+    // Create gradient definition
+    const gradientId = `color-gradient-${Math.random().toString(36).substr(2, 9)}`;
+    const defs = this.group.append("defs");
+    const gradient = defs.append("linearGradient")
+      .attr("id", gradientId)
+      .attr("x1", "0%")
+      .attr("x2", "100%")
+      .attr("y1", "0%")
+      .attr("y2", "0%");
+
+    // Add color stops
+    for (let i = 0; i <= this.numGradientStops; i++) {
+      const t = i / this.numGradientStops;
+      const value = minValue + t * (maxValue - minValue);
+      const color = aesthetic.scale.getValue(value);
+      gradient.append("stop")
+        .attr("offset", `${t * 100}%`)
+        .attr("stop-color", color);
+    }
+
+    // Draw gradient rectangle
+    this.group.append("rect")
+      .attr("x", this.coordinates.gradient.x)
+      .attr("y", this.coordinates.gradient.y)
+      .attr("width", this.coordinates.gradient.width)
+      .attr("height", this.coordinates.gradient.height)
+      .style("fill", `url(#${gradientId})`)
+      .style("stroke", "#000")
+      .style("stroke-width", 1);
+
+    // Render colored letters above gradient
+    this.coordinates.letters.forEach(letter => {
+      this.group.append("text")
+        .attr("x", letter.x)
+        .attr("y", letter.y)
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "ideographic")
+        .style("font-size", `${letter.fontSize}px`)
+        .style("fill", letter.color)
+        .style("font-weight", "bold")
+        .text(letter.text);
+    });
+
+    // Render tick marks
+    this.coordinates.ticks.forEach(tick => {
+      this.group.append("line")
+        .attr("x1", tick.x1)
+        .attr("y1", tick.y1)
+        .attr("x2", tick.x2)
+        .attr("y2", tick.y2)
+        .attr("stroke", "#000")
+        .attr("stroke-width", 1);
+    });
+
+    // Render tick labels
+    this.coordinates.labels.forEach(label => {
+      this.group.append("text")
+        .attr("x", label.x)
+        .attr("y", label.y)
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "hanging")
+        .style("font-size", `${this.state.labelFontSize}px`)
+        .text(label.text);
+    });
+
+    // Render units label
+    if (this.coordinates.units.text) {
+      this.group.append("text")
+        .attr("x", this.coordinates.units.x)
+        .attr("y", this.coordinates.units.y)
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "ideographic")
+        .style("font-size", `${this.state.labelFontSize}px`)
         .style("font-style", "italic")
         .text(this.coordinates.units.text);
     }
