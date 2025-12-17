@@ -81,7 +81,7 @@ export class LegendBase {
       .attr("y", 0)
       .attr("text-anchor", "start")
       .style("font-size", "14px")
-      .style("font-weight", "bold")
+      // .style("font-weight", "bold")
       .style("text-decoration", "underline")
       .text(title);
 
@@ -99,8 +99,8 @@ export class BranchLengthLegend extends LegendBase {
     this.scaleBarEdgeHeight = 6;
     this.titleSpacing = 10;
     this.unitLabelSpacing = 2;
-    this.minBarLength = 60;
-    this.maxBarLength = 150;
+    this.minBarLength = 80;
+    this.maxBarLength = 160;
     this.lineThickness = 2;
     this.showTitle = false;
     this.title = 'Branch length';
@@ -112,20 +112,21 @@ export class BranchLengthLegend extends LegendBase {
   updateCoordinates() {
     // Choose an initial "nice" distance then adjust to keep bar within limits
     let units = niceNumber(1);
-    let barWidth = units * this.state.branchLenToPxFactor;
+    let barWidth = units * this.state.treeState.branchLenToPxFactor;
+    console.log(this.state.treeState.branchLenToPxFactor);
 
     // Expand/shrink until within [min,max] pixels
     if (barWidth < this.minBarLength || barWidth > this.maxBarLength) {
-      units = niceNumber(this.minBarLength / this.state.branchLenToPxFactor);
-      barWidth = units * this.state.branchLenToPxFactor;
+      units = niceNumber(this.minBarLength / this.state.treeState.branchLenToPxFactor);
+      barWidth = units * this.state.treeState.branchLenToPxFactor;
     }
     while (barWidth < this.minBarLength) {
       units *= 2;
-      barWidth = units * this.state.branchLenToPxFactor;
+      barWidth = units * this.state.treeState.branchLenToPxFactor;
     }
     while (barWidth > this.maxBarLength) {
       units /= 2;
-      barWidth = units * this.state.branchLenToPxFactor;
+      barWidth = units * this.state.treeState.branchLenToPxFactor;
     }
 
     units = units.toPrecision(3);
@@ -170,8 +171,6 @@ export class BranchLengthLegend extends LegendBase {
         text: units
       }
     };
-    console.log(unitLabelSize);
-    console.log(this.coordinates);
   }
 
   /**
@@ -239,101 +238,117 @@ export class TextSizeLegend extends LegendBase {
     super(options);
     this.letterSize = 16; // Base size for the "A" characters
     this.padding = 10;
+    this.exampleLetter = 'A';
+    this.tickHeight = 5;
+    this.verticalSpacing = 5;
+    this.showTitle = true;
   }
 
   /**
    * Calculate the size and location of legend elements
    */
   updateCoordinates() {
-    const scale = this.state.aesthetic.scale;
-    const title = this.state.aesthetic.state.title ||
-      columnToHeader(this.state.aesthetic.state.columnName || "Size");
-
     // Get the data range from the scale
-    const minValue = scale.dataMin;
-    const maxValue = scale.dataMax;
-    const minSize = scale.sizeMin;
-    const maxSize = scale.sizeMax;
+    const minValue = this.state.aesthetic.scale.dataMin;
+    const maxValue = this.state.aesthetic.scale.dataMax;
+    const minSize = this.state.aesthetic.scale.sizeMin;
+    const maxSize = this.state.aesthetic.scale.sizeMax;
 
     // Generate nice tick values
     const ticks = generateNiceTicks(minValue, maxValue, 5);
 
     // Calculate dimensions
-    const titleHeight = 20;
-    const maxLetterHeight = this.letterSize * maxSize;
-    const tickHeight = 5;
-    const labelHeight = 12;
-    const unitsHeight = 14;
-    const verticalSpacing = 5;
+    console.log(this.state.treeState)
+    const maxLetterFont = maxSize * this.state.treeState.labelSizeToPxFactor;
+    const maxLetterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, maxLetterFont);
+    const minLetterFont = minSize * this.state.treeState.labelSizeToPxFactor;
+    const minLetterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, minLetterFont);
+    const titleSize = this.textSizeEstimator.getTextSize(this.state.aesthetic.state.title, this.state.titleFontSize);
 
+    console.log(maxLetterSize)
     // Calculate width based on number of ticks
     const letterSpacing = 30;
-    const width = Math.max(ticks.length * letterSpacing, 100);
+    const baseWidth = Math.max(ticks.length * letterSpacing, 100);
+
+    // Calculate tick label sizes to account for overhang
+    const tickLabelSizes = ticks.map(tickValue => {
+      const labelText = formatTickLabel(tickValue, ticks);
+      return this.textSizeEstimator.getTextSize(labelText, this.state.labelFontSize);
+    });
+
+    // Calculate overhang on left (first tick label)
+    const leftOverhang = tickLabelSizes[0].widthPx / 2;
+
+    // Calculate overhang on right (last tick label)
+    const rightOverhang = tickLabelSizes[tickLabelSizes.length - 1].widthPx / 2;
+
+    // Total width includes base width plus overhangs
+    const width = baseWidth + leftOverhang + rightOverhang;
+
+    // Calculate title height offset
+    let titleHeightOffset = 0;
+    if (this.showTitle) {
+      titleHeightOffset = titleSize.heightPx + this.verticalSpacing;
+    }
 
     // Calculate total height
-    const height = titleHeight + verticalSpacing +
-      maxLetterHeight + tickHeight + labelHeight +
-      verticalSpacing + unitsHeight;
+    const height = titleHeightOffset +
+      maxLetterSize.heightPx * 0.62 + this.tickHeight + this.state.labelFontSize +
+      this.verticalSpacing + this.state.labelFontSize;
 
     // Store coordinates for each element
     this.coordinates = {
       width,
       height,
+      leftOverhang,
       title: {
-        x: 0,
-        y: titleHeight,
-        text: title
+        x: leftOverhang,
+        y: titleSize.heightPx,
+        text: this.state.aesthetic.state.title
       },
-      letters: [],
       polygon: [],
       ticks: [],
       labels: [],
       units: {
         x: width / 2,
-        y: height - unitsHeight + verticalSpacing,
+        y: height - this.state.labelFontSize + this.verticalSpacing,
         text: this.state.aesthetic.state.inputUnits || ""
       }
     };
 
-    // Calculate letter positions and sizes
-    const letterY = titleHeight + verticalSpacing + maxLetterHeight;
+    // Calculate polygon and tick positions (offset by leftOverhang)
+    const letterY = titleHeightOffset + maxLetterSize.heightPx * 0.62;
     ticks.forEach((tickValue, i) => {
       const t = (tickValue - minValue) / (maxValue - minValue);
-      const x = (i / (ticks.length - 1)) * width;
+      const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
       const size = minSize + t * (maxSize - minSize);
-      const fontSize = this.letterSize * size;
-
-      this.coordinates.letters.push({
-        x,
-        y: letterY,
-        size: fontSize,
-        value: tickValue
-      });
+      const fontSize = this.state.treeState.labelSizeToPxFactor * size;
+      const exampleLetterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, fontSize);
 
       // Tick marks
       this.coordinates.ticks.push({
         x1: x,
         y1: letterY,
         x2: x,
-        y2: letterY + tickHeight
+        y2: letterY + this.tickHeight
       });
 
       // Labels
       this.coordinates.labels.push({
         x,
-        y: letterY + tickHeight,
+        y: letterY + this.tickHeight,
         text: formatTickLabel(tickValue, ticks)
       });
     });
 
-    // Calculate polygon points (background shape)
-    const polygonY = titleHeight + verticalSpacing;
+    // Calculate polygon points (background shape) - offset by leftOverhang
     this.coordinates.polygon = [
-      { x: 0, y: polygonY + maxLetterHeight },
-      { x: 0, y: polygonY + maxLetterHeight - this.letterSize * minSize },
-      { x: width, y: polygonY + maxLetterHeight - this.letterSize * maxSize },
-      { x: width, y: polygonY + maxLetterHeight }
+      { x: leftOverhang, y: letterY },
+      { x: leftOverhang, y: letterY - minLetterSize.heightPx * 0.62 },
+      { x: leftOverhang + baseWidth, y: letterY - maxLetterSize.heightPx * 0.62 },
+      { x: leftOverhang + baseWidth, y: letterY }
     ];
+    console.log(this.coordinates.polygon)
   }
 
   /**
@@ -344,9 +359,11 @@ export class TextSizeLegend extends LegendBase {
     super.render(svg);
 
     // Render title
-    this.renderTitle(this.coordinates.title.text)
-      .attr("x", this.coordinates.title.x)
-      .attr("y", this.coordinates.title.y);
+    if (this.showTitle) {
+      this.renderTitle(this.coordinates.title.text)
+        .attr("x", this.coordinates.title.x)
+        .attr("y", this.coordinates.title.y);
+    }
 
     // Render background polygon
     const polygonPoints = this.coordinates.polygon
@@ -358,18 +375,6 @@ export class TextSizeLegend extends LegendBase {
       .attr("fill", "#f0f0f0")
       .attr("stroke", "#ccc")
       .attr("stroke-width", 1);
-
-    // Render letters
-    this.coordinates.letters.forEach(letter => {
-      this.group.append("text")
-        .attr("x", letter.x)
-        .attr("y", letter.y)
-        .attr("text-anchor", "middle")
-        .attr("dominant-baseline", "alphabetic")
-        .style("font-size", `${letter.size}px`)
-        .style("fill", "#000")
-        .text("A");
-    });
 
     // Render tick marks
     this.coordinates.ticks.forEach(tick => {
@@ -399,7 +404,7 @@ export class TextSizeLegend extends LegendBase {
         .attr("x", this.coordinates.units.x)
         .attr("y", this.coordinates.units.y)
         .attr("text-anchor", "middle")
-        .attr("dominant-baseline", "alphabetic")
+        .attr("dominant-baseline", "ideographic")
         .style("font-size", "12px")
         .style("font-style", "italic")
         .text(this.coordinates.units.text);

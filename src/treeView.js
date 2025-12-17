@@ -88,7 +88,7 @@ export class TreeView {
   destroy() {
     // Clear all SVG content
     this.svg.selectAll('*').remove();
-    
+
     // Clear references
     this.layers = {};
     this.selections = {};
@@ -402,7 +402,7 @@ export class TreeView {
 
     // Always add branch length legend first
     const branchLengthLegend = new BranchLengthLegend({
-      branchLenToPxFactor: this.treeState.branchLenToPxFactor,
+      treeState: this.treeState,
       x: currentX,
       y: currentY,
       origin: 'top left',
@@ -423,6 +423,7 @@ export class TreeView {
       // Create appropriate legend type
       if (legendData.type === 'size') {
         legend = new TextSizeLegend({
+          treeState: this.treeState,
           aesthetic: legendData.aesthetic,
           x: currentX,
           y: currentY,
@@ -741,7 +742,7 @@ export class TreeView {
     if (transition) {
       // Hide buttons immediately, then move and fade in after transition
       this.layers.selectionBtns
-        .attr('opacity',0)
+        .attr('opacity', 0)
         .attr('transform', `translate(${screenX},${screenY})`);
     } else {
       this.layers.selectionBtns

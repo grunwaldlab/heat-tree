@@ -73,9 +73,12 @@ export class TextSizeEstimator {
 
   getTextSize(text, fontSize, styles = {}) {
     const result = this.getRelativeTextSize(text, styles);
-    result.widthPx = result.width * fontSize;
-    result.heightPx = result.height * fontSize;
-    return result;
+    return {
+      width: result.width,
+      height: result.height,
+      widthPx: result.width * fontSize,
+      heightPx: result.height * fontSize
+    };
   }
 
   // Clear cache if needed
