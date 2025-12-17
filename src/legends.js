@@ -15,6 +15,8 @@ export class LegendBase {
       origin: "top left",
       maxX: Infinity,
       maxY: Infinity,
+      titleFontSize: 20,
+      labelFontSize: 14,
       ...options
     };
 
@@ -95,80 +97,81 @@ export class BranchLengthLegend extends LegendBase {
   constructor(options = {}) {
     super(options);
     this.scaleBarEdgeHeight = 6;
-    this.padding = 10;
+    this.titleSpacing = 10;
+    this.unitLabelSpacing = 2;
     this.minBarLength = 60;
     this.maxBarLength = 150;
+    this.lineThickness = 2;
+    this.showTitle = false;
+    this.title = 'Branch length';
   }
 
   /**
    * Calculate the size and location of legend elements
    */
   updateCoordinates() {
-    const pxPerUnit = this.state.branchLenToPxFactor;
-
-    if (!isFinite(pxPerUnit) || pxPerUnit <= 0) {
-      this.coordinates = { width: 0, height: 0 };
-      return;
-    }
-
     // Choose an initial "nice" distance then adjust to keep bar within limits
     let units = niceNumber(1);
-    let barPx = units * pxPerUnit;
+    let barWidth = units * this.state.branchLenToPxFactor;
 
     // Expand/shrink until within [min,max] pixels
-    if (barPx < this.minBarLength || barPx > this.maxBarLength) {
-      units = niceNumber(this.minBarLength / pxPerUnit);
-      barPx = units * pxPerUnit;
+    if (barWidth < this.minBarLength || barWidth > this.maxBarLength) {
+      units = niceNumber(this.minBarLength / this.state.branchLenToPxFactor);
+      barWidth = units * this.state.branchLenToPxFactor;
     }
-    while (barPx < this.minBarLength) {
+    while (barWidth < this.minBarLength) {
       units *= 2;
-      barPx = units * pxPerUnit;
+      barWidth = units * this.state.branchLenToPxFactor;
     }
-    while (barPx > this.maxBarLength) {
+    while (barWidth > this.maxBarLength) {
       units /= 2;
-      barPx = units * pxPerUnit;
+      barWidth = units * this.state.branchLenToPxFactor;
     }
 
-    const titleHeight = 20;
-    const barHeight = this.scaleBarEdgeHeight * 2;
-    const labelHeight = 14;
-    const verticalSpacing = 5;
+    units = units.toPrecision(3);
 
-    const width = barPx;
-    const height = titleHeight + verticalSpacing + barHeight + labelHeight;
+    const unitLabelSize = this.textSizeEstimator.getTextSize(units, this.state.labelFontSize);
+    const titleSize = this.textSizeEstimator.getTextSize(this.title, this.state.titleFontSize);
+    let titleHeightOffset = 0;
+    if (this.showTitle) {
+      titleHeightOffset = titleSize.heightPx + this.titleSpacing;
+    }
+    const barY = titleHeightOffset + this.unitLabelSpacing + unitLabelSize.heightPx;
 
     this.coordinates = {
-      width,
-      height,
+      width: barWidth + this.lineThickness,
+      height: titleHeightOffset + this.scaleBarEdgeHeight + this.unitLabelSpacing + unitLabelSize.heightPx,
       title: {
         x: 0,
-        y: titleHeight,
+        y: titleSize.heightPx,
         text: "Branch Length"
       },
       bar: {
         x1: 0,
-        y1: titleHeight + verticalSpacing + this.scaleBarEdgeHeight,
-        x2: barPx,
-        y2: titleHeight + verticalSpacing + this.scaleBarEdgeHeight
+        y1: barY,
+        x2: barWidth,
+        y2: barY,
       },
       leftTick: {
         x1: 0,
-        y1: titleHeight + verticalSpacing,
+        y1: barY - this.scaleBarEdgeHeight,
         x2: 0,
-        y2: titleHeight + verticalSpacing + barHeight
+        y2: barY + this.scaleBarEdgeHeight
       },
       rightTick: {
-        x1: barPx,
-        y1: titleHeight + verticalSpacing,
-        x2: barPx,
-        y2: titleHeight + verticalSpacing + barHeight
+        x1: barWidth,
+        y1: barY - this.scaleBarEdgeHeight,
+        x2: barWidth,
+        y2: barY + this.scaleBarEdgeHeight
       },
       label: {
-        x: barPx / 2,
-        y: titleHeight + verticalSpacing + this.scaleBarEdgeHeight,
-        text: units.toPrecision(3)
+        x: barWidth / 2,
+        y: titleHeightOffset + unitLabelSize.heightPx,
+        text: units
       }
     };
+    console.log(unitLabelSize);
+    console.log(this.coordinates);
   }
 
   /**
@@ -178,10 +181,12 @@ export class BranchLengthLegend extends LegendBase {
   render(svg) {
     super.render(svg);
 
-    // // Render title
-    // this.renderTitle(this.coordinates.title.text)
-    //   .attr("x", this.coordinates.title.x)
-    //   .attr("y", this.coordinates.title.y);
+    // Render title
+    if (this.showTitle) {
+      this.renderTitle(this.coordinates.title.text)
+        .attr("x", this.coordinates.title.x)
+        .attr("y", this.coordinates.title.y);
+    }
 
     // Render bar
     this.group.append("line")
@@ -191,7 +196,7 @@ export class BranchLengthLegend extends LegendBase {
       .attr("x2", this.coordinates.bar.x2)
       .attr("y2", this.coordinates.bar.y2)
       .attr("stroke", "#000")
-      .attr("stroke-width", 2);
+      .attr("stroke-width", this.lineThickness);
 
     // Render left tick
     this.group.append("line")
@@ -201,7 +206,7 @@ export class BranchLengthLegend extends LegendBase {
       .attr("x2", this.coordinates.leftTick.x2)
       .attr("y2", this.coordinates.leftTick.y2)
       .attr("stroke", "#000")
-      .attr("stroke-width", 2);
+      .attr("stroke-width", this.lineThickness);
 
     // Render right tick
     this.group.append("line")
@@ -211,7 +216,7 @@ export class BranchLengthLegend extends LegendBase {
       .attr("x2", this.coordinates.rightTick.x2)
       .attr("y2", this.coordinates.rightTick.y2)
       .attr("stroke", "#000")
-      .attr("stroke-width", 2);
+      .attr("stroke-width", this.lineThickness);
 
     // Render label
     this.group.append("text")
@@ -219,7 +224,7 @@ export class BranchLengthLegend extends LegendBase {
       .attr("x", this.coordinates.label.x)
       .attr("y", this.coordinates.label.y)
       .attr("text-anchor", "middle")
-      .attr("dominant-baseline", "alphabetic")
+      .attr("dominant-baseline", "ideographic")
       .style("font-size", "14px")
       .text(this.coordinates.label.text);
   }
