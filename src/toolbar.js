@@ -3,6 +3,7 @@
  * @param {HTMLElement} toolbarDiv - Container for the toolbar
  * @param {Map} treeDataInstances - Map of tree names to TreeData instances
  * @param {Function} getCurrentTreeState - Function that returns the current TreeState
+ * @param {Function} getCurrentTreeView - Function that returns the current TreeView
  * @param {Function} switchToTree - Function to switch to a different tree
  * @param {Function} addNewTree - Function to add a new tree
  * @param {Object} options - Configuration options
@@ -12,6 +13,7 @@ export function createToolbar(
   toolbarDiv,
   treeDataInstances,
   getCurrentTreeState,
+  getCurrentTreeView,
   switchToTree,
   addNewTree,
   options
@@ -183,7 +185,7 @@ export function createToolbar(
         populateTipLabelSettingsControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
         break;
       case 'export':
-        populateExportControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
+        populateExportControls(controlsContainer, getCurrentTreeState, getCurrentTreeView, options, CONTROL_HEIGHT);
         break;
     }
   }
@@ -841,18 +843,66 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
 /**
  * Populate Export tab controls
  */
-function populateExportControls(container, getCurrentTreeState, options, controlHeight) {
+function populateExportControls(container, getCurrentTreeState, getCurrentTreeView, options, controlHeight) {
   container.innerHTML = '';
 
   const treeState = getCurrentTreeState();
-  if (!treeState) {
+  const treeView = getCurrentTreeView();
+
+  if (!treeState || !treeView) {
     container.textContent = 'No tree selected';
     return;
   }
 
+  // Get tree bounds including legends
+  const bounds = getTreeBoundsWithLegends(treeState, treeView);
+  const treeWidth = bounds.maxX - bounds.minX;
+  const treeHeight = bounds.maxY - bounds.minY;
+
+  // State for export settings
+  const exportState = {
+    format: 'svg',
+    width: treeWidth,
+    height: treeHeight,
+    margin: 18,
+    maintainAspectRatio: true
+  };
+
+  // Calculate aspect ratio
+  const aspectRatio = treeWidth / treeHeight;
+
+  // PPI for conversion
+  const PPI = 300;
+  const CM_PER_INCH = 2.54;
+
+  // Conversion functions
+  const pxToCm = (px) => (px / PPI) * CM_PER_INCH;
+  const cmToPx = (cm) => (cm / CM_PER_INCH) * PPI;
+
+  // Get display value based on format
+  const getDisplayValue = (px, format) => {
+    if (format === 'png') {
+      return Math.round(px);
+    } else {
+      return Math.round(pxToCm(px) * 100) / 100;
+    }
+  };
+
+  // Get actual pixel value from display value
+  const getPixelValue = (displayValue, format) => {
+    if (format === 'png') {
+      return displayValue;
+    } else {
+      return cmToPx(displayValue);
+    }
+  };
+
   // Export button
   const exportBtn = createButton('Export', 'Export the tree to a file', controlHeight);
   exportBtn.classList.add('primary');
+  exportBtn.addEventListener('click', () => {
+    exportTree(treeState, treeView, exportState, bounds);
+  });
   container.appendChild(exportBtn);
 
   // Output format
@@ -862,27 +912,244 @@ function populateExportControls(container, getCurrentTreeState, options, control
   const formatSelect = document.createElement('select');
   formatSelect.className = 'ht-select';
   formatSelect.style.height = `${controlHeight}px`;
-  ['SVG', 'PDF', 'PNG'].forEach(format => {
+
+  ['SVG', 'PNG'].forEach(format => {
     const option = document.createElement('option');
     option.value = format.toLowerCase();
     option.textContent = format;
+    if (format.toLowerCase() === exportState.format) {
+      option.selected = true;
+    }
     formatSelect.appendChild(option);
   });
+
+  formatSelect.addEventListener('change', (e) => {
+    const oldFormat = exportState.format;
+    exportState.format = e.target.value;
+
+    // Update input values and units when format changes
+    widthInput.value = getDisplayValue(exportState.width, exportState.format);
+    heightInput.value = getDisplayValue(exportState.height, exportState.format);
+    marginInput.value = getDisplayValue(exportState.margin, exportState.format);
+
+    // Update unit labels
+    const unit = exportState.format === 'png' ? 'px' : 'cm';
+    widthLabel.textContent = `Width (${unit}):`;
+    heightLabel.textContent = `Height (${unit}):`;
+    marginLabel.textContent = `Margin (${unit}):`;
+  });
+
   container.appendChild(formatSelect);
 
-  // Output height
-  const heightLabel = createLabel('Output height (cm):', controlHeight);
-  container.appendChild(heightLabel);
-
-  const heightInput = createNumberInput(20, 1, 100, 1, controlHeight);
-  container.appendChild(heightInput);
-
-  // Output width
-  const widthLabel = createLabel('Output width (cm):', controlHeight);
+  // Width input
+  const widthLabel = createLabel(`Width (${exportState.format === 'png' ? 'px' : 'cm'}):`, controlHeight);
   container.appendChild(widthLabel);
 
-  const widthInput = createNumberInput(20, 1, 100, 1, controlHeight);
+  const widthInput = createNumberInput(
+    getDisplayValue(exportState.width, exportState.format),
+    0.1,
+    10000,
+    0.1,
+    controlHeight
+  );
+
+  widthInput.addEventListener('input', (e) => {
+    const displayValue = parseFloat(e.target.value);
+    if (isNaN(displayValue) || displayValue <= 0) return;
+
+    exportState.width = getPixelValue(displayValue, exportState.format);
+
+    if (exportState.maintainAspectRatio) {
+      exportState.height = exportState.width / aspectRatio;
+      heightInput.value = getDisplayValue(exportState.height, exportState.format);
+    }
+  });
+
   container.appendChild(widthInput);
+
+  // Height input
+  const heightLabel = createLabel(`Height (${exportState.format === 'png' ? 'px' : 'cm'}):`, controlHeight);
+  container.appendChild(heightLabel);
+
+  const heightInput = createNumberInput(
+    getDisplayValue(exportState.height, exportState.format),
+    0.1,
+    10000,
+    0.1,
+    controlHeight
+  );
+
+  heightInput.addEventListener('input', (e) => {
+    const displayValue = parseFloat(e.target.value);
+    if (isNaN(displayValue) || displayValue <= 0) return;
+
+    exportState.height = getPixelValue(displayValue, exportState.format);
+
+    if (exportState.maintainAspectRatio) {
+      exportState.width = exportState.height * aspectRatio;
+      widthInput.value = getDisplayValue(exportState.width, exportState.format);
+    }
+  });
+
+  container.appendChild(heightInput);
+
+  // Margin input
+  const marginLabel = createLabel(`Margin (${exportState.format === 'png' ? 'px' : 'cm'}):`, controlHeight);
+  container.appendChild(marginLabel);
+
+  const marginInput = createNumberInput(
+    getDisplayValue(exportState.margin, exportState.format),
+    0,
+    100,
+    0.1,
+    controlHeight
+  );
+
+  marginInput.addEventListener('input', (e) => {
+    const displayValue = parseFloat(e.target.value);
+    if (isNaN(displayValue) || displayValue < 0) return;
+
+    exportState.margin = getPixelValue(displayValue, exportState.format);
+  });
+
+  container.appendChild(marginInput);
+}
+
+/**
+ * Get tree bounds including legends
+ */
+function getTreeBoundsWithLegends(treeState, treeView) {
+  const treeBounds = {
+    minX: treeState.displayedRoot.bounds.minX,
+    maxX: treeState.displayedRoot.bounds.maxX,
+    minY: treeState.displayedRoot.bounds.minY,
+    maxY: treeState.displayedRoot.bounds.maxY
+  };
+
+  let maxY = treeBounds.maxY;
+
+  // Add legend heights
+  for (const legend of treeView.legendInstances) {
+    if (legend.coordinates) {
+      maxY = Math.max(maxY, legend.state.y + legend.coordinates.height);
+    }
+  }
+
+  return {
+    minX: treeBounds.minX,
+    maxX: treeBounds.maxX,
+    minY: treeBounds.minY,
+    maxY: maxY
+  };
+}
+
+/**
+ * Export tree to file
+ */
+function exportTree(treeState, treeView, exportState, bounds) {
+  // Calculate dimensions
+  const contentWidth = bounds.maxX - bounds.minX;
+  const contentHeight = bounds.maxY - bounds.minY;
+
+  // Calculate scale to fit content into export dimensions
+  const scaleX = exportState.width / contentWidth;
+  const scaleY = exportState.height / contentHeight;
+  const scale = Math.min(scaleX, scaleY);
+
+  // Calculate final dimensions with margin
+  const finalWidth = exportState.width + 2 * exportState.margin;
+  const finalHeight = exportState.height + 2 * exportState.margin;
+
+  // Calculate translation to center content and add margin
+  const translateX = exportState.margin - bounds.minX * scale;
+  const translateY = exportState.margin - bounds.minY * scale;
+
+  // Create a new SVG element for export
+  const exportSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  exportSvg.setAttribute('width', finalWidth);
+  exportSvg.setAttribute('height', finalHeight);
+  exportSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+  // Create a group for the transformed content
+  const contentGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  contentGroup.setAttribute('transform', `translate(${translateX}, ${translateY}) scale(${scale})`);
+
+  // Clone the tree elements from the view
+  const treeGroup = treeView.layers.treeGroup.node();
+  const clonedTreeGroup = treeGroup.cloneNode(true);
+
+  // Remove the transform attribute from the cloned group (we'll apply our own)
+  clonedTreeGroup.removeAttribute('transform');
+
+  // Remove selection rectangle and buttons from export
+  const selectionRect = clonedTreeGroup.querySelector('.selection-rect');
+  if (selectionRect) {
+    selectionRect.remove();
+  }
+
+  contentGroup.appendChild(clonedTreeGroup);
+  exportSvg.appendChild(contentGroup);
+
+  // Serialize the SVG
+  const serializer = new XMLSerializer();
+  const svgString = serializer.serializeToString(exportSvg);
+
+  if (exportState.format === 'svg') {
+    // Download as SVG
+    downloadFile(svgString, 'tree.svg', 'image/svg+xml');
+  } else if (exportState.format === 'png') {
+    // Convert to PNG
+    convertSvgToPng(svgString, finalWidth, finalHeight, 'tree.png');
+  }
+}
+
+/**
+ * Download a file
+ */
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Convert SVG to PNG
+ */
+function convertSvgToPng(svgString, width, height, filename) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  const img = new Image();
+  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+
+  img.onload = () => {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0);
+
+    canvas.toBlob((blob) => {
+      const pngUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = pngUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(pngUrl);
+      URL.revokeObjectURL(url);
+    });
+  };
+
+  img.src = url;
 }
 
 /**

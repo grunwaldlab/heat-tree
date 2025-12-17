@@ -212,6 +212,7 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     toolbarDiv,
     treeDataInstances,
     () => currentTreeState,
+    () => currentTreeView,
     switchToTree,
     addNewTree,
     options
