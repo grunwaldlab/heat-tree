@@ -74,10 +74,10 @@ Each dropdown element in the controls in this section have a button to the right
 
 ### Export settings tab
 
-When this tab is selected a border with a drop shadow is shown representing the boundries of the exported file (if enabled).
 In units of the "Height", "Width", and "Margin" setting are in pixels for PNG and cm for vector formats. The units are automatically converted assuming a 300 ppi for conversion between the two.
-When this tab is selected, the pixel coordinates of the tree are controlled by the "Height" and "Width" settings rather than the size of the viewport, like in other tabs.
-This effect is undone when a different tab is selected.
+Changes to the "Height" or "Width" will result the other dimension automatically changing to maintain the current aspect ratio.
+The "Height" and "Width" only affect the scaling of the elements in the exported file.
+Regardless of the current view, the entire tree and all legends should be included in the exported file and the boundary of the exported figure should be based on the tree and legends.
 
 - **Export**: A button that exports the tree to a SVG file that the user can download
 - **Output format**: A dropdown with options SVG, PDF, and PNG. Default: SVG.
