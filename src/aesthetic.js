@@ -1,7 +1,7 @@
 import {
   NullScale,
   IdentityScale,
-  CategoricalFontStyleScale,
+  CategoricalTextScale,
   ContinuousSizeScale,
   ContinuousColorScale,
   CategoricalColorScale
@@ -15,7 +15,7 @@ export class Aesthetic {
   state; // Object containing all configuration used to infer the scale
   scale; // the actual scale instance
 
-  constructor(options = {}) {
+  constructor(values, options = {}) {
     // Required options
     if (!options.scaleType) {
       throw new Error('scaleType is required');
@@ -26,14 +26,17 @@ export class Aesthetic {
 
     // Initialize state with all configuration variables
     this.state = {
+      scaleType: undefined,
+      default: undefined,
       isCategorical: undefined,
       outputValues: null,
+      outputRegex: null,
       colorPalette: null,
       outputRange: null,
       inputUnits: null,
       title: null,
       maxCategories: 10,
-      otherCategoryColor: "#888888",
+      otherCategory: "#888888",
       transformMin: 0,
       transformMax: 1,
       transformFn: null,
@@ -42,7 +45,7 @@ export class Aesthetic {
     };
 
     // Initialize the scale
-    this.updateScale();
+    this.updateScale(values);
   }
 
   /**
@@ -67,8 +70,8 @@ export class Aesthetic {
    * Update the scale based on current state
    * Uses the stored state to create an appropriate scale
    */
-  updateScale() {
-    const { scaleType, values, isCategorical } = this.state;
+  updateScale(values) {
+    const { scaleType, isCategorical } = this.state;
     let scale;
 
     // Handle null scale
@@ -78,8 +81,29 @@ export class Aesthetic {
       return;
     }
 
-    // Handle text/identity scales
-    if (scaleType === 'text' || scaleType === 'identity') {
+    // Handle identity scales and data already in the output format
+    let isAlreadyOutputFormat = true;
+    if (isCategorical && (this.state.outputValues || this.state.outputRegex)) {
+      if (this.state.outputValues) {
+        for (let i = 0; i < values.length; i++) {
+          if (values[i] && !this.state.outputValues.includes(values[i])) {
+            isAlreadyOutputFormat = false;
+            break;
+          }
+        }
+      }
+      if (this.state.outputRegex) {
+        for (let i = 0; i < values.length; i++) {
+          if (values[i] && !this.state.outputRegex.test(values[i])) {
+            isAlreadyOutputFormat = false;
+            break;
+          }
+        }
+      }
+    } else {
+      isAlreadyOutputFormat = false;
+    }
+    if (scaleType === 'identity' || isAlreadyOutputFormat) {
       scale = new IdentityScale(
         this.state.default,
         this.state.outputValues,
@@ -89,18 +113,12 @@ export class Aesthetic {
       return;
     }
 
-    // Handle font style scales (only for categorical data)
-    if (scaleType === 'fontStyle') {
+    // Handle text scales (only for categorical data)
+    if (scaleType === 'text') {
       if (!isCategorical) {
-        throw new Error('Font style scales can only be used with categorical data');
+        throw new Error('Text scales can only be used with categorical data');
       }
-
-      if (values.length === 0) {
-        console.warn('No values found for font style scale, using NullScale');
-        scale = new NullScale(this.state.default);
-      } else {
-        scale = new CategoricalFontStyleScale(values);
-      }
+      scale = new CategoricalTextScale(values, this.state.outputValues, this.state.default);
       this.setScale(scale);
       return;
     }

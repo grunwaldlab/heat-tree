@@ -51,74 +51,62 @@ export class IdentityScale {
 }
 
 /**
- * Scale for mapping categorical text to font styles
- * If all input values are already valid font styles, functions like an IdentityScale
+ * Scale for mapping categorical data to text outputs
  */
-export class CategoricalFontStyleScale {
-  constructor(categoryData) {
-    if (!Array.isArray(categoryData) || categoryData.length === 0) {
-      throw new Error('categoryData must be a non-empty array');
+export class CategoricalTextScale {
+  constructor(values, outputCategories, defaultValue) {
+    if (!Array.isArray(values) || values.length === 0) {
+      throw new Error('values must be a non-empty array');
     }
 
-    // Valid CSS font-style values
-    this.validFontStyles = new Set(['normal', 'italic', 'oblique']);
+    this.outputCategories = outputCategories;
+    this.defaultValue = defaultValue;
 
-    // Calculate unique categories
-    const uniqueCategories = [...new Set(categoryData)];
-
-    // Check if all categories are already valid font styles
-    this.isIdentity = uniqueCategories.every(cat => this.validFontStyles.has(cat));
-
-    if (this.isIdentity) {
-      // Function as identity scale
-      this.categoryStyleMap = new Map();
-      for (const category of uniqueCategories) {
-        this.categoryStyleMap.set(category, category);
+    // Sort categories by frequency (descending)
+    const frequencyMap = new Map();
+    for (const category of values) {
+      if (category === null || category === undefined || category === '') {
+        continue;
       }
+      if (frequencyMap.has(category)) {
+        frequencyMap.set(category, frequencyMap.get(category) + 1);
+      } else {
+        frequencyMap.set(category, 1);
+      }
+    }
+    const sortedCategories = new Map(
+      [...frequencyMap.entries()].sort((a, b) => a[0] - b[0])
+    );
+
+    if (sortedCategories.length > outputCategories.length) {
+      this.otheredCategories = sortedCategories.keys().slice(outputCategories.length - 2, sortedCategories.length);
     } else {
-      // Map categories to font styles
-      this.categoryStyleMap = new Map();
-      const fontStyleArray = ['normal', 'italic', 'oblique'];
+      this.otheredCategories = [];
+    }
 
-      // Sort categories by frequency (descending)
-      const frequencyMap = new Map();
-      for (const category of categoryData) {
-        if (frequencyMap.has(category)) {
-          frequencyMap.set(category, frequencyMap.get(category) + 1);
-        } else {
-          frequencyMap.set(category, 1);
-        }
-      }
-
-      const sortedCategories = [...frequencyMap.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(entry => entry[0]);
-
-      // Assign font styles to categories
-      for (let i = 0; i < sortedCategories.length; i++) {
-        const styleIndex = i % fontStyleArray.length;
-        this.categoryStyleMap.set(sortedCategories[i], fontStyleArray[styleIndex]);
+    // Map input categories to output categories
+    this.categoryMap = new Map();
+    const sortedCategoriesKeys = [...sortedCategories.keys()];
+    for (let i = 0; i < sortedCategoriesKeys.length; i++) {
+      if (i < outputCategories.length) {
+        this.categoryMap.set(sortedCategoriesKeys[i], outputCategories[i]);
+      } else {
+        this.categoryMap.set(sortedCategoriesKeys[i], outputCategories[outputCategories.length - 1]);
       }
     }
   }
 
   /**
-   * Get the font style corresponding to the given category
+   * Get the text corresponding to the given category
    * @param {*} category - The category value to map
-   * @returns {string} The corresponding font style
+   * @returns {string} The corresponding text category
    */
   getValue(category) {
     // Handle null/undefined/empty values
     if (category === null || category === undefined || category === '') {
-      return 'normal';
+      return this.defaultValue;
     }
-
-    if (this.categoryStyleMap.has(category)) {
-      return this.categoryStyleMap.get(category);
-    }
-
-    // Default to normal for unknown categories
-    return 'normal';
+    return this.categoryMap.get(category);
   }
 }
 

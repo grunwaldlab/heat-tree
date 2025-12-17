@@ -227,8 +227,7 @@ export class TreeData extends Subscribable {
     const displayName = this.columnDisplayName.get(columnId) || columnId;
 
     // Create aesthetic with provided state, filling in defaults
-    const aesthetic = new Aesthetic({
-      values: values,
+    const aesthetic = new Aesthetic(values, {
       isCategorical: isCategorical,
       inputUnits: displayName,
       ...state

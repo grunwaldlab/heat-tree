@@ -367,7 +367,8 @@ export class TreeView {
     if (!this.selections.nodes) return;
 
     this.selections.nodes.selectAll('.tip-label')
-      .style('font-style', d => d.tipLabelStyle || 'normal');
+      .style('font-style', d => d.tipLabelStyle || 'normal')
+      .style('font-weight', d => d.tipLabelStyle === 'bold' ? 'bold' : 'normal');
   }
 
   /**
@@ -1128,6 +1129,7 @@ export class TreeView {
       .style('font-size', d => `${d.tipLabelSizePx}px`)
       .style('font-family', d => d.tipLabelFont || 'sans-serif')
       .style('font-style', d => d.tipLabelStyle || 'normal')
+      .style('font-weight', d => d.tipLabelStyle === 'bold' ? 'bold' : 'normal')
       .style('fill', d => d.tipLabelColor || '#000')
       .style('display', d => (d.children) ? 'none' : null)
       .text(d => d.tipLabelText || '');

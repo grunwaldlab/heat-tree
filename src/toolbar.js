@@ -628,10 +628,10 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   );
   tipLabelTextContainer.appendChild(tipLabelTextSelect);
 
-  const tipLabelTextEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
-  tipLabelTextEditBtn.style.width = `${controlHeight}px`;
-  tipLabelTextEditBtn.style.flexShrink = '0';
-  tipLabelTextContainer.appendChild(tipLabelTextEditBtn);
+  // const tipLabelTextEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
+  // tipLabelTextEditBtn.style.width = `${controlHeight}px`;
+  // tipLabelTextEditBtn.style.flexShrink = '0';
+  // tipLabelTextContainer.appendChild(tipLabelTextEditBtn);
 
   container.appendChild(tipLabelTextContainer);
 
@@ -652,10 +652,10 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   );
   tipLabelColorContainer.appendChild(tipLabelColorSelect);
 
-  const tipLabelColorEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
-  tipLabelColorEditBtn.style.width = `${controlHeight}px`;
-  tipLabelColorEditBtn.style.flexShrink = '0';
-  tipLabelColorContainer.appendChild(tipLabelColorEditBtn);
+  // const tipLabelColorEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
+  // tipLabelColorEditBtn.style.width = `${controlHeight}px`;
+  // tipLabelColorEditBtn.style.flexShrink = '0';
+  // tipLabelColorContainer.appendChild(tipLabelColorEditBtn);
 
   container.appendChild(tipLabelColorContainer);
 
@@ -676,10 +676,10 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   );
   tipLabelSizeContainer.appendChild(tipLabelSizeSelect);
 
-  const tipLabelSizeEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
-  tipLabelSizeEditBtn.style.width = `${controlHeight}px`;
-  tipLabelSizeEditBtn.style.flexShrink = '0';
-  tipLabelSizeContainer.appendChild(tipLabelSizeEditBtn);
+  // const tipLabelSizeEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
+  // tipLabelSizeEditBtn.style.width = `${controlHeight}px`;
+  // tipLabelSizeEditBtn.style.flexShrink = '0';
+  // tipLabelSizeContainer.appendChild(tipLabelSizeEditBtn);
 
   container.appendChild(tipLabelSizeContainer);
 
@@ -687,41 +687,25 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelStyleLabel = createLabel('Style:', controlHeight);
   container.appendChild(tipLabelStyleLabel);
 
-  const tipLabelStyleSelect = document.createElement('select');
-  tipLabelStyleSelect.className = 'ht-select';
-  tipLabelStyleSelect.style.height = `${controlHeight}px`;
+  const tipLabelStyleContainer = document.createElement('div');
+  tipLabelStyleContainer.style.display = 'flex';
 
-  const styles = ['normal', 'italic'];
+  const tipLabelStyleSelect = createMetadataColumnSelect(
+    treeState,
+    'tipLabelStyle',
+    'Default',
+    controlHeight,
+    false,
+    false
+  );
+  tipLabelStyleContainer.appendChild(tipLabelStyleSelect);
 
-  // Get current style value - check if it's set via aesthetic or use default
-  const currentStyle = treeState.state.aesthetics.tipLabelStyle !== undefined
-    ? treeState.aestheticsScales.tipLabelStyle.getValue()
-    : 'normal';
+  // const tipLabelStyleEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
+  // tipLabelStyleEditBtn.style.width = `${controlHeight}px`;
+  // tipLabelStyleEditBtn.style.flexShrink = '0';
+  // tipLabelStyleContainer.appendChild(tipLabelStyleEditBtn);
 
-  styles.forEach(style => {
-    const option = document.createElement('option');
-    option.value = style;
-    option.textContent = style.charAt(0).toUpperCase() + style.slice(1);
-    if (style === currentStyle) {
-      option.selected = true;
-    }
-    tipLabelStyleSelect.appendChild(option);
-  });
-
-  // Handle style selection change
-  tipLabelStyleSelect.addEventListener('change', (e) => {
-    const selectedStyle = e.target.value;
-    // Set the style as a direct value (not from metadata)
-    treeState.setAesthetics({ tipLabelStyle: undefined });
-    // Then update all nodes to use this style
-    treeState.state.treeData.tree.each(d => {
-      d.tipLabelStyle = selectedStyle;
-    });
-    // Trigger coordinate update since style affects text size
-    treeState.updateCoordinates();
-  });
-
-  container.appendChild(tipLabelStyleSelect);
+  container.appendChild(tipLabelStyleContainer);
 
   // Tip label font
   const tipLabelFontLabel = createLabel('Font:', controlHeight);
