@@ -224,7 +224,7 @@ export class BranchLengthLegend extends LegendBase {
       .attr("y", this.coordinates.label.y)
       .attr("text-anchor", "middle")
       .attr("dominant-baseline", "ideographic")
-      .style("font-size", "14px")
+      .style("font-size", `${this.state.labelFontSize}px`)
       .text(this.coordinates.label.text);
   }
 }
@@ -236,7 +236,6 @@ export class BranchLengthLegend extends LegendBase {
 export class TextSizeLegend extends LegendBase {
   constructor(options = {}) {
     super(options);
-    this.letterSize = 16; // Base size for the "A" characters
     this.padding = 10;
     this.exampleLetter = 'A';
     this.tickHeight = 5;
@@ -258,10 +257,8 @@ export class TextSizeLegend extends LegendBase {
     const ticks = generateNiceTicks(minValue, maxValue, 5);
 
     // Calculate dimensions
-    const maxLetterFont = maxSize * this.state.treeState.labelSizeToPxFactor;
-    const maxLetterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, maxLetterFont);
-    const minLetterFont = minSize * this.state.treeState.labelSizeToPxFactor;
-    const minLetterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, minLetterFont);
+    const maxLetterFont = maxSize * this.state.treeState.labelSizeToPxFactor * 0.7; // The 0.7 is because the full font height is not the height of most letters
+    const minLetterFont = minSize * this.state.treeState.labelSizeToPxFactor * 0.7;
     const titleSize = this.textSizeEstimator.getTextSize(this.state.aesthetic.state.title, this.state.titleFontSize);
 
     // Calculate width based on number of ticks
@@ -291,7 +288,7 @@ export class TextSizeLegend extends LegendBase {
 
     // Calculate total height
     const height = titleHeightOffset +
-      maxLetterSize.heightPx * 0.62 + this.tickHeight + this.state.labelFontSize +
+      maxLetterFont + this.tickHeight + this.state.labelFontSize +
       this.verticalSpacing + this.state.labelFontSize;
 
     // Store coordinates for each element
@@ -315,7 +312,7 @@ export class TextSizeLegend extends LegendBase {
     };
 
     // Calculate polygon and tick positions (offset by leftOverhang)
-    const letterY = titleHeightOffset + maxLetterSize.heightPx * 0.62;
+    const letterY = titleHeightOffset + maxLetterFont;
     ticks.forEach((tickValue, i) => {
       const t = (tickValue - minValue) / (maxValue - minValue);
       const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
@@ -342,8 +339,8 @@ export class TextSizeLegend extends LegendBase {
     // Calculate polygon points (background shape) - offset by leftOverhang
     this.coordinates.polygon = [
       { x: leftOverhang, y: letterY },
-      { x: leftOverhang, y: letterY - minLetterSize.heightPx * 0.62 },
-      { x: leftOverhang + baseWidth, y: letterY - maxLetterSize.heightPx * 0.62 },
+      { x: leftOverhang, y: letterY - minLetterFont },
+      { x: leftOverhang + baseWidth, y: letterY - maxLetterFont },
       { x: leftOverhang + baseWidth, y: letterY }
     ];
     console.log(this.coordinates.polygon)
@@ -392,7 +389,7 @@ export class TextSizeLegend extends LegendBase {
         .attr("y", label.y)
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "hanging")
-        .style("font-size", "12px")
+        .style("font-size", `${this.state.labelFontSize}px`)
         .text(label.text);
     });
 
@@ -403,7 +400,7 @@ export class TextSizeLegend extends LegendBase {
         .attr("y", this.coordinates.units.y)
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "ideographic")
-        .style("font-size", "12px")
+        .style("font-size", `${this.state.labelFontSize}px`)
         .style("font-style", "italic")
         .text(this.coordinates.units.text);
     }
@@ -519,10 +516,6 @@ export class TextColorLegend extends LegendBase {
     // Generate nice tick values
     const ticks = generateNiceTicks(minValue, maxValue, 5);
 
-    // Calculate dimensions for letters above gradient
-    const letterFontSize = this.state.labelFontSize * 1.2;
-    const letterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, letterFontSize);
-
     // Calculate width based on number of ticks
     const letterSpacing = 30;
     const baseWidth = Math.max(ticks.length * letterSpacing, 120);
@@ -543,14 +536,13 @@ export class TextColorLegend extends LegendBase {
     const width = baseWidth + leftOverhang + rightOverhang;
 
     // Calculate positions
-    const lettersY = titleHeightOffset + letterSize.heightPx * 0.7;
-    const gradientY = lettersY + this.verticalSpacing;
+    const gradientY = titleHeightOffset + this.verticalSpacing;
     const ticksY = gradientY + this.gradientHeight;
     const labelsY = ticksY + this.tickHeight;
 
     // Calculate total height
     const unitsSize = this.textSizeEstimator.getTextSize(aesthetic.state.inputUnits || "", this.state.labelFontSize);
-    const height = labelsY + this.state.labelFontSize + this.verticalSpacing + unitsSize.heightPx;
+    const height = labelsY + this.state.labelFontSize + unitsSize.heightPx;
 
     this.coordinates = {
       width,
@@ -568,7 +560,6 @@ export class TextColorLegend extends LegendBase {
         width: baseWidth,
         height: this.gradientHeight
       },
-      letters: [],
       ticks: [],
       labels: [],
       units: {
@@ -578,20 +569,9 @@ export class TextColorLegend extends LegendBase {
       }
     };
 
-    // Calculate letter and tick positions
+    // Calculate tick positions
     ticks.forEach((tickValue, i) => {
-      const t = (tickValue - minValue) / (maxValue - minValue);
       const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
-      const color = aesthetic.scale.getValue(tickValue);
-
-      // Letters
-      this.coordinates.letters.push({
-        x,
-        y: lettersY,
-        text: this.exampleLetter,
-        color: color,
-        fontSize: letterFontSize
-      });
 
       // Tick marks
       this.coordinates.ticks.push({
@@ -695,19 +675,6 @@ export class TextColorLegend extends LegendBase {
       .style("fill", `url(#${gradientId})`)
       .style("stroke", "#000")
       .style("stroke-width", 1);
-
-    // Render colored letters above gradient
-    this.coordinates.letters.forEach(letter => {
-      this.group.append("text")
-        .attr("x", letter.x)
-        .attr("y", letter.y)
-        .attr("text-anchor", "middle")
-        .attr("dominant-baseline", "ideographic")
-        .style("font-size", `${letter.fontSize}px`)
-        .style("fill", letter.color)
-        .style("font-weight", "bold")
-        .text(letter.text);
-    });
 
     // Render tick marks
     this.coordinates.ticks.forEach(tick => {
@@ -1031,7 +998,6 @@ function updateColorLegend(colorLegendGroup, colorScale, columnName, columnType,
   colorLegendGroup.style("display", "block");
 
   let currentX = 0;
-  const labelFontSize = 16;
   const verticalCenter = options.legendElementHeight / 2;
 
   // Add column name label
@@ -1039,7 +1005,7 @@ function updateColorLegend(colorLegendGroup, colorScale, columnName, columnType,
     .attr("x", currentX)
     .attr("y", verticalCenter)
     .attr("dominant-baseline", "central")
-    .style("font-size", `${labelFontSize}px`)
+    .style("font-size", `${this.state.labelFontSize}px`)
     .text(columnToHeader(columnName) + ":");
 
   const columnLabelBBox = columnLabel.node().getBBox();
