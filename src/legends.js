@@ -113,7 +113,6 @@ export class BranchLengthLegend extends LegendBase {
     // Choose an initial "nice" distance then adjust to keep bar within limits
     let units = niceNumber(1);
     let barWidth = units * this.state.treeState.branchLenToPxFactor;
-    console.log(this.state.treeState.branchLenToPxFactor);
 
     // Expand/shrink until within [min,max] pixels
     if (barWidth < this.minBarLength || barWidth > this.maxBarLength) {
@@ -314,11 +313,7 @@ export class TextSizeLegend extends LegendBase {
     // Calculate polygon and tick positions (offset by leftOverhang)
     const letterY = titleHeightOffset + maxLetterFont;
     ticks.forEach((tickValue, i) => {
-      const t = (tickValue - minValue) / (maxValue - minValue);
       const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
-      const size = minSize + t * (maxSize - minSize);
-      const fontSize = this.state.treeState.labelSizeToPxFactor * size;
-      const exampleLetterSize = this.textSizeEstimator.getTextSize(this.exampleLetter, fontSize);
 
       // Tick marks
       this.coordinates.ticks.push({
@@ -343,7 +338,6 @@ export class TextSizeLegend extends LegendBase {
       { x: leftOverhang + baseWidth, y: letterY - maxLetterFont },
       { x: leftOverhang + baseWidth, y: letterY }
     ];
-    console.log(this.coordinates.polygon)
   }
 
   /**

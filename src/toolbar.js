@@ -529,19 +529,17 @@ function populateTreeManipulationControls(
   container.appendChild(branchLengthLabel);
 
   // Convert actual scale value to slider position (logarithmic)
-  // Range: 0.01 to 100, with 1 at center (50%)
-  // log(0.01) = -2, log(1) = 0, log(100) = 2
-  const scaleToSlider = (scale) => {
-    const logMin = Math.log10(0.01); // -2
-    const logMax = Math.log10(100);  // 2
+  const scaleToSlider = (scale, max = 10) => {
+    const logMin = Math.log10(1 / max);
+    const logMax = Math.log10(max);
     const logScale = Math.log10(scale);
     return ((logScale - logMin) / (logMax - logMin)) * 100;
   };
 
   // Convert slider position to actual scale value (logarithmic)
-  const sliderToScale = (sliderValue) => {
-    const logMin = Math.log10(0.01); // -2
-    const logMax = Math.log10(100);  // 2
+  const sliderToScale = (sliderValue, max = 10) => {
+    const logMin = Math.log10(1 / max);
+    const logMax = Math.log10(max);
     const logScale = logMin + (sliderValue / 100) * (logMax - logMin);
     return Math.pow(10, logScale);
   };
@@ -560,29 +558,11 @@ function populateTreeManipulationControls(
   const treeHeightLabel = createLabel('Tree height:', controlHeight);
   container.appendChild(treeHeightLabel);
 
-  // Convert actual scale value to slider position (logarithmic)
-  // Range: 0.1 to 10, with 1 at center (50%)
-  // log(0.1) = -1, log(1) = 0, log(10) = 1
-  const heightScaleToSlider = (scale) => {
-    const logMin = Math.log10(0.1);  // -1
-    const logMax = Math.log10(10);   // 1
-    const logScale = Math.log10(scale);
-    return ((logScale - logMin) / (logMax - logMin)) * 100;
-  };
-
-  // Convert slider position to actual scale value (logarithmic)
-  const heightSliderToScale = (sliderValue) => {
-    const logMin = Math.log10(0.1);  // -1
-    const logMax = Math.log10(10);   // 1
-    const logScale = logMin + (sliderValue / 100) * (logMax - logMin);
-    return Math.pow(10, logScale);
-  };
-
-  const treeHeightSlider = createSlider(0, 100, heightScaleToSlider(treeState.state.treeHeightScale), 0.1, controlHeight);
+  const treeHeightSlider = createSlider(0, 100, scaleToSlider(treeState.state.treeHeightScale), 0.1, controlHeight);
 
   treeHeightSlider.addEventListener('input', (e) => {
     const sliderValue = parseFloat(e.target.value);
-    const scale = heightSliderToScale(sliderValue);
+    const scale = sliderToScale(sliderValue);
     treeState.setTreeHeightScale(scale);
   });
 
