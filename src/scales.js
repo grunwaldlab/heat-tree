@@ -1,3 +1,5 @@
+import { max } from "d3";
+
 /**
  * Placeholder scale for contant output when a mapping variable is not used
  */
@@ -324,7 +326,10 @@ export class ContinuousColorScale {
  * Scale for mapping categorical values to colors
  */
 export class CategoricalColorScale {
-  constructor(categoryData, transformMin = 0, transformMax = 1, colors = null, colorPositions = null) {
+
+  defaultPalette = ['#440154', '#31688e', '#35b779', '#fde724'];
+
+  constructor(categoryData, transformMin = 0, transformMax = 1, colors = null, colorPositions = null, maxColors = 10) {
     if (!Array.isArray(categoryData) || categoryData.length === 0) {
       throw new Error('categoryData must be a non-empty array');
     }
@@ -332,6 +337,7 @@ export class CategoricalColorScale {
     this.transformMin = transformMin;
     this.transformMax = transformMax;
     this.nullColor = "#808080"; // Default grey for null/empty values
+    this.maxColors = maxColors;
 
     // Calculate unique categories and their frequencies
     this.frequencyMap = new Map();
@@ -350,7 +356,7 @@ export class CategoricalColorScale {
 
     // Default to viridis-like color scheme if not provided
     if (colors === null) {
-      this.colors = ['#440154', '#31688e', '#35b779', '#fde724'].map(c => this._hexToRgb(c));
+      this.colors = this.defaultPalette.map(c => this._hexToRgb(c));
     } else {
       if (colors.length < 1) {
         throw new Error('At least 1 color is required');
@@ -417,9 +423,11 @@ export class CategoricalColorScale {
       const color = this._getColorAtPosition(this.transformMin);
       this.categoryColorMap.set(this.categories[0], color);
     } else {
+      const nCategories = this.categories.length > this.maxColors ? this.maxColors : this.categories.length;
+
       // Multiple categories spread across the transform range
       for (let i = 0; i < this.categories.length; i++) {
-        const t = i / (this.categories.length - 1);
+        const t = i >= nCategories ? 1 : i / (nCategories - 1);
         const transformedT = this.transformMin + t * (this.transformMax - this.transformMin);
         const color = this._getColorAtPosition(transformedT);
         this.categoryColorMap.set(this.categories[i], color);

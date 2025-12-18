@@ -35,8 +35,9 @@ export class Aesthetic {
       outputRange: null,
       inputUnits: null,
       title: null,
-      maxCategories: 10,
+      maxCategories: 7,
       otherCategory: "#888888",
+      otherLabel: "Other",
       transformMin: 0,
       transformMax: 1,
       transformFn: null,
@@ -151,7 +152,8 @@ export class Aesthetic {
           this.state.transformMin,
           this.state.transformMax,
           this.state.colorPalette,
-          this.state.colorPositions
+          this.state.colorPositions,
+          this.state.maxCategories
         );
       } else {
         const numericValues = values.map(v => Number(v)).filter(v => !isNaN(v));

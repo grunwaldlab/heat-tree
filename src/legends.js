@@ -469,7 +469,7 @@ export class TextColorLegend extends LegendBase {
     let currentY = titleHeightOffset + this.squareSize / 2;
     let rowHeight = this.squareSize;
 
-    categories.forEach((category, i) => {
+    categories.slice(0, aesthetic.scale.maxColors).forEach((category, i) => {
       const color = aesthetic.scale.getValue(category);
       const labelSize = this.textSizeEstimator.getTextSize(category, this.state.labelFontSize);
       const itemWidth = this.squareSize + this.itemLabelGap + labelSize.widthPx;
@@ -485,7 +485,7 @@ export class TextColorLegend extends LegendBase {
         x: currentX,
         y: currentY,
         color: color,
-        label: category,
+        label: i < aesthetic.scale.maxColors - 1 ? category : aesthetic.state.otherLabel,
         squareX: currentX,
         squareY: currentY - this.squareSize / 2,
         labelX: currentX + this.squareSize + this.itemLabelGap,
