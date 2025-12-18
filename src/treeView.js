@@ -468,6 +468,7 @@ export class TreeView {
         currentX += legend.coordinates.width + this.options.legendSpacing;
       }
     }
+    this.handleResize();
   }
 
   /**
@@ -498,18 +499,24 @@ export class TreeView {
    * Fit the tree to the view with optional transition
    * @param {boolean} transition - Whether to animate the fit
    */
-  #fitToView(transition = true) {
+  #fitToView(transition = true, padding = 5) {
     const { width: viewW, height: viewH } = this.svg.node().getBoundingClientRect();
 
     // Calculate bounds of all tree elements (including legends)
     const bounds = this.#getCurrentBoundsWithLegends();
     if (!bounds) return;
 
+    // Apply padding
+    bounds.minX -= padding;
+    bounds.maxX += padding;
+    bounds.minY -= padding;
+    bounds.maxY += padding;
+
     const treeWidth = bounds.maxX - bounds.minX;
     const treeHeight = bounds.maxY - bounds.minY;
 
     // Left margin for control buttons
-    const marginLeft = this.options.buttonSize + this.options.controlsMargin;
+    const marginLeft = 0; // this.options.buttonSize;
 
     // Available space
     const availableWidth = viewW - marginLeft;
@@ -609,6 +616,7 @@ export class TreeView {
     if (!treeBounds) return null;
 
     let maxY = treeBounds.maxY;
+    let minX = treeBounds.minX;
 
     // Add legend heights
     for (const legend of this.legendInstances) {
@@ -617,11 +625,16 @@ export class TreeView {
       }
     }
 
+    // Add width of collapsed parent branch line
+    if (this.treeState.state.layout !== 'circular' && this.treeState.displayedRoot.collapsedParent) {
+      minX -= this.#getCollapsedRootLineLength();
+    }
+
     return {
-      minX: treeBounds.minX,
+      minX,
       maxX: treeBounds.maxX,
       minY: treeBounds.minY,
-      maxY: maxY
+      maxY
     };
   }
 
@@ -1196,7 +1209,7 @@ export class TreeView {
     } else {
       tipLabels
         .attr('dy', d => d.tipLabelSizePx / 2.5)
-        .attr('x', d => this.#isLeftSide(d) ?-d.tipLabelXOffsetPx : d.tipLabelXOffsetPx)
+        .attr('x', d => this.#isLeftSide(d) ? -d.tipLabelXOffsetPx : d.tipLabelXOffsetPx)
         .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
         .style('text-anchor', d => this.#getTipLabelAnchor(d))
         .style('font-size', d => `${d.tipLabelSizePx}px`);
@@ -1282,12 +1295,14 @@ export class TreeView {
         .duration(this.options.transitionDuration)
         .attr('x2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).x)
         .attr('y2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).y)
-        .attr('stroke-width', branchWidth);
+        .attr('stroke-width', branchWidth)
+        .attr('stroke-dasharray', d => d.collapsedParent ? createDashArray(collapsedRootLineLength, branchWidth, 4) : null);
     } else {
       collapsedRootLines
         .attr('x2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).x)
         .attr('y2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).y)
-        .attr('stroke-width', branchWidth);
+        .attr('stroke-width', branchWidth)
+        .attr('stroke-dasharray', d => d.collapsedParent ? createDashArray(collapsedRootLineLength, branchWidth, 4) : null);
     }
 
     collapsedRootLines

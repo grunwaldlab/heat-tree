@@ -15,7 +15,7 @@ export class LegendBase {
       origin: "top left",
       maxX: Infinity,
       maxY: Infinity,
-      titleFontSize: 20,
+      titleFontSize: 16,
       labelFontSize: 14,
       ...options
     };
@@ -80,7 +80,7 @@ export class LegendBase {
       .attr("x", 0)
       .attr("y", 0)
       .attr("text-anchor", "start")
-      .style("font-size", "14px")
+      .style("font-size", `${this.state.titleFontSize}px`)
       // .style("font-weight", "bold")
       .style("text-decoration", "underline")
       .text(title);
@@ -134,16 +134,16 @@ export class BranchLengthLegend extends LegendBase {
     const titleSize = this.textSizeEstimator.getTextSize(this.title, this.state.titleFontSize);
     let titleHeightOffset = 0;
     if (this.showTitle) {
-      titleHeightOffset = titleSize.heightPx + this.titleSpacing;
+      titleHeightOffset = this.state.titleFontSize + this.titleSpacing;
     }
-    const barY = titleHeightOffset + this.unitLabelSpacing + unitLabelSize.heightPx;
+    const barY = titleHeightOffset + this.unitLabelSpacing + unitLabelSize.heightPx + 10;
 
     this.coordinates = {
       width: barWidth + this.lineThickness,
-      height: titleHeightOffset + this.scaleBarEdgeHeight + this.unitLabelSpacing + unitLabelSize.heightPx,
+      height: barY + this.scaleBarEdgeHeight,
       title: {
         x: 0,
-        y: titleSize.heightPx,
+        y: this.state.titleFontSize,
         text: "Branch Length"
       },
       bar: {
@@ -166,7 +166,7 @@ export class BranchLengthLegend extends LegendBase {
       },
       label: {
         x: barWidth / 2,
-        y: titleHeightOffset + unitLabelSize.heightPx,
+        y: barY - this.unitLabelSpacing,
         text: units
       }
     };
@@ -282,13 +282,13 @@ export class TextSizeLegend extends LegendBase {
     // Calculate title height offset
     let titleHeightOffset = 0;
     if (this.showTitle) {
-      titleHeightOffset = titleSize.heightPx + this.verticalSpacing;
+      titleHeightOffset = this.state.titleFontSize + this.verticalSpacing;
     }
 
     // Calculate total height
-    const height = titleHeightOffset +
-      maxLetterFont + this.tickHeight + this.state.labelFontSize +
-      this.verticalSpacing + this.state.labelFontSize;
+    const rampBaseY = titleHeightOffset + maxLetterFont;
+    const unitsSize = this.textSizeEstimator.getTextSize(this.state.aesthetic.state.inputUnits || "", this.state.labelFontSize);
+    const height = rampBaseY + this.tickHeight + this.state.labelFontSize + unitsSize.heightPx;
 
     // Store coordinates for each element
     this.coordinates = {
@@ -297,7 +297,7 @@ export class TextSizeLegend extends LegendBase {
       leftOverhang,
       title: {
         x: leftOverhang,
-        y: titleSize.heightPx,
+        y: this.state.titleFontSize,
         text: this.state.aesthetic.state.title
       },
       polygon: [],
@@ -305,38 +305,37 @@ export class TextSizeLegend extends LegendBase {
       labels: [],
       units: {
         x: width / 2,
-        y: height - this.state.labelFontSize + this.verticalSpacing,
+        y: height,
         text: this.state.aesthetic.state.inputUnits || ""
       }
     };
 
     // Calculate polygon and tick positions (offset by leftOverhang)
-    const letterY = titleHeightOffset + maxLetterFont;
     ticks.forEach((tickValue, i) => {
       const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
 
       // Tick marks
       this.coordinates.ticks.push({
         x1: x,
-        y1: letterY,
+        y1: rampBaseY,
         x2: x,
-        y2: letterY + this.tickHeight
+        y2: rampBaseY + this.tickHeight
       });
 
       // Labels
       this.coordinates.labels.push({
         x,
-        y: letterY + this.tickHeight,
+        y: rampBaseY + this.tickHeight,
         text: formatTickLabel(tickValue, ticks)
       });
     });
 
     // Calculate polygon points (background shape) - offset by leftOverhang
     this.coordinates.polygon = [
-      { x: leftOverhang, y: letterY },
-      { x: leftOverhang, y: letterY - minLetterFont },
-      { x: leftOverhang + baseWidth, y: letterY - maxLetterFont },
-      { x: leftOverhang + baseWidth, y: letterY }
+      { x: leftOverhang, y: rampBaseY },
+      { x: leftOverhang, y: rampBaseY - minLetterFont },
+      { x: leftOverhang + baseWidth, y: rampBaseY - maxLetterFont },
+      { x: leftOverhang + baseWidth, y: rampBaseY }
     ];
   }
 
@@ -435,7 +434,7 @@ export class TextColorLegend extends LegendBase {
 
     let titleHeightOffset = 0;
     if (this.showTitle) {
-      titleHeightOffset = titleSize.heightPx + this.verticalSpacing;
+      titleHeightOffset = this.state.titleFontSize + this.verticalSpacing;
     }
 
     if (isCategorical) {
@@ -458,7 +457,7 @@ export class TextColorLegend extends LegendBase {
       height: titleHeightOffset,
       title: {
         x: 0,
-        y: titleSize.heightPx,
+        y: this.state.titleFontSize,
         text: aesthetic.state.title
       },
       items: [],
@@ -466,7 +465,7 @@ export class TextColorLegend extends LegendBase {
     };
 
     let currentX = 0;
-    let currentY = titleHeightOffset + this.squareSize / 2;
+    let currentY = titleHeightOffset + this.verticalSpacing + this.squareSize / 2;
     let rowHeight = this.squareSize;
 
     categories.slice(0, aesthetic.scale.maxColors).forEach((category, i) => {
@@ -545,7 +544,7 @@ export class TextColorLegend extends LegendBase {
       isCategorical: false,
       title: {
         x: leftOverhang,
-        y: titleSize.heightPx,
+        y: this.state.titleFontSize,
         text: aesthetic.state.title
       },
       gradient: {

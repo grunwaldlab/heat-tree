@@ -81,7 +81,7 @@ export class TreeState extends Subscribable {
     maxFontPx: 32,
     minBranchThicknessPx: 1,
     minBranchLenProp: 0.5,
-    collapsedRootLineProp: 0.04,
+    collapsedRootLineProp: 0.05,
     branchLengthScale: 1,
     treeHeightScale: 1,
   }
