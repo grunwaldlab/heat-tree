@@ -7,6 +7,7 @@
  * @param {Function} switchToTree - Function to switch to a different tree
  * @param {Function} addNewTree - Function to add a new tree
  * @param {Object} options - Configuration options
+ * @param {Function} onDimensionsChange - Callback when toolbar dimensions change
  * @returns {Function} Function to refresh the current tab's controls
  */
 export function createToolbar(
@@ -16,7 +17,8 @@ export function createToolbar(
   getCurrentTreeView,
   switchToTree,
   addNewTree,
-  options
+  options,
+  onDimensionsChange
 ) {
   const CONTROL_HEIGHT = 24; // Standard height for all controls
   let currentTab = null;
@@ -26,6 +28,34 @@ export function createToolbar(
   let expandSubtreesBtn = null;
   let expandRootBtn = null;
   let currentTreeStateSubscription = null;
+
+  // Track control panel visibility
+  let controlPanelVisible = true;
+
+  // Create toggle button container (separate from collapsible content)
+  const toggleContainer = document.createElement('div');
+  toggleContainer.className = 'ht-toggle-container';
+
+  // Create toggle button for control panel
+  const toggleButton = document.createElement('button');
+  toggleButton.className = 'ht-control-panel-toggle';
+  toggleButton.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 16 16" class="ht-toggle-arrow">
+      <path d="M8 4 L12 8 L8 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="rotate(-90 8 8)"/>
+    </svg>
+    <svg width="16" height="16" viewBox="0 0 16 16" class="ht-hamburger-icon">
+      <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  `;
+  toggleButton.title = 'Toggle control panel';
+
+  toggleContainer.appendChild(toggleButton);
+
+  // Create collapsible panel container
+  const collapsiblePanel = document.createElement('div');
+  collapsiblePanel.className = 'ht-collapsible-panel';
 
   // Create tabs container
   const tabsContainer = document.createElement('div');
@@ -63,6 +93,36 @@ export function createToolbar(
 
     tabElements[tab.id] = tabDiv;
     tabsContainer.appendChild(tabDiv);
+  });
+
+  // Add transition end listener to notify when dimensions change
+  collapsiblePanel.addEventListener('transitionend', (e) => {
+    // Only trigger on max-height transitions (not other properties)
+    if (e.propertyName === 'max-height' && onDimensionsChange) {
+      onDimensionsChange();
+    }
+  });
+
+  controlsContainer.addEventListener('transitionend', (e) => {
+    // Only trigger on max-height transitions (not other properties)
+    if (e.propertyName === 'max-height' && onDimensionsChange) {
+      onDimensionsChange();
+    }
+  });
+
+  // Toggle button click handler
+  toggleButton.addEventListener('click', () => {
+    controlPanelVisible = !controlPanelVisible;
+
+    if (controlPanelVisible) {
+      // Show the control panel
+      collapsiblePanel.classList.remove('ht-panel-collapsed');
+      toggleButton.classList.remove('collapsed');
+    } else {
+      // Hide the control panel
+      collapsiblePanel.classList.add('ht-panel-collapsed');
+      toggleButton.classList.add('collapsed');
+    }
   });
 
   // Function to get metadata table names for the current tree
@@ -215,9 +275,13 @@ export function createToolbar(
     }
   }
 
-  // Append tabs and controls to toolbar
-  toolbarDiv.appendChild(tabsContainer);
-  toolbarDiv.appendChild(controlsContainer);
+  // Assemble the collapsible panel
+  collapsiblePanel.appendChild(tabsContainer);
+  collapsiblePanel.appendChild(controlsContainer);
+
+  // Append toggle container and collapsible panel to toolbar
+  toolbarDiv.appendChild(toggleContainer);
+  toolbarDiv.appendChild(collapsiblePanel);
 
   // Open the first tab by default
   openTab(tabs[0].id);
@@ -571,7 +635,7 @@ function populateTreeManipulationControls(
   container.appendChild(treeHeightSlider);
 
   // Radial layout toggle
-  const radialLayoutLabel = createLabel('Radial layout:', controlHeight);
+  const radialLayoutLabel = createLabel('Radial layout:',controlHeight);
   container.appendChild(radialLayoutLabel);
 
   const isCircular = treeState.state.layout === 'circular';

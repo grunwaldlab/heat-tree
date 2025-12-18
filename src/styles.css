@@ -12,6 +12,54 @@
   margin-bottom: 4px;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+.ht-toggle-container {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 10;
+  padding: 4px 8px;
+  pointer-events: none;
+}
+
+.ht-control-panel-toggle {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s;
+  pointer-events: auto;
+}
+
+.ht-control-panel-toggle:hover {
+  opacity: 0.7;
+}
+
+.ht-control-panel-toggle .ht-toggle-arrow {
+  transition: transform 0.3s;
+}
+
+.ht-control-panel-toggle.collapsed .ht-toggle-arrow {
+  transform: rotate(180deg);
+}
+
+.ht-control-panel-toggle .ht-hamburger-icon {
+  color: #333;
+}
+
+.ht-collapsible-panel {
+  max-height: 1000px;
+  overflow: hidden;
+  transition: max-height 0.3s ease-in-out;
+}
+
+.ht-collapsible-panel.ht-panel-collapsed {
+  max-height: 0;
 }
 
 .ht-tabs {
@@ -56,10 +104,16 @@
   gap: 8px;
   align-items: center;
   height: 26px;
+  max-height: 1000px;
+  overflow: hidden;
+  transition: max-height 0.3s ease-in-out;
 }
 
 .ht-controls.hidden {
-  display: none;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .ht-control-label {
@@ -84,6 +138,12 @@
 
 .ht-button:hover {
   background-color: #d0d0d0;
+}
+
+.ht-button:disabled {
+  background-color: #f0f0f0;
+  color: #999;
+  cursor: not-allowed;
 }
 
 .ht-button.primary {

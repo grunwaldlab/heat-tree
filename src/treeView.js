@@ -119,6 +119,16 @@ export class TreeView {
   }
 
   /**
+   * Handle resize event - recalculate and refit the tree to the new viewport
+   */
+  handleResize() {
+    // Refit the tree to the new viewport dimensions
+    if (this.autoZoomEnabled || this.autoPanEnabled) {
+      this.#fitToView(true);
+    }
+  }
+
+  /**
    * Initialize SVG layers for branches, nodes, hit areas, and UI overlays
    */
   #initializeLayers() {
@@ -1186,7 +1196,7 @@ export class TreeView {
     } else {
       tipLabels
         .attr('dy', d => d.tipLabelSizePx / 2.5)
-        .attr('x', d => this.#isLeftSide(d) ? -d.tipLabelXOffsetPx : d.tipLabelXOffsetPx)
+        .attr('x', d => this.#isLeftSide(d) ?-d.tipLabelXOffsetPx : d.tipLabelXOffsetPx)
         .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
         .style('text-anchor', d => this.#getTipLabelAnchor(d))
         .style('font-size', d => `${d.tipLabelSizePx}px`);

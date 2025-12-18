@@ -126,6 +126,16 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
   let refreshToolbar = null;
 
   /**
+   * Callback for when toolbar dimensions change
+   */
+  function onToolbarDimensionsChange() {
+    if (currentTreeView) {
+      // Trigger a redraw by calling the view's resize handler
+      currentTreeView.handleResize();
+    }
+  }
+
+  /**
    * Add a new tree to the visualization
    * @param {string} treeName - Name for the new tree
    * @param {string} newickStr - Newick string for the tree
@@ -215,7 +225,8 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     () => currentTreeView,
     switchToTree,
     addNewTree,
-    options
+    options,
+    onToolbarDimensionsChange
   );
 
   // Display the first tree initially
