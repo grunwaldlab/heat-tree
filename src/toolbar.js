@@ -214,6 +214,20 @@ export function createToolbar(
     }
   }
 
+  // Function to get current tree name
+  function getCurrentTreeName() {
+    const treeState = getCurrentTreeState();
+    if (!treeState) return 'tree';
+
+    // Find the tree name by matching the treeData instance
+    for (const [name, data] of treeDataInstances.entries()) {
+      if (data === treeState.state.treeData) {
+        return name;
+      }
+    }
+    return 'tree';
+  }
+
   // Function to open a tab
   function openTab(tabId) {
     // Check if tab requires a tree and no tree is loaded
@@ -291,7 +305,7 @@ export function createToolbar(
         populateTipLabelSettingsControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
         break;
       case 'export':
-        populateExportControls(controlsContainer, getCurrentTreeState, getCurrentTreeView, options, CONTROL_HEIGHT);
+        populateExportControls(controlsContainer, getCurrentTreeState, getCurrentTreeView, getCurrentTreeName, options, CONTROL_HEIGHT);
         break;
     }
   }
@@ -991,7 +1005,7 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
 /**
  * Populate Export tab controls
  */
-function populateExportControls(container, getCurrentTreeState, getCurrentTreeView, options, controlHeight) {
+function populateExportControls(container, getCurrentTreeState, getCurrentTreeView, getCurrentTreeName, options, controlHeight) {
   container.innerHTML = '';
 
   const treeState = getCurrentTreeState();
@@ -1075,7 +1089,13 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
   const exportBtn = createButton('Export', 'Export the tree to a file', controlHeight);
   exportBtn.classList.add('primary');
   exportBtn.addEventListener('click', () => {
-    exportTree(treeView, exportState);
+    // Get current tree name and sanitize it for use as filename
+    const treeName = getCurrentTreeName();
+    const sanitizedName = treeName.replace(/[^a-z0-9_-]/gi, '_');
+    const extension = exportState.format === 'svg' ? 'svg' : 'png';
+    const filename = `${sanitizedName}.${extension}`;
+
+    exportTree(treeView, exportState, filename);
   });
   container.appendChild(exportBtn);
 
@@ -1192,7 +1212,7 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
 /**
  * Export tree to file
  */
-function exportTree(treeView, exportState) {
+function exportTree(treeView, exportState, filename) {
   const bounds = treeView.getCurrentBoundsWithLegends();
 
   // Calculate dimensions
@@ -1244,10 +1264,10 @@ function exportTree(treeView, exportState) {
 
   if (exportState.format === 'svg') {
     // Download as SVG
-    downloadFile(svgString, 'tree.svg', 'image/svg+xml');
+    downloadFile(svgString, filename, 'image/svg+xml');
   } else if (exportState.format === 'png') {
     // Convert to PNG
-    convertSvgToPng(svgString, finalWidth, finalHeight, 'tree.png');
+    convertSvgToPng(svgString, finalWidth, finalHeight, filename);
   }
 }
 
