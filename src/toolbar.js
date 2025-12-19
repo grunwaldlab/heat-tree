@@ -27,6 +27,7 @@ export function createToolbar(
   // Store references to buttons that need to be updated dynamically
   let expandSubtreesBtn = null;
   let expandRootBtn = null;
+  let showHiddenBtn = null;
   let currentTreeStateSubscription = null;
 
   // Track control panel visibility
@@ -173,6 +174,17 @@ export function createToolbar(
     if (expandRootBtn) {
       expandRootBtn.disabled = !treeState.displayedRoot.collapsedParent;
     }
+
+    // Update show hidden button
+    if (showHiddenBtn) {
+      let hasHiddenNodes = false;
+      treeState.state.treeData.tree.each(node => {
+        if (node.hiddenChildren && node.hiddenChildren.length > 0) {
+          hasHiddenNodes = true;
+        }
+      });
+      showHiddenBtn.disabled = !hasHiddenNodes;
+    }
   }
 
   // Function to open a tab
@@ -238,7 +250,8 @@ export function createToolbar(
           options,
           CONTROL_HEIGHT,
           (btn) => { expandSubtreesBtn = btn; },
-          (btn) => { expandRootBtn = btn; }
+          (btn) => { expandRootBtn = btn; },
+          (btn) => { showHiddenBtn = btn; }
         );
         break;
       case 'tip-label-settings':
@@ -263,6 +276,7 @@ export function createToolbar(
     // Reset button references when switching trees
     expandSubtreesBtn = null;
     expandRootBtn = null;
+    showHiddenBtn = null;
 
     // Subscribe to coordinate changes in the new tree state
     const treeState = getCurrentTreeState();
@@ -431,7 +445,7 @@ function populateDataControls(
 
   // Create hidden file input for metadata upload
   const metadataFileInput = document.createElement('input');
-  metadataFileInput.type = 'file';
+  metadataFileInput.type =  'file';
   metadataFileInput.accept = '.tsv,.csv,.txt';
   metadataFileInput.style.display = 'none';
 
@@ -505,7 +519,8 @@ function populateTreeManipulationControls(
   options,
   controlHeight,
   setExpandSubtreesBtn,
-  setExpandRootBtn
+  setExpandRootBtn,
+  setShowHiddenBtn
 ) {
   container.innerHTML = '';
 
@@ -589,6 +604,34 @@ function populateTreeManipulationControls(
   setExpandRootBtn(expandRootBtn);
 
   container.appendChild(expandRootBtn);
+
+  // Show hidden button
+  const showHiddenBtn = createButton('Show hidden', 'Show all hidden nodes', controlHeight);
+
+  // Check if there are any hidden nodes
+  const hasHiddenNodes = () => {
+    let foundHidden = false;
+    treeState.state.treeData.tree.each(node => {
+      if (node.hiddenChildren && node.hiddenChildren.length > 0) {
+        foundHidden = true;
+      }
+    });
+    return foundHidden;
+  };
+
+  // Set initial disabled state
+  showHiddenBtn.disabled = !hasHiddenNodes();
+
+  showHiddenBtn.addEventListener('click', () => {
+    treeState.showAllHidden();
+    // Update button states immediately
+    updateExpandButtonStates();
+  });
+
+  // Store reference to button
+  setShowHiddenBtn(showHiddenBtn);
+
+  container.appendChild(showHiddenBtn);
 
   // Scale branch length
   const branchLengthLabel = createLabel('Branch length:', controlHeight);

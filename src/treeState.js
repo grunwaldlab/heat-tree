@@ -327,7 +327,7 @@ export class TreeState extends Subscribable {
       // If parent has no more visible children, delete the children property
       if (parent.children.length === 0) {
         delete parent.children;
-        
+
         // Recursively hide the parent if it now has no children
         this.hideSubtree(parent);
       }
