@@ -407,7 +407,7 @@ function populateDataControls(
   container.appendChild(addTreeBtn);
 
   // Select metadata control
-  const metadataLabel = createLabel('Select metadata:', controlHeight);
+  const metadataLabel = createLabel('Available metadata:', controlHeight);
   container.appendChild(metadataLabel);
 
   const metadataSelect = document.createElement('select');
@@ -445,7 +445,7 @@ function populateDataControls(
 
   // Create hidden file input for metadata upload
   const metadataFileInput = document.createElement('input');
-  metadataFileInput.type =  'file';
+  metadataFileInput.type = 'file';
   metadataFileInput.accept = '.tsv,.csv,.txt';
   metadataFileInput.style.display = 'none';
 
@@ -731,7 +731,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     'Default',
     controlHeight,
     true,
-    false
+    null
   );
   tipLabelTextContainer.appendChild(tipLabelTextSelect);
 
@@ -755,7 +755,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     'Default',
     controlHeight,
     false,
-    false
+    null
   );
   tipLabelColorContainer.appendChild(tipLabelColorSelect);
 
@@ -858,7 +858,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
 /**
  * Create a metadata column select dropdown
  */
-function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight, includeNone = false, onlyContinuous = false) {
+function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight, includeNone = false, continuous = null) {
   const select = document.createElement('select');
   select.className = 'ht-select';
   select.style.height = `${controlHeight}px`;
@@ -882,10 +882,15 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
   const treeData = treeState.state.treeData;
   const columnIds = Array.from(treeData.columnDisplayName.keys());
 
-  // Filter columns if onlyContinuous is true
-  const filteredColumnIds = onlyContinuous
-    ? columnIds.filter(columnId => treeData.columnType.get(columnId) === 'continuous')
-    : columnIds;
+  // Filter columns for continuous/categorical metadata
+  let filteredColumnIds = columnIds;
+  if (continuous !== null) {
+    if (continuous) {
+      filteredColumnIds = columnIds.filter(columnId => treeData.columnType.get(columnId) === 'continuous')
+    } else {
+      filteredColumnIds = columnIds.filter(columnId => treeData.columnType.get(columnId) === 'categorical')
+    }
+  }
 
   // Add options for each metadata column
   filteredColumnIds.forEach(columnId => {
