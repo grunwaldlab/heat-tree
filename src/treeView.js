@@ -66,8 +66,51 @@ export class TreeView {
     // Toggle state for automatic panning
     this.autoPanEnabled = this.options.autoPanEnabled;
 
-    // Currently selected subtree node
+    // Currently selected node (can be subtree or tip)
     this.selectedNode = null;
+
+    // Define selection buttons configuration
+    this.selectionButtons = [
+      {
+        id: 'collapse-subtree',
+        icon: 'compress',
+        isVisible: (node) => {
+          return node && node !== this.treeState.displayedRoot && (node.children || node.collapsedChildren);
+        },
+        onClick: (node) => {
+          if (node && node !== this.treeState.displayedRoot && node.children) {
+            this.treeState.collapseSubtree(node);
+            this.#clearSelection();
+          }
+        }
+      },
+      {
+        id: 'collapse-root',
+        icon: 'expand',
+        isVisible: (node) => {
+          return node && node !== this.treeState.displayedRoot && (node.children || node.collapsedChildren);
+        },
+        onClick: (node) => {
+          if (node && node !== this.treeState.displayedRoot && node.children) {
+            this.treeState.collapseRoot(node);
+            this.#clearSelection();
+          }
+        }
+      },
+      {
+        id: 'hide',
+        icon: 'trash',
+        isVisible: (node) => {
+          return node && node !== this.treeState.displayedRoot;
+        },
+        onClick: (node) => {
+          if (node && node !== this.treeState.displayedRoot) {
+            this.treeState.hideSubtree(node);
+            this.#clearSelection();
+          }
+        }
+      }
+    ];
 
     // Initialize SVG layers
     this.#initializeLayers();
@@ -144,7 +187,7 @@ export class TreeView {
       .attr('class', 'legend-layer');
     this.layers.treeGroup = treeGroup;
 
-    // Selection rectangle (shown when a subtree is selected)
+    // Selection rectangle (shown when a subtree or tip is selected)
     this.layers.selectionRect = treeGroup.append('path')
       .attr('class', 'selection-rect')
       .attr('fill', 'none')
@@ -154,7 +197,7 @@ export class TreeView {
       .attr('pointer-events', 'none')
       .style('display', 'none');
 
-    // Floating button group for subtree actions (added to outer SVG so it ignores zoom)
+    // Floating button group for subtree/tip actions (added to outer SVG so it ignores zoom)
     this.layers.selectionBtns = this.svg.append('g')
       .attr('class', 'selection-btns')
       .style('display', 'none');
@@ -170,37 +213,27 @@ export class TreeView {
   }
 
   /**
-   * Create floating buttons for subtree actions
+   * Create floating buttons for subtree/tip actions
    */
   #createSelectionButtons() {
     const btnGroup = this.layers.selectionBtns;
 
-    // Button to collapse the selected subtree
-    const btnCollapseSelected = btnGroup.append('svg')
-      .attr('width', this.options.buttonSize)
-      .attr('height', this.options.buttonSize)
-      .style('cursor', 'pointer')
-      .on('click', () => {
-        if (this.selectedNode && this.selectedNode !== this.treeState.displayedRoot) {
-          this.treeState.collapseSubtree(this.selectedNode);
-          this.#clearSelection()
-        }
-      });
-    appendIcon(btnCollapseSelected, 'compress', this.options.buttonSize, this.options.buttonPadding);
-
-    // Button to collapse root to the selected subtree
-    const btnCollapseRoot = btnGroup.append('svg')
-      .attr('transform', `translate(0, ${this.options.buttonSize + this.options.controlsMargin})`)
-      .attr('width', this.options.buttonSize)
-      .attr('height', this.options.buttonSize)
-      .style('cursor', 'pointer')
-      .on('click', () => {
-        if (this.selectedNode && this.selectedNode !== this.treeState.displayedRoot) {
-          this.treeState.collapseRoot(this.selectedNode);
-          this.#clearSelection()
-        }
-      });
-    appendIcon(btnCollapseRoot, 'expand', this.options.buttonSize, this.options.buttonPadding);
+    // Create buttons from configuration
+    this.selectionButtons.forEach((buttonConfig) => {
+      const btn = btnGroup.append('svg')
+        .attr('class', `btn-${buttonConfig.id}`)
+        .attr('width', this.options.buttonSize)
+        .attr('height', this.options.buttonSize)
+        .style('cursor', 'pointer')
+        .on('click', () => {
+          buttonConfig.onClick(this.selectedNode);
+        });
+      
+      appendIcon(btn, buttonConfig.icon, this.options.buttonSize, this.options.buttonPadding);
+      
+      // Store reference to button element in config
+      buttonConfig.element = btn;
+    });
   }
 
   /**
@@ -291,7 +324,7 @@ export class TreeView {
     this.#updateLegends(true);
 
     // Update selection rectangle if a node is selected
-    if (this.selectedNode && this.selectedNode.children) {
+    if (this.selectedNode) {
       this.#updateSelectionRect(true);
     }
 
@@ -377,8 +410,8 @@ export class TreeView {
     if (!this.selections.nodes) return;
 
     this.selections.nodes.selectAll('.tip-label')
-      .style('font-style', d => d.tipLabelStyle || 'normal')
-      .style('font-weight', d => d.tipLabelStyle === 'bold' ? 'bold' : 'normal');
+      .style('font-style', d => d.tipLabelStyle.includes('italic') ? 'italic' : 'normal')
+      .style('font-weight', d => d.tipLabelStyle.includes('bold') ? 'bold' : 'normal');
   }
 
   /**
@@ -639,10 +672,10 @@ export class TreeView {
   }
 
   /**
-   * Select or deselect a subtree
+   * Select or deselect a node (subtree or tip)
    * @param {Object} node - Tree node to select
    */
-  #selectSubtree(node) {
+  #selectNode(node) {
     if (this.selectedNode === node) {
       this.#clearSelection();
     } else {
@@ -660,7 +693,7 @@ export class TreeView {
    * @param {boolean} transition - Whether to animate the update
    */
   #updateSelectionRect(transition = false) {
-    if (!this.selectedNode || !this.selectedNode.children) {
+    if (!this.selectedNode) {
       return;
     }
 
@@ -676,12 +709,12 @@ export class TreeView {
   }
 
   /**
-   * Generate selection rectangle path
+   * Generate selection rectangle path for a node (subtree or tip)
    * @param {Object} node - Tree node
    * @returns {string} SVG path string
    */
   #generateSelectionPath(node) {
-    if (!node || !node.children) return '';
+    if (!node) return '';
 
     const isCircular = this.treeState.state.layout === 'circular';
 
@@ -717,11 +750,11 @@ export class TreeView {
   }
 
   /**
-   * Update selection buttons position
+   * Update selection buttons position and visibility
    * @param {boolean} transition - Whether to animate the update
    */
   #updateSelectionButtons(transition = true) {
-    if (!this.selectedNode || !this.selectedNode.children) {
+    if (!this.selectedNode) {
       this.layers.selectionBtns.style('display', 'none');
       return;
     }
@@ -765,6 +798,27 @@ export class TreeView {
       y = this.selectedNode.bounds.minY;
     }
 
+    // Update button visibility and positions based on configuration
+    let visibleButtonIndex = 0;
+    this.selectionButtons.forEach((buttonConfig) => {
+      const isVisible = buttonConfig.isVisible(this.selectedNode);
+      
+      if (isVisible) {
+        // Calculate position for this visible button
+        const yOffset = visibleButtonIndex * (this.options.buttonSize + this.options.controlsMargin);
+        buttonConfig.element
+          .style('display', 'block')
+          .attr('transform', `translate(0, ${yOffset})`);
+        visibleButtonIndex++;
+      } else {
+        buttonConfig.element.style('display', 'none');
+      }
+    });
+
+    // Calculate total height of visible buttons
+    const totalButtonHeight = visibleButtonIndex * this.options.buttonSize + 
+                              (visibleButtonIndex - 1) * this.options.controlsMargin;
+
     // Calculate screen position
     let screenX = x * this.currentTransform.k + this.currentTransform.x - this.options.buttonSize - this.options.controlsMargin;
     let screenY = y * this.currentTransform.k + this.currentTransform.y - this.options.controlsMargin;
@@ -774,7 +828,7 @@ export class TreeView {
     screenX = Math.max(screenX, 0);
     screenX = Math.min(screenX, viewW - this.options.buttonSize);
     screenY = Math.max(screenY, 0);
-    screenY = Math.min(screenY, viewH - this.options.buttonSize * 2 - this.options.controlsMargin);
+    screenY = Math.min(screenY, viewH - totalButtonHeight);
 
     if (transition) {
       // Hide buttons immediately, then move and fade in after transition
@@ -800,9 +854,14 @@ export class TreeView {
     const branchWidth = this.treeState.labelSizeToPxFactor * this.treeState.state.branchThicknessProp;
     const collapsedRootLineLength = this.#getCollapsedRootLineLength();
 
-    // Update hit areas for subtree selection
+    // Update hit areas for subtree selection (internal nodes with children and more than one visible child)
     const hits = this.layers.hitLayer.selectAll('.hit')
-      .data(root.descendants().filter(d => d.children), d => d.id);
+      .data(root.descendants().filter(d => {
+        if (!d.children) return false;
+        // Count visible children (not hidden)
+        const visibleChildCount = d.children.filter(child => !child.hidden).length;
+        return visibleChildCount > 1;
+      }), d => d.id);
 
     hits.exit().remove();
 
@@ -811,7 +870,7 @@ export class TreeView {
       .attr('fill', 'transparent')
       .style('cursor', 'pointer')
       .on('click', (event, d) => {
-        this.#selectSubtree(d);
+        this.#selectNode(d);
         event.stopPropagation();
       });
 
@@ -820,6 +879,24 @@ export class TreeView {
 
     // Sort by depth so deeper nodes are on top
     this.layers.hitLayer.selectAll('.hit').sort((a, b) => a.depth - b.depth);
+
+    // Update hit areas for tip selection (nodes without children or collapsed children)
+    const tipHits = this.layers.hitLayer.selectAll('.tip-hit')
+      .data(root.descendants().filter(d => !d.children && !d.collapsedChildren), d => d.id);
+
+    tipHits.exit().remove();
+
+    const tipHitsEnter = tipHits.enter().append('path')
+      .attr('class', 'tip-hit')
+      .attr('fill', 'transparent')
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        this.#selectNode(d);
+        event.stopPropagation();
+      });
+
+    tipHitsEnter.merge(tipHits)
+      .attr('d', d => this.#generateSelectionPath(d));
 
     // Update hit areas for collapsed subtrees
     const collapsedHits = this.layers.hitLayer.selectAll('.collapsed-hit')
@@ -1056,8 +1133,8 @@ export class TreeView {
     const isCircular = this.treeState.state.layout === 'circular';
     const layoutChanged = this.wasCircularLayout !== isCircular;
 
-    // Get all nodes from the tree
-    const nodes = root.descendants();
+    // Get all nodes from the tree, excluding hidden nodes
+    const nodes = root.descendants().filter(d => !d.hidden);
 
     // Calculate branch width for collapsed root lines
     const branchWidth = this.treeState.labelSizeToPxFactor * this.treeState.state.branchThicknessProp;
@@ -1152,9 +1229,15 @@ export class TreeView {
       .style('display', d => (d.children) ? 'none' : null)
       .text(d => d.tipLabelText || '');
 
-    // Append text label for interior nodes
+    // Append text label for interior nodes (only if they have more than one visible child)
     selection
-      .filter(d => d.nodeLabelText && d.nodeLabelText.trim() !== '')
+      .filter(d => {
+        if (!d.nodeLabelText || d.nodeLabelText.trim() === '') return false;
+        if (!d.children) return false;
+        // Count visible children
+        const visibleChildCount = d.children.filter(child => !child.hidden).length;
+        return visibleChildCount > 1;
+      })
       .append('text')
       .attr('class', 'node-label')
       .style('text-anchor', d => this.#getNodeLabelAnchor(d))
@@ -1239,10 +1322,19 @@ export class TreeView {
         .style('font-size', d => `${d.nodeLabelSizePx}px`);
     }
 
-    // Update text without transition
+    // Update text and visibility without transition
     nodeLabels
       .text(d => d.nodeLabelText || '')
-      .style('display', d => (d.children || d.collapsedChildren) ? null : 'none');
+      .style('display', d => {
+        // Hide if no children or collapsed children
+        if (!d.children && !d.collapsedChildren) return 'none';
+        // Hide if only one visible child
+        if (d.children) {
+          const visibleChildCount = d.children.filter(child => !child.hidden).length;
+          if (visibleChildCount <= 1) return 'none';
+        }
+        return null;
+      });
   }
 
   /**
@@ -1382,8 +1474,6 @@ export class TreeView {
   #isLeftSide(node) {
     const isCircular = this.treeState.state.layout === 'circular';
     if (!isCircular) return false;
-    console.log(node.tipLabelText);
-    console.log(node.angle);
     return node.angle < Math.PI * 1.5 || node.angle > Math.PI * 2.5;
   }
 

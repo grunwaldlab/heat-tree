@@ -41,7 +41,7 @@ export class TreeState extends Subscribable {
     tipLabelStyle: {
       title: 'Tip label font style',
       scaleType: 'text',
-      outputValues: ['normal', 'bold', 'italic'],
+      outputValues: ['normal', 'bold', 'italic', 'bold italic'],
       default: 'normal',
       otherCategory: 'italic',
       downstream: ['updateCoordinates'],
@@ -302,6 +302,84 @@ export class TreeState extends Subscribable {
     delete node.collapsedChildren;
 
     this.update();
+  }
+
+  hideSubtree(node) {
+    if (!node) {
+      console.warn('Tried to hide non-existent node');
+      return;
+    }
+    if (!node.parent) {
+      console.warn('Cannot hide the root node');
+      return;
+    }
+
+    // Mark the node as hidden
+    node.hidden = true;
+
+    // Remove from parent's children array
+    const parent = node.parent;
+    if (parent.children) {
+      parent.hiddenChildren = parent.hiddenChildren || [];
+      parent.hiddenChildren.push(node);
+      parent.children = parent.children.filter(child => child !== node);
+
+      // If parent has no more visible children, delete the children property
+      if (parent.children.length === 0) {
+        delete parent.children;
+        
+        // Recursively hide the parent if it now has no children
+        this.hideSubtree(parent);
+      }
+    }
+
+    this.update();
+  }
+
+  showSubtree(node) {
+    if (!node || !node.hidden) return;
+
+    const parent = node.parent;
+    if (!parent || !parent.hiddenChildren) return;
+
+    // Remove from hiddenChildren array
+    parent.hiddenChildren = parent.hiddenChildren.filter(child => child !== node);
+    if (parent.hiddenChildren.length === 0) {
+      delete parent.hiddenChildren;
+    }
+
+    // Add back to children array
+    if (!parent.children) {
+      parent.children = [];
+    }
+    parent.children.push(node);
+
+    // Sort children to maintain original order (by data index if available)
+    parent.children.sort((a, b) => {
+      const aIndex = parent.data.children ? parent.data.children.indexOf(a.data) : 0;
+      const bIndex = parent.data.children ? parent.data.children.indexOf(b.data) : 0;
+      return aIndex - bIndex;
+    });
+
+    // Unmark as hidden
+    delete node.hidden;
+
+    this.update();
+  }
+
+  showAllHidden() {
+    // Collect all hidden nodes
+    const hiddenNodes = [];
+    this.state.treeData.tree.each(d => {
+      if (d.hiddenChildren) {
+        hiddenNodes.push(...d.hiddenChildren);
+      }
+    });
+
+    // Show each hidden node
+    for (const node of hiddenNodes) {
+      this.showSubtree(node);
+    }
   }
 
   collapseRoot(node) {

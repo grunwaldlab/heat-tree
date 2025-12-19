@@ -635,7 +635,7 @@ function populateTreeManipulationControls(
   container.appendChild(treeHeightSlider);
 
   // Radial layout toggle
-  const radialLayoutLabel = createLabel('Radial layout:',controlHeight);
+  const radialLayoutLabel = createLabel('Radial layout:', controlHeight);
   container.appendChild(radialLayoutLabel);
 
   const isCircular = treeState.state.layout === 'circular';
@@ -920,7 +920,7 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
   const aspectRatio = treeWidth / treeHeight;
 
   // PPI for conversion
-  const PPI = 300;
+  const PPI = 400;
   const CM_PER_INCH = 2.54;
 
   // Conversion functions
