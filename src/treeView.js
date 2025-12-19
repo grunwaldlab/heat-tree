@@ -1099,11 +1099,6 @@ export class TreeView {
     // Update node positions
     this.#updateNodePositions(nodeGroupsUpdate, transition);
 
-    // Handle instant 180° flip for labels transitioning between layouts
-    if (layoutChanged) {
-      this.#handleLayoutTransitionFlip(nodeGroupsUpdate);
-    }
-
     // Update node labels (text, colors, sizes)
     this.#updateNodeLabels(nodeGroupsUpdate, transition);
 
@@ -1313,38 +1308,6 @@ export class TreeView {
   }
 
   /**
-   * Handle instant 180° flip for labels transitioning between layouts
-   * @param {Selection} selection - D3 selection of node groups
-   */
-  #handleLayoutTransitionFlip(selection) {
-    const isCircular = this.treeState.state.layout === 'circular';
-
-    selection.selectAll('text').each(function(d) {
-      const textElement = select(this);
-
-      // Determine if this label needs an instant flip
-      let needsFlip = false;
-      if (isCircular && !this.wasCircularLayout) {
-        // Transitioning to circular: flip labels that will be on the left
-        needsFlip = this.#isLeftSide(d);
-      } else if (!isCircular && this.wasCircularLayout) {
-        // Transitioning from circular: flip labels that were on the left
-        needsFlip = this.#wasLeftSide(d);
-      }
-
-      // if (needsFlip) {
-      //   // Get current rotation
-      //   const currentTransform = textElement.attr('transform') || 'rotate(0)';
-      //   const currentRotation = parseFloat(currentTransform.match(/rotate\(([-\d.]+)\)/)?.[1] || 0);
-      //
-      //   // Apply instant 180° flip
-      //   const flippedRotation = currentRotation + 180;
-      //   textElement.attr('transform', `rotate(${flippedRotation})`);
-      // }
-    }.bind(this));
-  }
-
-  /**
    * Get label rotation angle
    * @param {Object} node - Tree node
    * @returns {number} Rotation angle in degrees
@@ -1419,17 +1382,9 @@ export class TreeView {
   #isLeftSide(node) {
     const isCircular = this.treeState.state.layout === 'circular';
     if (!isCircular) return false;
-    return node.angle > Math.PI * 0.5 && node.angle < Math.PI * 1.5;
-  }
-
-  /**
-   * Determine if a node was on the left side in the previous layout
-   * @param {Object} node - Tree node
-   * @returns {boolean} True if node was on left side
-   */
-  #wasLeftSide(node) {
-    if (!this.wasCircularLayout) return false;
-    return node.angle > Math.PI * 0.5 && node.angle < Math.PI * 1.5;
+    console.log(node.tipLabelText);
+    console.log(node.angle);
+    return node.angle < Math.PI * 1.5 || node.angle > Math.PI * 2.5;
   }
 
   /**
