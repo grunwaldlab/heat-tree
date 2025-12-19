@@ -20,16 +20,38 @@ function injectStyles() {
 
 /**
  * Create a heat tree visualization
- * @param {Object} treesConfig - Configuration object with trees array
- * @param {Array} treesConfig.trees - Array of tree objects, each with newick, name, and metadata
- * @param {string} containerSelector - CSS selector for container element
+ * @param {Object|string} treesConfig - Configuration object with trees array, or container selector string
+ * @param {Array} treesConfig.trees - Array of tree objects, each with newick, name, and metadata (optional)
+ * @param {string} containerSelector - CSS selector for container element (required if first arg is config object)
  * @param {Object} options - Configuration options
  * @returns {Object} Object containing references to tree components
  */
 export function heatTree(treesConfig, containerSelector, options = {}) {
-  // Validate input
-  if (!treesConfig || !treesConfig.trees || !Array.isArray(treesConfig.trees) || treesConfig.trees.length === 0) {
-    throw new Error('treesConfig must have a non-empty trees array');
+  // Handle different argument patterns
+  if (typeof treesConfig === 'string') {
+    // Pattern: heatTree('#container') or heatTree('#container', options)
+    // First argument is the container selector
+    options = containerSelector || {};
+    containerSelector = treesConfig;
+    treesConfig = { trees: [] };
+  } else if (treesConfig && typeof treesConfig === 'object') {
+    // Pattern: heatTree({ trees: [...] }, '#container', options)
+    // First argument is config object
+    if (!containerSelector || typeof containerSelector !== 'string') {
+      throw new Error('heatTree requires a container selector as the second argument when first argument is a config object');
+    }
+    // Ensure trees array exists
+    if (!treesConfig.trees) {
+      treesConfig.trees = [];
+    }
+  } else {
+    // Invalid first argument
+    throw new Error('heatTree requires either a container selector string or a configuration object as the first argument');
+  }
+
+  // Ensure trees is an array
+  if (!Array.isArray(treesConfig.trees)) {
+    throw new Error('treesConfig.trees must be an array');
   }
 
   // Inject styles
@@ -229,9 +251,11 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     onToolbarDimensionsChange
   );
 
-  // Display the first tree initially
-  const firstTreeName = Array.from(treeDataInstances.keys())[0];
-  switchToTree(firstTreeName);
+  // Display the first tree initially (if any trees exist)
+  if (treeDataInstances.size > 0) {
+    const firstTreeName = Array.from(treeDataInstances.keys())[0];
+    switchToTree(firstTreeName);
+  }
 
   // Return references to components
   return {

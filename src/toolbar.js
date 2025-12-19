@@ -68,10 +68,10 @@ export function createToolbar(
 
   // Define tabs
   const tabs = [
-    { id: 'data', label: 'Data' },
-    { id: 'tree-manipulation', label: 'Tree Manipulation' },
-    { id: 'tip-label-settings', label: 'Tip Label Settings' },
-    { id: 'export', label: 'Export' }
+    { id: 'data', label: 'Data', requiresTree: false },
+    { id: 'tree-manipulation', label: 'Tree Manipulation', requiresTree: true },
+    { id: 'tip-label-settings', label: 'Tip Label Settings', requiresTree: true },
+    { id: 'export', label: 'Export', requiresTree: true }
   ];
 
   // Create tab elements
@@ -83,6 +83,11 @@ export function createToolbar(
 
     // Click handler
     tabDiv.addEventListener('click', () => {
+      // Check if tab is disabled
+      if (tabDiv.classList.contains('disabled')) {
+        return;
+      }
+
       if (currentTab === tab.id) {
         // Clicking the same tab closes it
         closeTab();
@@ -95,6 +100,28 @@ export function createToolbar(
     tabElements[tab.id] = tabDiv;
     tabsContainer.appendChild(tabDiv);
   });
+
+  // Function to update tab states based on whether a tree is loaded
+  function updateTabStates() {
+    const hasTree = getCurrentTreeState() !== null;
+
+    tabs.forEach(tab => {
+      const tabElement = tabElements[tab.id];
+      if (tab.requiresTree && !hasTree) {
+        tabElement.classList.add('disabled');
+      } else {
+        tabElement.classList.remove('disabled');
+      }
+    });
+
+    // If current tab requires a tree and no tree is loaded, close it and open Data tab
+    if (currentTab) {
+      const currentTabDef = tabs.find(t => t.id === currentTab);
+      if (currentTabDef && currentTabDef.requiresTree && !hasTree) {
+        openTab('data');
+      }
+    }
+  }
 
   // Add transition end listener to notify when dimensions change
   collapsiblePanel.addEventListener('transitionend', (e) => {
@@ -189,6 +216,12 @@ export function createToolbar(
 
   // Function to open a tab
   function openTab(tabId) {
+    // Check if tab requires a tree and no tree is loaded
+    const tabDef = tabs.find(t => t.id === tabId);
+    if (tabDef && tabDef.requiresTree && !getCurrentTreeState()) {
+      return;
+    }
+
     // Update current tab
     currentTab = tabId;
 
@@ -284,6 +317,9 @@ export function createToolbar(
       currentTreeStateSubscription = treeState.subscribe('coordinateChange', updateExpandButtonStates);
     }
 
+    // Update tab states based on whether a tree is loaded
+    updateTabStates();
+
     if (currentTab) {
       populateControls(currentTab);
     }
@@ -296,6 +332,9 @@ export function createToolbar(
   // Append toggle container and collapsible panel to toolbar
   toolbarDiv.appendChild(toggleContainer);
   toolbarDiv.appendChild(collapsiblePanel);
+
+  // Update tab states initially
+  updateTabStates();
 
   // Open the first tab by default
   openTab(tabs[0].id);
@@ -339,20 +378,28 @@ function populateDataControls(
   const currentTreeState = getCurrentTreeState();
   const currentTreeName = currentTreeState ? Array.from(treeDataInstances.entries()).find(([name, data]) => data === currentTreeState.state.treeData)?.[0] : null;
 
-  treeNames.forEach((treeName) => {
+  if (treeNames.length === 0) {
     const option = document.createElement('option');
-    option.value = treeName;
-    option.textContent = treeName;
-    if (treeName === currentTreeName) {
-      option.selected = true;
-    }
+    option.textContent = 'No trees loaded';
+    option.value = '';
     treeSelect.appendChild(option);
-  });
+    treeSelect.disabled = true;
+  } else {
+    treeNames.forEach((treeName) => {
+      const option = document.createElement('option');
+      option.value = treeName;
+      option.textContent = treeName;
+      if (treeName === currentTreeName) {
+        option.selected = true;
+      }
+      treeSelect.appendChild(option);
+    });
 
-  // Handle tree selection change
-  treeSelect.addEventListener('change', (e) => {
-    switchToTree(e.target.value);
-  });
+    // Handle tree selection change
+    treeSelect.addEventListener('change', (e) => {
+      switchToTree(e.target.value);
+    });
+  }
 
   container.appendChild(treeSelect);
 
@@ -405,6 +452,11 @@ function populateDataControls(
     treeFileInput.click();
   });
   container.appendChild(addTreeBtn);
+
+  // Only show metadata controls if a tree is loaded
+  if (!currentTreeState) {
+    return;
+  }
 
   // Select metadata control
   const metadataLabel = createLabel('Available metadata:', controlHeight);
@@ -1294,7 +1346,7 @@ function createToggle(initialState, height) {
   const knobSize = toggleHeight - 4;
 
   const toggle = document.createElement('div');
-  toggle.className = initialState ? '  ht-toggle active' : 'ht-toggle';
+  toggle.className = initialState ? 'ht-toggle active' : 'ht-toggle';
   toggle.style.height = `${toggleHeight}px`;
 
   const knob = document.createElement('div');
