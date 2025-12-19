@@ -951,7 +951,7 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
   }
 
   // Get tree bounds including legends
-  const bounds = getTreeBoundsWithLegends(treeState, treeView);
+  const bounds = treeView.getCurrentBoundsWithLegends();
   const treeWidth = bounds.maxX - bounds.minX;
   const treeHeight = bounds.maxY - bounds.minY;
 
@@ -968,7 +968,7 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
   const aspectRatio = treeWidth / treeHeight;
 
   // PPI for conversion
-  const PPI = 400;
+  const PPI = 300;
   const CM_PER_INCH = 2.54;
 
   // Conversion functions
@@ -993,11 +993,37 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
     }
   };
 
+  // Function to update dimensions based on current tree bounds
+  const updateDimensions = () => {
+    const newBounds = treeView.getCurrentBoundsWithLegends();
+    const newWidth = newBounds.maxX - newBounds.minX;
+    const newHeight = newBounds.maxY - newBounds.minY;
+
+    exportState.width = newWidth;
+    exportState.height = newHeight;
+
+    widthInput.value = getDisplayValue(newWidth, exportState.format);
+    heightInput.value = getDisplayValue(newHeight, exportState.format);
+  };
+
+  // Subscribe to coordinate changes to update dimensions
+  const coordinateChangeUnsubscribe = treeState.subscribe('coordinateChange', updateDimensions);
+
+  // Subscribe to legend changes to update dimensions
+  const legendsChangeUnsubscribe = treeState.subscribe('legendsChange', updateDimensions);
+
+  // Clean up subscriptions when the tab is closed or changed
+  // We'll store the cleanup function on the container element
+  container.dataset.cleanup = () => {
+    coordinateChangeUnsubscribe();
+    legendsChangeUnsubscribe();
+  };
+
   // Export button
   const exportBtn = createButton('Export', 'Export the tree to a file', controlHeight);
   exportBtn.classList.add('primary');
   exportBtn.addEventListener('click', () => {
-    exportTree(treeState, treeView, exportState, bounds);
+    exportTree(treeView, exportState);
   });
   container.appendChild(exportBtn);
 
@@ -1112,37 +1138,11 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
 }
 
 /**
- * Get tree bounds including legends
- */
-function getTreeBoundsWithLegends(treeState, treeView) {
-  const treeBounds = {
-    minX: treeState.displayedRoot.bounds.minX,
-    maxX: treeState.displayedRoot.bounds.maxX,
-    minY: treeState.displayedRoot.bounds.minY,
-    maxY: treeState.displayedRoot.bounds.maxY
-  };
-
-  let maxY = treeBounds.maxY;
-
-  // Add legend heights
-  for (const legend of treeView.legendInstances) {
-    if (legend.coordinates) {
-      maxY = Math.max(maxY, legend.state.y + legend.coordinates.height);
-    }
-  }
-
-  return {
-    minX: treeBounds.minX,
-    maxX: treeBounds.maxX,
-    minY: treeBounds.minY,
-    maxY: maxY
-  };
-}
-
-/**
  * Export tree to file
  */
-function exportTree(treeState, treeView, exportState, bounds) {
+function exportTree(treeView, exportState) {
+  const bounds = treeView.getCurrentBoundsWithLegends();
+
   // Calculate dimensions
   const contentWidth = bounds.maxX - bounds.minX;
   const contentHeight = bounds.maxY - bounds.minY;
@@ -1294,7 +1294,7 @@ function createToggle(initialState, height) {
   const knobSize = toggleHeight - 4;
 
   const toggle = document.createElement('div');
-  toggle.className = initialState ? 'ht-toggle active' : 'ht-toggle';
+  toggle.className = initialState ? '  ht-toggle active' : 'ht-toggle';
   toggle.style.height = `${toggleHeight}px`;
 
   const knob = document.createElement('div');

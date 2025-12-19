@@ -228,9 +228,9 @@ export class TreeView {
         .on('click', () => {
           buttonConfig.onClick(this.selectedNode);
         });
-      
+
       appendIcon(btn, buttonConfig.icon, this.options.buttonSize, this.options.buttonPadding);
-      
+
       // Store reference to button element in config
       buttonConfig.element = btn;
     });
@@ -536,7 +536,7 @@ export class TreeView {
     const { width: viewW, height: viewH } = this.svg.node().getBoundingClientRect();
 
     // Calculate bounds of all tree elements (including legends)
-    const bounds = this.#getCurrentBoundsWithLegends();
+    const bounds = this.getCurrentBoundsWithLegends();
     if (!bounds) return;
 
     // Apply padding
@@ -644,7 +644,7 @@ export class TreeView {
    * Get current bounds including legends
    * @returns {Object} Bounds object with minX, maxX, minY, maxY
    */
-  #getCurrentBoundsWithLegends() {
+  getCurrentBoundsWithLegends() {
     const treeBounds = this.#getCurrentBounds();
     if (!treeBounds) return null;
 
@@ -802,7 +802,7 @@ export class TreeView {
     let visibleButtonIndex = 0;
     this.selectionButtons.forEach((buttonConfig) => {
       const isVisible = buttonConfig.isVisible(this.selectedNode);
-      
+
       if (isVisible) {
         // Calculate position for this visible button
         const yOffset = visibleButtonIndex * (this.options.buttonSize + this.options.controlsMargin);
@@ -816,8 +816,8 @@ export class TreeView {
     });
 
     // Calculate total height of visible buttons
-    const totalButtonHeight = visibleButtonIndex * this.options.buttonSize + 
-                              (visibleButtonIndex - 1) * this.options.controlsMargin;
+    const totalButtonHeight = visibleButtonIndex * this.options.buttonSize +
+      (visibleButtonIndex - 1) * this.options.controlsMargin;
 
     // Calculate screen position
     let screenX = x * this.currentTransform.k + this.currentTransform.x - this.options.buttonSize - this.options.controlsMargin;
