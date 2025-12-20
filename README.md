@@ -1,4 +1,4 @@
-# `heat-tree`: A JavaScript package for custom, dynamic phylogenetic tree visualizations
+# `heat-tree`: A JavaScript package for reactive phylogenetic tree visualizations
 
 Under development.
 
