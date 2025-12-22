@@ -57,14 +57,12 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
   // Inject styles
   injectStyles();
 
-  // Set default options (support both old and new option names)
+  // Set default options
   options = {
     buttonSize: 25,
-    controlsMargin: 3,
-    buttonPadding: 2,
     transitionDuration: 500,
-    manualZoomAndPanEnabled: options.zoomInitiallyEnabled !== undefined ? options.zoomInitiallyEnabled : true,
-    autoZoomEnabled: true,
+    manualZoomAndPanEnabled: true,
+    autoZoomEnabled: false,
     autoPanEnabled: true,
     ...options
   };
@@ -212,15 +210,7 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     // Get or create TreeView for this tree
     if (!treeViewCache.has(treeName)) {
       const treeState = treeStateCache.get(treeName);
-      const treeView = new TreeView(treeState, treeSvg, {
-        buttonSize: options.buttonSize,
-        controlsMargin: options.controlsMargin,
-        buttonPadding: options.buttonPadding,
-        transitionDuration: options.transitionDuration,
-        manualZoomAndPanEnabled: options.manualZoomAndPanEnabled,
-        autoZoomEnabled: options.autoZoomEnabled,
-        autoPanEnabled: options.autoPanEnabled
-      });
+      const treeView = new TreeView(treeState, treeSvg, options);
       treeViewCache.set(treeName, treeView);
     } else {
       // Reattach existing TreeView to the SVG

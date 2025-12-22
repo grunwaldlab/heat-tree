@@ -42,7 +42,7 @@ const ICONS = {
 
 // Append an icon to the given SVG button, automatically scaling and
 // centring it.  Returns the appended <g>.
-export function appendIcon(svgSel, name, size, padding) {
+export function appendIcon(svgSel, name, size, padding = 2) {
   const iconPathData = ICONS[name];
   const scale = (size - padding * 2) / 24;
 

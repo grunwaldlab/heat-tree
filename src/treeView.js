@@ -57,15 +57,6 @@ export class TreeView {
     // Store references to active transitions for cancellation
     this.activeTransitions = new Set();
 
-    // Toggle state for user-initiated zooming/panning
-    this.manualZoomAndPanEnabled = this.options.manualZoomAndPanEnabled;
-
-    // Toggle state for automatic zoom to fit
-    this.autoZoomEnabled = this.options.autoZoomEnabled;
-
-    // Toggle state for automatic panning
-    this.autoPanEnabled = this.options.autoPanEnabled;
-
     // Currently selected node (can be subtree or tip)
     this.selectedNode = null;
 
@@ -166,7 +157,7 @@ export class TreeView {
    */
   handleResize() {
     // Refit the tree to the new viewport dimensions
-    if (this.autoZoomEnabled || this.autoPanEnabled) {
+    if (this.options.autoZoomEnabled || this.options.autoPanEnabled) {
       this.#fitToView(true);
     }
   }
@@ -229,7 +220,7 @@ export class TreeView {
           buttonConfig.onClick(this.selectedNode);
         });
 
-      appendIcon(btn, buttonConfig.icon, this.options.buttonSize, this.options.buttonPadding);
+      appendIcon(btn, buttonConfig.icon, this.options.buttonSize);
 
       // Store reference to button element in config
       buttonConfig.element = btn;
@@ -242,7 +233,7 @@ export class TreeView {
   #initializeZoom() {
     this.treeZoom = zoom()
       .filter(event => {
-        if (!this.manualZoomAndPanEnabled) return false;
+        if (!this.options.manualZoomAndPanEnabled) return false;
         if (event.type === 'dblclick') return false;
         return true;
       })
@@ -356,7 +347,7 @@ export class TreeView {
     }
 
     // Auto-fit if enabled
-    if (this.autoZoomEnabled || this.autoPanEnabled) {
+    if (this.options.autoZoomEnabled || this.options.autoPanEnabled) {
       this.#fitToView(true);
     }
   }
@@ -505,30 +496,6 @@ export class TreeView {
   }
 
   /**
-   * Enable or disable manual zoom and pan
-   * @param {boolean} enabled - Whether to enable manual zoom/pan
-   */
-  setManualZoomAndPanEnabled(enabled) {
-    this.manualZoomAndPanEnabled = enabled;
-  }
-
-  /**
-   * Enable or disable automatic zoom to fit
-   * @param {boolean} enabled - Whether to enable auto zoom
-   */
-  setAutoZoomEnabled(enabled) {
-    this.autoZoomEnabled = enabled;
-  }
-
-  /**
-   * Enable or disable automatic panning
-   * @param {boolean} enabled - Whether to enable auto pan
-   */
-  setAutoPanEnabled(enabled) {
-    this.autoPanEnabled = enabled;
-  }
-
-  /**
    * Fit the tree to the view with optional transition
    * @param {boolean} transition - Whether to animate the fit
    */
@@ -561,14 +528,14 @@ export class TreeView {
     let ty = this.currentTransform.y;
 
     // Apply auto-zoom if enabled
-    if (this.autoZoomEnabled) {
+    if (this.options.autoZoomEnabled) {
       const scaleX = availableWidth / treeWidth;
       const scaleY = availableHeight / treeHeight;
       scale = Math.min(scaleX, scaleY);
     }
 
     // Apply auto-pan if enabled
-    if (this.autoPanEnabled) {
+    if (this.options.autoPanEnabled) {
       // Check if tree fits in each dimension
       const scaledTreeWidth = treeWidth * scale;
       const scaledTreeHeight = treeHeight * scale;
@@ -753,7 +720,7 @@ export class TreeView {
    * Update selection buttons position and visibility
    * @param {boolean} transition - Whether to animate the update
    */
-  #updateSelectionButtons(transition = true) {
+  #updateSelectionButtons(transition = true, controlsMarginFactor = 1.1) {
     if (!this.selectedNode) {
       this.layers.selectionBtns.style('display', 'none');
       return;
@@ -805,7 +772,7 @@ export class TreeView {
 
       if (isVisible) {
         // Calculate position for this visible button
-        const yOffset = visibleButtonIndex * (this.options.buttonSize + this.options.controlsMargin);
+        const yOffset = visibleButtonIndex * (this.options.buttonSize * controlsMarginFactor);
         buttonConfig.element
           .style('display', 'block')
           .attr('transform', `translate(0, ${yOffset})`);
@@ -817,11 +784,11 @@ export class TreeView {
 
     // Calculate total height of visible buttons
     const totalButtonHeight = visibleButtonIndex * this.options.buttonSize +
-      (visibleButtonIndex - 1) * this.options.controlsMargin;
+      (visibleButtonIndex - 1) * this.options.buttonSize * (controlsMarginFactor - 1);
 
     // Calculate screen position
-    let screenX = x * this.currentTransform.k + this.currentTransform.x - this.options.buttonSize - this.options.controlsMargin;
-    let screenY = y * this.currentTransform.k + this.currentTransform.y - this.options.controlsMargin;
+    let screenX = x * this.currentTransform.k + this.currentTransform.x - this.options.buttonSize * controlsMarginFactor;
+    let screenY = y * this.currentTransform.k + this.currentTransform.y - this.options.buttonSize * (controlsMarginFactor - 1);
 
     // Keep within viewable area
     const { width: viewW, height: viewH } = this.svg.node().getBoundingClientRect();
