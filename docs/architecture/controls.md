@@ -32,9 +32,12 @@ Controls are grouped into tabs like so:
 ### Controls tab
 
 - **Fit to view**: Button that fits the tree in the window settings.
-- **Toggle manual zooming/panning**: Toggle that enables or disables zooming/panning.
-- **Toggle automatic zooming**: Toggle that if enabled, the view zoom will be adjusted to be the smallest needed to see the root to tip and labels automatically when a change is made to the tree
-- **Toggle automating panning**: Toggle that if enabled, the view will be panned to minimize empty space, panning in what ever direction minimizes the amount panned
+- **Toggle manual zooming/panning**: Toggle that enables or disables zooming/panning. When a `TreeState` instance is made or the tree is changed and the setting for this is `undefined`/`null`, it is set to `true` if the tree is too big to fit in the current view window.
+
+The following controls are dropdowns with the options "Both", "X", "Y", "None":
+
+- **Toggle automatic zooming**: the view zoom will be adjusted to be the smallest needed to see the root to tip and labels automatically when a change is made to the tree
+- **Toggle automating panning**: the view will be panned to minimize empty space, panning in what ever direction minimizes the amount panned
 
 ### Tree manipulation tab
 

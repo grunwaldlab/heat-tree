@@ -62,8 +62,8 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     buttonSize: 25,
     transitionDuration: 500,
     manualZoomAndPanEnabled: true,
-    autoZoomEnabled: false,
-    autoPanEnabled: true,
+    autoZoom: "X",
+    autoPan: "Both",
     ...options
   };
 

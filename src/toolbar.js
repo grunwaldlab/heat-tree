@@ -69,6 +69,7 @@ export function createToolbar(
   // Define tabs
   const tabs = [
     { id: 'data', label: 'Data', requiresTree: false },
+    { id: 'controls', label: 'Controls', requiresTree: true },
     { id: 'tree-manipulation', label: 'Tree Manipulation', requiresTree: true },
     { id: 'tip-label-settings', label: 'Tip Label Settings', requiresTree: true },
     { id: 'export', label: 'Export', requiresTree: true }
@@ -284,6 +285,15 @@ export function createToolbar(
           setSelectedMetadata,
           resetSelectedMetadata,
           refreshCurrentTab,
+          options,
+          CONTROL_HEIGHT
+        );
+        break;
+      case 'controls':
+        populateControlsTab(
+          controlsContainer,
+          getCurrentTreeState,
+          getCurrentTreeView,
           options,
           CONTROL_HEIGHT
         );
@@ -572,6 +582,108 @@ function populateDataControls(
     metadataFileInput.click();
   });
   container.appendChild(addMetadataBtn);
+}
+
+/**
+ * Populate Controls tab
+ */
+function populateControlsTab(
+  container,
+  getCurrentTreeState,
+  getCurrentTreeView,
+  options,
+  controlHeight
+) {
+  container.innerHTML = '';
+
+  const treeState = getCurrentTreeState();
+  const treeView = getCurrentTreeView();
+
+  if (!treeState || !treeView) {
+    container.textContent = 'No tree selected';
+    return;
+  }
+
+  // Fit to view button
+  const fitToViewBtn = createButton('Fit to view', 'Fit the tree to the current view window', controlHeight);
+  fitToViewBtn.addEventListener('click', () => {
+    treeView.options.autoZoom = 'Both';
+    treeView.options.autoPan = 'Both';
+    treeView.fitToView({ transition: true });
+  });
+  container.appendChild(fitToViewBtn);
+
+  // Manual zoom/pan toggle
+  const manualZoomPanLabel = createLabel('Manual zoom/pan:', controlHeight);
+  container.appendChild(manualZoomPanLabel);
+
+  const manualZoomPanToggle = createToggle(treeView.options.manualZoomAndPanEnabled, controlHeight);
+
+  manualZoomPanToggle.addEventListener('click', () => {
+    treeView.options.manualZoomAndPanEnabled = !treeView.options.manualZoomAndPanEnabled;
+    
+    // Update toggle visual state
+    if (treeView.options.manualZoomAndPanEnabled) {
+      manualZoomPanToggle.classList.add('active');
+    } else {
+      manualZoomPanToggle.classList.remove('active');
+    }
+
+    // Reinitialize zoom behavior with new filter
+    treeView.initializeZoom();
+  });
+
+  container.appendChild(manualZoomPanToggle);
+
+  // Auto-zoom dropdown
+  const autoZoomLabel = createLabel('Auto-zoom:', controlHeight);
+  container.appendChild(autoZoomLabel);
+
+  const autoZoomSelect = document.createElement('select');
+  autoZoomSelect.className = 'ht-select';
+  autoZoomSelect.style.height = `${controlHeight}px`;
+
+  const zoomOptions = ['Both', 'X', 'Y', 'None'];
+  zoomOptions.forEach(option => {
+    const optionElement = document.createElement('option');
+    optionElement.value = option;
+    optionElement.textContent = option;
+    if (option === treeView.options.autoZoom) {
+      optionElement.selected = true;
+    }
+    autoZoomSelect.appendChild(optionElement);
+  });
+
+  autoZoomSelect.addEventListener('change', (e) => {
+    treeView.options.autoZoom = e.target.value;
+  });
+
+  container.appendChild(autoZoomSelect);
+
+  // Auto-pan dropdown
+  const autoPanLabel = createLabel('Auto-pan:', controlHeight);
+  container.appendChild(autoPanLabel);
+
+  const autoPanSelect = document.createElement('select');
+  autoPanSelect.className = 'ht-select';
+  autoPanSelect.style.height = `${controlHeight}px`;
+
+  const panOptions = ['Both', 'X', 'Y', 'None'];
+  panOptions.forEach(option => {
+    const optionElement = document.createElement('option');
+    optionElement.value = option;
+    optionElement.textContent = option;
+    if (option === treeView.options.autoPan) {
+      optionElement.selected = true;
+    }
+    autoPanSelect.appendChild(optionElement);
+  });
+
+  autoPanSelect.addEventListener('change', (e) => {
+    treeView.options.autoPan = e.target.value;
+  });
+
+  container.appendChild(autoPanSelect);
 }
 
 /**

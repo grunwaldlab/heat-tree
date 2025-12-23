@@ -25,8 +25,8 @@ export class TreeView {
       controlsMargin: 3,
       buttonPadding: 2,
       manualZoomAndPanEnabled: true,
-      autoZoomEnabled: true,
-      autoPanEnabled: true,
+      autoZoom: 'Both',
+      autoPan: 'Both',
       transitionDuration: 500,
       legendSpacing: 10,
       legendPadding: 10,
@@ -149,17 +149,7 @@ export class TreeView {
     this.#updateNodes(false);
     this.#updateHitAreas(false);
     this.#updateLegends(false);
-    this.#fitToView(false);
-  }
-
-  /**
-   * Handle resize event - recalculate and refit the tree to the new viewport
-   */
-  handleResize() {
-    // Refit the tree to the new viewport dimensions
-    if (this.options.autoZoomEnabled || this.options.autoPanEnabled) {
-      this.#fitToView(true);
-    }
+    this.fitToView({transition: false});
   }
 
   /**
@@ -300,7 +290,7 @@ export class TreeView {
     this.#updateNodes(false);
     this.#updateHitAreas(false);
     this.#updateLegends(false);
-    this.#fitToView(false);
+    this.fitToView({transition: false});
   }
 
   /**
@@ -347,9 +337,7 @@ export class TreeView {
     }
 
     // Auto-fit if enabled
-    if (this.options.autoZoomEnabled || this.options.autoPanEnabled) {
-      this.#fitToView(true);
-    }
+    this.fitToView();
   }
 
   /**
@@ -492,14 +480,26 @@ export class TreeView {
         currentX += legend.coordinates.width + this.options.legendSpacing;
       }
     }
-    this.handleResize();
+    this.fitToView({transition});
   }
 
   /**
    * Fit the tree to the view with optional transition
    * @param {boolean} transition - Whether to animate the fit
    */
-  #fitToView(transition = true, padding = 5) {
+  fitToView(input) {
+    input = {
+      transition: true,
+      padding: 5,
+      autoZoom: this.options.autoZoom,
+      autoPan: this.options.autoPan,
+      ...input
+    }
+
+    if ((!input.autoZoom || input.autoZoom == "None") && (! input.autoPan || input.autoPan == "None")) {
+      return;
+    }
+
     const { width: viewW, height: viewH } = this.svg.node().getBoundingClientRect();
 
     // Calculate bounds of all tree elements (including legends)
@@ -507,16 +507,16 @@ export class TreeView {
     if (!bounds) return;
 
     // Apply padding
-    bounds.minX -= padding;
-    bounds.maxX += padding;
-    bounds.minY -= padding;
-    bounds.maxY += padding;
+    bounds.minX -= input.padding;
+    bounds.maxX += input.padding;
+    bounds.minY -= input.padding;
+    bounds.maxY += input.padding;
 
     const treeWidth = bounds.maxX - bounds.minX;
     const treeHeight = bounds.maxY - bounds.minY;
 
     // Left margin for control buttons
-    const marginLeft = 0; // this.options.buttonSize;
+    const marginLeft = 0;
 
     // Available space
     const availableWidth = viewW - marginLeft;
@@ -528,63 +528,69 @@ export class TreeView {
     let ty = this.currentTransform.y;
 
     // Apply auto-zoom if enabled
-    if (this.options.autoZoomEnabled) {
+    if (input.autoZoom && input.autoZoom != "None") {
       const scaleX = availableWidth / treeWidth;
       const scaleY = availableHeight / treeHeight;
-      scale = Math.min(scaleX, scaleY);
+      if (input.autoZoom == "X") {
+        scale = scaleX;
+      } else if (input.autoZoom == "Y") {
+        scale = scaleY;
+      } else if (input.autoZoom == "Both") {
+        scale = Math.min(scaleX, scaleY);
+      } else {
+        console.error(`Value of ${input.autoZoom} is invalid for input.autoZoom.`);
+      }
     }
 
     // Apply auto-pan if enabled
-    if (this.options.autoPanEnabled) {
-      // Check if tree fits in each dimension
-      const scaledTreeWidth = treeWidth * scale;
-      const scaledTreeHeight = treeHeight * scale;
+    if (input.autoPan && input.autoPan != "None") {
 
-      if (scaledTreeWidth <= availableWidth) {
-        // Tree fits horizontally - center it
-        tx = marginLeft + (availableWidth - scaledTreeWidth) / 2 - bounds.minX * scale;
-      } else {
-        // Tree doesn't fit - minimize unused space
-        const leftSpace = -bounds.minX * scale - marginLeft;
-        const rightSpace = viewW - bounds.maxX * scale;
-
-        if (leftSpace > 0) {
-          // Unused space on left - shift right
-          tx = marginLeft - bounds.minX * scale;
-        } else if (rightSpace > 0) {
-          // Unused space on right - shift left
-          tx = viewW - bounds.maxX * scale;
+      if (input.autoPan == 'Both' || input.autoPan == 'X') {
+        const scaledTreeWidth = treeWidth * scale;
+        if (scaledTreeWidth <= availableWidth) {
+          // Tree fits horizontally - center it
+          tx = marginLeft + (availableWidth - scaledTreeWidth) / 2 - bounds.minX * scale;
         } else {
-          // No unused space - keep current pan or center
-          tx = marginLeft + availableWidth / 2 - (bounds.minX + bounds.maxX) / 2 * scale;
+          // Tree doesn't fit - minimize unused space
+          const leftSpace = -bounds.minX * scale - marginLeft;
+          const rightSpace = viewW - bounds.maxX * scale;
+
+          if (leftSpace > 0) {
+            // Unused space on left - shift right
+            tx = marginLeft - bounds.minX * scale;
+          } else if (rightSpace > 0) {
+            // Unused space on right - shift left
+            tx = viewW - bounds.maxX * scale;
+          } else {
+            // No unused space - keep current pan or center
+            tx = marginLeft + availableWidth / 2 - (bounds.minX + bounds.maxX) / 2 * scale;
+          }
         }
       }
 
-      if (scaledTreeHeight <= availableHeight) {
-        // Tree fits vertically - center it
-        ty = (availableHeight - scaledTreeHeight) / 2 - bounds.minY * scale;
-      } else {
-        // Tree doesn't fit - minimize unused space
-        const topSpace = -bounds.minY * scale;
-        const bottomSpace = viewH - bounds.maxY * scale;
-
-        if (topSpace > 0) {
-          // Unused space on top - shift down
-          ty = -bounds.minY * scale;
-        } else if (bottomSpace > 0) {
-          // Unused space on bottom - shift up
-          ty = viewH - bounds.maxY * scale;
+      if (input.autoPan == 'Both' || input.autoPan == 'Y') {
+        const scaledTreeHeight = treeHeight * scale;
+        if (scaledTreeHeight <= availableHeight) {
+          // Tree fits vertically - center it
+          ty = (availableHeight - scaledTreeHeight) / 2 - bounds.minY * scale;
         } else {
-          // No unused space - keep current pan or center
-          ty = availableHeight / 2 - (bounds.minY + bounds.maxY) / 2 * scale;
+          // Tree doesn't fit - minimize unused space
+          const topSpace = -bounds.minY * scale;
+          const bottomSpace = viewH - bounds.maxY * scale;
+          if (ty > topSpace) {
+            ty = topSpace;
+          } else if (ty < bottomSpace) {
+            ty = bottomSpace;
+          }
         }
       }
+
     }
 
     const transform = zoomIdentity.translate(tx, ty).scale(scale);
 
     // Apply through zoom behavior
-    if (transition) {
+    if (input.transition) {
       this.svg.transition('zoom')
         .duration(this.options.transitionDuration)
         .call(this.treeZoom.transform, transform);
