@@ -7,7 +7,7 @@ import { interpolateViridis } from "d3";
  * Manages common legend functionality like positioning and rendering
  */
 export class LegendBase {
-  constructor(options = {}, textSizeEstimator = new TextSizeEstimator()) {
+  constructor(options = {}) {
     this.state = {
       aesthetic: null,
       x: 0,
@@ -22,7 +22,7 @@ export class LegendBase {
 
     this.coordinates = {};
     this.group = null;
-    this.textSizeEstimator = textSizeEstimator;
+    this.textSizeEstimator = this.state.treeState.textSizeEstimator;
   }
 
   /**

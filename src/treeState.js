@@ -250,23 +250,11 @@ export class TreeState extends Subscribable {
         continue;
       }
 
-      // Create legend based on scale type
-      if (aesData.scaleType === 'size') {
-        // Add size legend metadata
-        this.legends.push({
-          aestheticId,
-          aesthetic,
-          type: 'size'
-        });
-      } else if (aesData.scaleType === 'color') {
-        // Add color legend metadata
-        this.legends.push({
-          aestheticId,
-          aesthetic,
-          type: 'color'
-        });
-      }
-      // Add other legend types here as they are implemented
+      this.legends.push({
+        aestheticId,
+        aesthetic,
+        type: aesData.scaleType
+      });
     }
 
     // Notify that legends have changed
