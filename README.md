@@ -1,7 +1,6 @@
-# `heat-tree`: A JavaScript package for phylogenetic and taxonomic tree visualization
+# `heat-tree`: A JavaScript package for reactive phylogenetic tree visualizations
 
 Under development.
-
 
 Features:
   - Reads tree data from Newick files

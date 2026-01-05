@@ -29,12 +29,15 @@ Controls are grouped into tabs like so:
 - **Select tree**: A dropdown selection box to select which tree is currently shown with a button to the right with a plus sign that allows uploading a tree from a newick file when clicked. An uploaded tree derives its name from the file name minus the extension. An unnamed tree is named "Tree with # tips". To the right of each item in the dropdown is a button with a trash symbol that deletes the tree and associated metadata when clicked
 - **Select metadata**: A dropdown menu that lists metadata tables associated with the currently selected tree with a button to the right with a plus sign that allows uploading a new metadata table. An uploaded metadata table derives its name from the file name minus the extension. An unnamed table is named "table with # columns". To the right of each item is a button with a trash symbol that deletes the associated metadata table. 
 
-### Interaction tab
+### Controls tab
 
-- **Reset tree to default view**: Button that resets current tree to default settings.
-- **Toggle manual zooming/panning**: Toggle that enables or disables zooming/panning.
-- **Toggle automatic zooming**: Toggle that if enabled, the view zoom will be adjusted to be the smallest needed to see the root to tip and labels automatically when a change is made to the tree
-- **Toggle automating panning**: Toggle that if enabled, the view will be panned to minimize empty space
+- **Fit to view**: Button that fits the tree in the window settings.
+- **Toggle manual zooming/panning**: Toggle that enables or disables zooming/panning. When a `TreeState` instance is made or the tree is changed and the setting for this is `undefined`/`null`, it is set to `true` if the tree is too big to fit in the current view window.
+
+The following controls are dropdowns with the options "Both", "X", "Y", "None":
+
+- **Toggle automatic zooming**: the view zoom will be adjusted to be the smallest needed to see the root to tip and labels automatically when a change is made to the tree
+- **Toggle automating panning**: the view will be panned to minimize empty space, panning in what ever direction minimizes the amount panned
 
 ### Tree manipulation tab
 
