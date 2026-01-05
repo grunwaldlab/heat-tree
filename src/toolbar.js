@@ -607,9 +607,7 @@ function populateControlsTab(
   // Fit to view button
   const fitToViewBtn = createButton('Fit to view', 'Fit the tree to the current view window', controlHeight);
   fitToViewBtn.addEventListener('click', () => {
-    treeView.options.autoZoom = 'Both';
-    treeView.options.autoPan = 'Both';
-    treeView.fitToView({ transition: true });
+    treeView.fitToView({ transition: true, autoPan: 'Both', autoZoom: 'Both' });
   });
   container.appendChild(fitToViewBtn);
 
@@ -621,7 +619,7 @@ function populateControlsTab(
 
   manualZoomPanToggle.addEventListener('click', () => {
     treeView.options.manualZoomAndPanEnabled = !treeView.options.manualZoomAndPanEnabled;
-    
+
     // Update toggle visual state
     if (treeView.options.manualZoomAndPanEnabled) {
       manualZoomPanToggle.classList.add('active');
@@ -643,7 +641,7 @@ function populateControlsTab(
   autoZoomSelect.className = 'ht-select';
   autoZoomSelect.style.height = `${controlHeight}px`;
 
-  const zoomOptions = ['Both', 'X', 'Y', 'None'];
+  const zoomOptions = ['Default', 'Both', 'X', 'Y', 'None'];
   zoomOptions.forEach(option => {
     const optionElement = document.createElement('option');
     optionElement.value = option;
@@ -668,7 +666,7 @@ function populateControlsTab(
   autoPanSelect.className = 'ht-select';
   autoPanSelect.style.height = `${controlHeight}px`;
 
-  const panOptions = ['Both', 'X', 'Y', 'None'];
+  const panOptions = ['Default', 'Both', 'X', 'Y', 'None'];
   panOptions.forEach(option => {
     const optionElement = document.createElement('option');
     optionElement.value = option;

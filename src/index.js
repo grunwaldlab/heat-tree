@@ -62,8 +62,8 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     buttonSize: 25,
     transitionDuration: 500,
     manualZoomAndPanEnabled: true,
-    autoZoom: "X",
-    autoPan: "Both",
+    autoZoom: 'Default',
+    autoPan: 'Default',
     ...options
   };
 
@@ -150,8 +150,7 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
    */
   function onToolbarDimensionsChange() {
     if (currentTreeView) {
-      // Trigger a redraw by calling the view's resize handler
-      currentTreeView.handleResize();
+      currentTreeView.fitToView();
     }
   }
 

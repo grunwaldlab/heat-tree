@@ -25,8 +25,8 @@ export class TreeView {
       controlsMargin: 3,
       buttonPadding: 2,
       manualZoomAndPanEnabled: true,
-      autoZoom: 'Both',
-      autoPan: 'Both',
+      autoZoom: 'Default',
+      autoPan: 'Default',
       transitionDuration: 500,
       legendSpacing: 10,
       legendPadding: 10,
@@ -107,7 +107,7 @@ export class TreeView {
     this.#initializeLayers();
 
     // Initialize zoom behavior
-    this.#initializeZoom();
+    this.initializeZoom();
 
     // Subscribe to TreeState events
     this.#subscribeToStateChanges();
@@ -142,14 +142,14 @@ export class TreeView {
     this.#initializeLayers();
 
     // Reinitialize zoom behavior
-    this.#initializeZoom();
+    this.initializeZoom();
 
     // Re-render without transition
     this.#updateBranches(false);
     this.#updateNodes(false);
     this.#updateHitAreas(false);
     this.#updateLegends(false);
-    this.fitToView({transition: false});
+    this.fitToView({ transition: false, forcePanToTop: true });
   }
 
   /**
@@ -220,7 +220,7 @@ export class TreeView {
   /**
    * Initialize zoom and pan behavior
    */
-  #initializeZoom() {
+  initializeZoom() {
     this.treeZoom = zoom()
       .filter(event => {
         if (!this.options.manualZoomAndPanEnabled) return false;
@@ -290,7 +290,7 @@ export class TreeView {
     this.#updateNodes(false);
     this.#updateHitAreas(false);
     this.#updateLegends(false);
-    this.fitToView({transition: false});
+    this.fitToView({ transition: false, forcePanToTop: true });
   }
 
   /**
@@ -372,7 +372,7 @@ export class TreeView {
 
   /**
    * Update tip label font attributes
-   * This function handles both font-family
+   * This function handles font-family
    */
   #updateTipLabelFont() {
     if (!this.selections.nodes) return;
@@ -383,7 +383,7 @@ export class TreeView {
 
   /**
    * Update tip label style attributes
-   * This function handles both font-style
+   * This function handles font-style
    */
   #updateTipLabelStyle() {
     if (!this.selections.nodes) return;
@@ -480,7 +480,7 @@ export class TreeView {
         currentX += legend.coordinates.width + this.options.legendSpacing;
       }
     }
-    this.fitToView({transition});
+    this.fitToView({ transition });
   }
 
   /**
@@ -493,10 +493,11 @@ export class TreeView {
       padding: 5,
       autoZoom: this.options.autoZoom,
       autoPan: this.options.autoPan,
+      forcePanToTop: false,
       ...input
     }
 
-    if ((!input.autoZoom || input.autoZoom == "None") && (! input.autoPan || input.autoPan == "None")) {
+    if ((!input.autoZoom || input.autoZoom == "None") && (!input.autoPan || input.autoPan == "None")) {
       return;
     }
 
@@ -528,13 +529,20 @@ export class TreeView {
     let ty = this.currentTransform.y;
 
     // Apply auto-zoom if enabled
+    const scaleX = availableWidth / treeWidth;
+    const scaleY = availableHeight / treeHeight;
+    if (input.autoZoom == 'Default') {
+      if (this.treeState.state.layout == 'circular' || scaleY >= 1 || !this.options.manualZoomAndPanEnabled) {
+        input.autoZoom = 'Both';
+      } else {
+        input.autoZoom = 'X';
+      }
+    }
     if (input.autoZoom && input.autoZoom != "None") {
-      const scaleX = availableWidth / treeWidth;
-      const scaleY = availableHeight / treeHeight;
       if (input.autoZoom == "X") {
-        scale = scaleX;
+        scale = Math.min(1, scaleX);
       } else if (input.autoZoom == "Y") {
-        scale = scaleY;
+        scale = Math.min(1, scaleY);
       } else if (input.autoZoom == "Both") {
         scale = Math.min(scaleX, scaleY);
       } else {
@@ -543,8 +551,10 @@ export class TreeView {
     }
 
     // Apply auto-pan if enabled
+    if (input.autoPan == 'Default') {
+      input.autoPan = 'Both';
+    }
     if (input.autoPan && input.autoPan != "None") {
-
       if (input.autoPan == 'Both' || input.autoPan == 'X') {
         const scaledTreeWidth = treeWidth * scale;
         if (scaledTreeWidth <= availableWidth) {
@@ -577,7 +587,7 @@ export class TreeView {
           // Tree doesn't fit - minimize unused space
           const topSpace = -bounds.minY * scale;
           const bottomSpace = viewH - bounds.maxY * scale;
-          if (ty > topSpace) {
+          if (ty > topSpace || input.forcePanToTop) {
             ty = topSpace;
           } else if (ty < bottomSpace) {
             ty = bottomSpace;
