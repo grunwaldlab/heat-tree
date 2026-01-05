@@ -888,7 +888,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   tipLabelFontSelect.className = 'ht-select';
   tipLabelFontSelect.style.height = `${controlHeight}px`;
 
-  const fonts = ['sans-serif', 'serif', 'monospace', 'Arial', 'Times New Roman', 'Courier New'];
+  const fonts = ['sans-serif', 'serif', 'monospace'];
 
   // Get current font value - check if it's set via aesthetic or use default
   const currentFont = treeState.state.aesthetics.tipLabelFont !== undefined
