@@ -1,5 +1,5 @@
 {
-  "name": "heat-tree",
+  "name": "@grunwaldlab/heat-tree",
   "version": "0.1.0",
   "description": "A self-contained widget for phylogenetic and taxonomic tree visualization with categorical and continuous variables associated with nodes and tips",
   "keywords": [
@@ -21,12 +21,12 @@
   "license": "MIT",
   "author": "Zachary Stephen Longiaru Foster",
   "type": "module",
-  "main": "./dist/heat-tree.umd.js",
-  "module": "./dist/heat-tree.es.js",
+  "main": "./dist/heat-tree.umd.min.js",
+  "module": "./dist/heat-tree.es.min.js",
   "exports": {
     ".": {
-      "import": "./dist/heat-tree.es.js",
-      "require": "./dist/heat-tree.umd.js"
+      "import": "./dist/heat-tree.es.min.js",
+      "require": "./dist/heat-tree.umd.min.js"
     }
   },
   "files": [
@@ -47,6 +47,7 @@
     "@vitest/browser-playwright": "4.0.5",
     "http-server": "^14.1.1",
     "playwright": "^1.56.1",
+    "terser": "^5.44.1",
     "vite": "^7.1.6",
     "vitest": "4.0.5"
   }

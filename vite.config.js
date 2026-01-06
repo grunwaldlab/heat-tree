@@ -6,11 +6,12 @@ export default defineConfig({
     outDir: 'dist',          // Output directory
     cssCodeSplit: true,      // Extract CSS into separate files
     sourcemap: true,         // Generate source maps for debugging
-    minify: 'esbuild',       // Minify the output
+    minify: 'terser',       // Minify the output
     lib: {
       entry: resolve(__dirname, 'src/index.js'),
       name: 'HeatTree',
-      fileName: (format) => `heat-tree.${format}.js`,
+      formats: ['iife', 'es', 'umd'],
+      fileName: (format) => `heat-tree.${format}.min.js`,
     },
   },
 });
