@@ -201,7 +201,7 @@ export class TreeView {
 
     // Create buttons from configuration
     this.selectionButtons.forEach((buttonConfig) => {
-      const btn = btnGroup.append('svg')
+      const btn = btnGroup.append('g')
         .attr('class', `btn-${buttonConfig.id}`)
         .attr('width', this.options.buttonSize)
         .attr('height', this.options.buttonSize)

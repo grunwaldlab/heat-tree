@@ -47,8 +47,8 @@ export function appendIcon(svgSel, name, size, padding = 2) {
   const scale = (size - padding * 2) / 24;
 
   const button = svgSel.append("rect")
-    .attr("width", "100%")
-    .attr("height", "100%")
+    .attr('width', size)
+    .attr('height', size)
     .attr("rx", "5px")
     .attr("ry", "5px")
     .attr("fill", "#CCC");

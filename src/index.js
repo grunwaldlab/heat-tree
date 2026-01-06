@@ -125,8 +125,8 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
   const resizeHandler = new ContainerResizeHandler(
     treeDiv,
     (details) => {
-      console.log('Container resized:', details);
-      console.log(`New size: ${details.width}px × ${details.height}px`);
+      // console.log('Container resized:', details);
+      // console.log(`New size: ${details.width}px × ${details.height}px`);
       if (currentTreeView) {
         currentTreeView.fitToView();
       }
