@@ -1,3 +1,5 @@
+import { exportTree } from './exporter.js';
+
 /**
  * Create and manage the toolbar with tabs and controls
  * @param {HTMLElement} toolbarDiv - Container for the toolbar
@@ -70,8 +72,8 @@ export function createToolbar(
   const tabs = [
     { id: 'data', label: 'Data', requiresTree: false },
     { id: 'controls', label: 'Controls', requiresTree: true },
-    { id: 'tree-manipulation', label: 'Tree Manipulation', requiresTree: true },
-    { id: 'tip-label-settings', label: 'Tip Label Settings', requiresTree: true },
+    { id: 'tree-manipulation', label: 'Tree', requiresTree: true },
+    { id: 'tip-label-settings', label: 'Tip Labels', requiresTree: true },
     { id: 'export', label: 'Export', requiresTree: true }
   ];
 
@@ -126,13 +128,6 @@ export function createToolbar(
 
   // Add transition end listener to notify when dimensions change
   collapsiblePanel.addEventListener('transitionend', (e) => {
-    // Only trigger on max-height transitions (not other properties)
-    if (e.propertyName === 'max-height' && onDimensionsChange) {
-      onDimensionsChange();
-    }
-  });
-
-  controlsContainer.addEventListener('transitionend', (e) => {
     // Only trigger on max-height transitions (not other properties)
     if (e.propertyName === 'max-height' && onDimensionsChange) {
       onDimensionsChange();
@@ -252,6 +247,16 @@ export function createToolbar(
     // Show controls and populate with tab content
     controlsContainer.classList.remove('hidden');
     populateControls(tabId);
+
+    // Notify that dimensions have changed after the DOM has updated
+    if (onDimensionsChange) {
+      // Use requestAnimationFrame to ensure DOM has been updated
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          onDimensionsChange();
+        }, 50);
+      });
+    }
   }
 
   // Function to close the current tab
@@ -266,6 +271,13 @@ export function createToolbar(
     // Hide controls
     controlsContainer.classList.add('hidden');
     controlsContainer.innerHTML = '';
+
+    // Notify that dimensions have changed
+    if (onDimensionsChange) {
+      setTimeout(() => {
+        onDimensionsChange();
+      }, 50);
+    }
   }
 
   // Function to populate controls based on selected tab
@@ -389,9 +401,10 @@ function populateDataControls(
 ) {
   container.innerHTML = '';
 
-  // Select tree control
+  // Select tree control group
+  const treeGroup = createControlGroup();
   const treeLabel = createLabel('Select tree:', controlHeight);
-  container.appendChild(treeLabel);
+  treeGroup.appendChild(treeLabel);
 
   const treeSelect = document.createElement('select');
   treeSelect.className = 'ht-select';
@@ -425,7 +438,8 @@ function populateDataControls(
     });
   }
 
-  container.appendChild(treeSelect);
+  treeGroup.appendChild(treeSelect);
+  container.appendChild(treeGroup);
 
   // Create hidden file input for tree upload
   const treeFileInput = document.createElement('input');
@@ -482,9 +496,10 @@ function populateDataControls(
     return;
   }
 
-  // Select metadata control
+  // Select metadata control group
+  const metadataGroup = createControlGroup();
   const metadataLabel = createLabel('Available metadata:', controlHeight);
-  container.appendChild(metadataLabel);
+  metadataGroup.appendChild(metadataLabel);
 
   const metadataSelect = document.createElement('select');
   metadataSelect.className = 'ht-select';
@@ -517,7 +532,8 @@ function populateDataControls(
     });
   }
 
-  container.appendChild(metadataSelect);
+  metadataGroup.appendChild(metadataSelect);
+  container.appendChild(metadataGroup);
 
   // Create hidden file input for metadata upload
   const metadataFileInput = document.createElement('input');
@@ -611,9 +627,10 @@ function populateControlsTab(
   });
   container.appendChild(fitToViewBtn);
 
-  // Manual zoom/pan toggle
+  // Manual zoom/pan toggle group
+  const manualZoomPanGroup = createControlGroup();
   const manualZoomPanLabel = createLabel('Manual zoom/pan:', controlHeight);
-  container.appendChild(manualZoomPanLabel);
+  manualZoomPanGroup.appendChild(manualZoomPanLabel);
 
   const manualZoomPanToggle = createToggle(treeView.options.manualZoomAndPanEnabled, controlHeight);
 
@@ -631,11 +648,13 @@ function populateControlsTab(
     treeView.initializeZoom();
   });
 
-  container.appendChild(manualZoomPanToggle);
+  manualZoomPanGroup.appendChild(manualZoomPanToggle);
+  container.appendChild(manualZoomPanGroup);
 
-  // Auto-zoom dropdown
+  // Auto-zoom dropdown group
+  const autoZoomGroup = createControlGroup();
   const autoZoomLabel = createLabel('Auto-zoom:', controlHeight);
-  container.appendChild(autoZoomLabel);
+  autoZoomGroup.appendChild(autoZoomLabel);
 
   const autoZoomSelect = document.createElement('select');
   autoZoomSelect.className = 'ht-select';
@@ -656,11 +675,13 @@ function populateControlsTab(
     treeView.options.autoZoom = e.target.value;
   });
 
-  container.appendChild(autoZoomSelect);
+  autoZoomGroup.appendChild(autoZoomSelect);
+  container.appendChild(autoZoomGroup);
 
-  // Auto-pan dropdown
+  // Auto-pan dropdown group
+  const autoPanGroup = createControlGroup();
   const autoPanLabel = createLabel('Auto-pan:', controlHeight);
-  container.appendChild(autoPanLabel);
+  autoPanGroup.appendChild(autoPanLabel);
 
   const autoPanSelect = document.createElement('select');
   autoPanSelect.className = 'ht-select';
@@ -681,7 +702,8 @@ function populateControlsTab(
     treeView.options.autoPan = e.target.value;
   });
 
-  container.appendChild(autoPanSelect);
+  autoPanGroup.appendChild(autoPanSelect);
+  container.appendChild(autoPanGroup);
 }
 
 /**
@@ -809,9 +831,10 @@ function populateTreeManipulationControls(
 
   container.appendChild(showHiddenBtn);
 
-  // Scale branch length
+  // Scale branch length group
+  const branchLengthGroup = createControlGroup();
   const branchLengthLabel = createLabel('Branch length:', controlHeight);
-  container.appendChild(branchLengthLabel);
+  branchLengthGroup.appendChild(branchLengthLabel);
 
   // Convert actual scale value to slider position (logarithmic)
   const scaleToSlider = (scale, max = 10) => {
@@ -837,11 +860,13 @@ function populateTreeManipulationControls(
     treeState.setBranchLengthScale(scale);
   });
 
-  container.appendChild(branchLengthSlider);
+  branchLengthGroup.appendChild(branchLengthSlider);
+  container.appendChild(branchLengthGroup);
 
-  // Scale tree height
+  // Scale tree height group
+  const treeHeightGroup = createControlGroup();
   const treeHeightLabel = createLabel('Tree height:', controlHeight);
-  container.appendChild(treeHeightLabel);
+  treeHeightGroup.appendChild(treeHeightLabel);
 
   const treeHeightSlider = createSlider(0, 100, scaleToSlider(treeState.state.treeHeightScale), 0.1, controlHeight);
 
@@ -851,11 +876,13 @@ function populateTreeManipulationControls(
     treeState.setTreeHeightScale(scale);
   });
 
-  container.appendChild(treeHeightSlider);
+  treeHeightGroup.appendChild(treeHeightSlider);
+  container.appendChild(treeHeightGroup);
 
-  // Radial layout toggle
+  // Radial layout toggle group
+  const radialLayoutGroup = createControlGroup();
   const radialLayoutLabel = createLabel('Radial layout:', controlHeight);
-  container.appendChild(radialLayoutLabel);
+  radialLayoutGroup.appendChild(radialLayoutLabel);
 
   const isCircular = treeState.state.layout === 'circular';
   const radialLayoutToggle = createToggle(isCircular, controlHeight);
@@ -879,7 +906,8 @@ function populateTreeManipulationControls(
     treeState.setLayout(currentLayout === 'circular' ? 'rectangular' : 'circular');
   });
 
-  container.appendChild(radialLayoutToggle);
+  radialLayoutGroup.appendChild(radialLayoutToggle);
+  container.appendChild(radialLayoutGroup);
 }
 
 /**
@@ -894,12 +922,10 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     return;
   }
 
-  // Tip label text
+  // Tip label text group
+  const tipLabelTextGroup = createControlGroup();
   const tipLabelTextLabel = createLabel('Text:', controlHeight);
-  container.appendChild(tipLabelTextLabel);
-
-  const tipLabelTextContainer = document.createElement('div');
-  tipLabelTextContainer.style.display = 'flex';
+  tipLabelTextGroup.appendChild(tipLabelTextLabel);
 
   const tipLabelTextSelect = createMetadataColumnSelect(
     treeState,
@@ -909,21 +935,19 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     true,
     null
   );
-  tipLabelTextContainer.appendChild(tipLabelTextSelect);
+  tipLabelTextGroup.appendChild(tipLabelTextSelect);
 
   // const tipLabelTextEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
   // tipLabelTextEditBtn.style.width = `${controlHeight}px`;
   // tipLabelTextEditBtn.style.flexShrink = '0';
-  // tipLabelTextContainer.appendChild(tipLabelTextEditBtn);
+  // tipLabelTextGroup.appendChild(tipLabelTextEditBtn);
 
-  container.appendChild(tipLabelTextContainer);
+  container.appendChild(tipLabelTextGroup);
 
-  // Tip label color
+  // Tip label color group
+  const tipLabelColorGroup = createControlGroup();
   const tipLabelColorLabel = createLabel('Color:', controlHeight);
-  container.appendChild(tipLabelColorLabel);
-
-  const tipLabelColorContainer = document.createElement('div');
-  tipLabelColorContainer.style.display = 'flex';
+  tipLabelColorGroup.appendChild(tipLabelColorLabel);
 
   const tipLabelColorSelect = createMetadataColumnSelect(
     treeState,
@@ -933,21 +957,19 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     false,
     null
   );
-  tipLabelColorContainer.appendChild(tipLabelColorSelect);
+  tipLabelColorGroup.appendChild(tipLabelColorSelect);
 
   // const tipLabelColorEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
   // tipLabelColorEditBtn.style.width = `${controlHeight}px`;
   // tipLabelColorEditBtn.style.flexShrink = '0';
-  // tipLabelColorContainer.appendChild(tipLabelColorEditBtn);
+  // tipLabelColorGroup.appendChild(tipLabelColorEditBtn);
 
-  container.appendChild(tipLabelColorContainer);
+  container.appendChild(tipLabelColorGroup);
 
-  // Tip label size
+  // Tip label size group
+  const tipLabelSizeGroup = createControlGroup();
   const tipLabelSizeLabel = createLabel('Size:', controlHeight);
-  container.appendChild(tipLabelSizeLabel);
-
-  const tipLabelSizeContainer = document.createElement('div');
-  tipLabelSizeContainer.style.display = 'flex';
+  tipLabelSizeGroup.appendChild(tipLabelSizeLabel);
 
   const tipLabelSizeSelect = createMetadataColumnSelect(
     treeState,
@@ -957,21 +979,19 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     false,
     true
   );
-  tipLabelSizeContainer.appendChild(tipLabelSizeSelect);
+  tipLabelSizeGroup.appendChild(tipLabelSizeSelect);
 
   // const tipLabelSizeEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
   // tipLabelSizeEditBtn.style.width = `${controlHeight}px`;
   // tipLabelSizeEditBtn.style.flexShrink = '0';
-  // tipLabelSizeContainer.appendChild(tipLabelSizeEditBtn);
+  // tipLabelSizeGroup.appendChild(tipLabelSizeEditBtn);
 
-  container.appendChild(tipLabelSizeContainer);
+  container.appendChild(tipLabelSizeGroup);
 
-  // Tip label style
+  // Tip label style group
+  const tipLabelStyleGroup = createControlGroup();
   const tipLabelStyleLabel = createLabel('Style:', controlHeight);
-  container.appendChild(tipLabelStyleLabel);
-
-  const tipLabelStyleContainer = document.createElement('div');
-  tipLabelStyleContainer.style.display = 'flex';
+  tipLabelStyleGroup.appendChild(tipLabelStyleLabel);
 
   const tipLabelStyleSelect = createMetadataColumnSelect(
     treeState,
@@ -981,18 +1001,19 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     false,
     false
   );
-  tipLabelStyleContainer.appendChild(tipLabelStyleSelect);
+  tipLabelStyleGroup.appendChild(tipLabelStyleSelect);
 
   // const tipLabelStyleEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
   // tipLabelStyleEditBtn.style.width = `${controlHeight}px`;
   // tipLabelStyleEditBtn.style.flexShrink = '0';
-  // tipLabelStyleContainer.appendChild(tipLabelStyleEditBtn);
+  // tipLabelStyleGroup.appendChild(tipLabelStyleEditBtn);
 
-  container.appendChild(tipLabelStyleContainer);
+  container.appendChild(tipLabelStyleGroup);
 
-  // Tip label font
+  // Tip label font group
+  const tipLabelFontGroup = createControlGroup();
   const tipLabelFontLabel = createLabel('Font:', controlHeight);
-  container.appendChild(tipLabelFontLabel);
+  tipLabelFontGroup.appendChild(tipLabelFontLabel);
 
   const tipLabelFontSelect = document.createElement('select');
   tipLabelFontSelect.className = 'ht-select';
@@ -1028,7 +1049,8 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     treeState.updateCoordinates();
   });
 
-  container.appendChild(tipLabelFontSelect);
+  tipLabelFontGroup.appendChild(tipLabelFontSelect);
+  container.appendChild(tipLabelFontGroup);
 }
 
 /**
@@ -1209,9 +1231,10 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
   });
   container.appendChild(exportBtn);
 
-  // Output format
+  // Output format group
+  const formatGroup = createControlGroup();
   const formatLabel = createLabel('Output format:', controlHeight);
-  container.appendChild(formatLabel);
+  formatGroup.appendChild(formatLabel);
 
   const formatSelect = document.createElement('select');
   formatSelect.className = 'ht-select';
@@ -1243,11 +1266,13 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
     marginLabel.textContent = `Margin (${unit}):`;
   });
 
-  container.appendChild(formatSelect);
+  formatGroup.appendChild(formatSelect);
+  container.appendChild(formatGroup);
 
-  // Width input
+  // Width input group
+  const widthGroup = createControlGroup();
   const widthLabel = createLabel(`Width (${exportState.format === 'png' ? 'px' : 'cm'}):`, controlHeight);
-  container.appendChild(widthLabel);
+  widthGroup.appendChild(widthLabel);
 
   const widthInput = createNumberInput(
     getDisplayValue(exportState.width, exportState.format),
@@ -1269,11 +1294,13 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
     }
   });
 
-  container.appendChild(widthInput);
+  widthGroup.appendChild(widthInput);
+  container.appendChild(widthGroup);
 
-  // Height input
+  // Height input group
+  const heightGroup = createControlGroup();
   const heightLabel = createLabel(`Height (${exportState.format === 'png' ? 'px' : 'cm'}):`, controlHeight);
-  container.appendChild(heightLabel);
+  heightGroup.appendChild(heightLabel);
 
   const heightInput = createNumberInput(
     getDisplayValue(exportState.height, exportState.format),
@@ -1295,11 +1322,13 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
     }
   });
 
-  container.appendChild(heightInput);
+  heightGroup.appendChild(heightInput);
+  container.appendChild(heightGroup);
 
-  // Margin input
+  // Margin input group
+  const marginGroup = createControlGroup();
   const marginLabel = createLabel(`Margin (${exportState.format === 'png' ? 'px' : 'cm'}):`, controlHeight);
-  container.appendChild(marginLabel);
+  marginGroup.appendChild(marginLabel);
 
   const marginInput = createNumberInput(
     getDisplayValue(exportState.margin, exportState.format),
@@ -1316,118 +1345,18 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
     exportState.margin = getPixelValue(displayValue, exportState.format);
   });
 
-  container.appendChild(marginInput);
+  marginGroup.appendChild(marginInput);
+  container.appendChild(marginGroup);
 }
 
-/**
- * Export tree to file
- */
-function exportTree(treeView, exportState, filename) {
-  const bounds = treeView.getCurrentBoundsWithLegends();
-
-  // Calculate dimensions
-  const contentWidth = bounds.maxX - bounds.minX;
-  const contentHeight = bounds.maxY - bounds.minY;
-
-  // Calculate scale to fit content into export dimensions
-  const scaleX = exportState.width / contentWidth;
-  const scaleY = exportState.height / contentHeight;
-  const scale = Math.min(scaleX, scaleY);
-
-  // Calculate final dimensions with margin
-  const finalWidth = exportState.width + 2 * exportState.margin;
-  const finalHeight = exportState.height + 2 * exportState.margin;
-
-  // Calculate translation to center content and add margin
-  const translateX = exportState.margin - bounds.minX * scale;
-  const translateY = exportState.margin - bounds.minY * scale;
-
-  // Create a new SVG element for export
-  const exportSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  exportSvg.setAttribute('width', finalWidth);
-  exportSvg.setAttribute('height', finalHeight);
-  exportSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-
-  // Create a group for the transformed content
-  const contentGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  contentGroup.setAttribute('transform', `translate(${translateX}, ${translateY}) scale(${scale})`);
-
-  // Clone the tree elements from the view
-  const treeGroup = treeView.layers.treeGroup.node();
-  const clonedTreeGroup = treeGroup.cloneNode(true);
-
-  // Remove the transform attribute from the cloned group (we'll apply our own)
-  clonedTreeGroup.removeAttribute('transform');
-
-  // Remove selection rectangle and buttons from export
-  const selectionRect = clonedTreeGroup.querySelector('.selection-rect');
-  if (selectionRect) {
-    selectionRect.remove();
-  }
-
-  contentGroup.appendChild(clonedTreeGroup);
-  exportSvg.appendChild(contentGroup);
-
-  // Serialize the SVG
-  const serializer = new XMLSerializer();
-  const svgString = serializer.serializeToString(exportSvg);
-
-  if (exportState.format === 'svg') {
-    // Download as SVG
-    downloadFile(svgString, filename, 'image/svg+xml');
-  } else if (exportState.format === 'png') {
-    // Convert to PNG
-    convertSvgToPng(svgString, finalWidth, finalHeight, filename);
-  }
-}
 
 /**
- * Download a file
+ * Helper function to create a control group container
  */
-function downloadFile(content, filename, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Convert SVG to PNG
- */
-function convertSvgToPng(svgString, width, height, filename) {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-
-  const img = new Image();
-  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(svgBlob);
-
-  img.onload = () => {
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(img, 0, 0);
-
-    canvas.toBlob((blob) => {
-      const pngUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = pngUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(pngUrl);
-      URL.revokeObjectURL(url);
-    });
-  };
-
-  img.src = url;
+function createControlGroup() {
+  const group = document.createElement('div');
+  group.className = 'ht-control-group';
+  return group;
 }
 
 /**

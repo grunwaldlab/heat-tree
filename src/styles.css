@@ -111,19 +111,21 @@
   border-bottom: 1px solid #ddd;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 2px;
   align-items: center;
-  height: 26px;
-  max-height: 1000px;
-  overflow: hidden;
-  transition: max-height 0.3s ease-in-out;
+  min-height: 26px;
 }
 
 .ht-controls.hidden {
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  border-bottom: none;
+  display: none;
+}
+
+.ht-control-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .ht-control-label {
