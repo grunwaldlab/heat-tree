@@ -234,3 +234,93 @@ export class Subscribable {
     }
   }
 }
+
+
+export class ContainerResizeHandler {
+  constructor(container, callback, options = {}) {
+    this.container = container;
+    this.callback = callback;
+    this.options = {
+      debounce: 250, // Default debounce time
+      immediate: false, // Run callback immediately
+      ...options
+    };
+
+    this.lastWidth = 0;
+    this.lastHeight = 0;
+    this.timeoutId = null;
+
+    this.init();
+  }
+
+  init() {
+    // Create ResizeObserver
+    this.observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        this.handleResize(entry);
+      }
+    });
+
+    // Start observing
+    this.observer.observe(this.container);
+
+    // Get initial dimensions
+    const rect = this.container.getBoundingClientRect();
+    this.lastWidth = rect.width;
+    this.lastHeight = rect.height;
+
+    // Run callback immediately if requested
+    if (this.options.immediate) {
+      this.callback({
+        width: this.lastWidth,
+        height: this.lastHeight,
+        target: this.container,
+        contentRect: rect
+      });
+    }
+  }
+
+  handleResize(entry) {
+    const { width, height } = entry.contentRect;
+
+    // Only run if dimensions actually changed
+    if (width !== this.lastWidth || height !== this.lastHeight) {
+      this.lastWidth = width;
+      this.lastHeight = height;
+
+      // Debounce if specified
+      if (this.options.debounce > 0) {
+        this.debouncedCallback(entry);
+      } else {
+        this.executeCallback(entry);
+      }
+    }
+  }
+
+  debouncedCallback(entry) {
+    clearTimeout(this.timeoutId);
+    this.timeoutId = setTimeout(() => {
+      this.executeCallback(entry);
+    }, this.options.debounce);
+  }
+
+  executeCallback(entry) {
+    this.callback({
+      width: entry.contentRect.width,
+      height: entry.contentRect.height,
+      target: entry.target,
+      contentRect: entry.contentRect,
+      borderBoxSize: entry.borderBoxSize?.[0],
+      contentBoxSize: entry.contentBoxSize?.[0],
+      devicePixelContentBoxSize: entry.devicePixelContentBoxSize?.[0]
+    });
+  }
+
+  destroy() {
+    if (this.observer) {
+      this.observer.disconnect();
+    }
+    clearTimeout(this.timeoutId);
+  }
+}
+

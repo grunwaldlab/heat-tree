@@ -9,7 +9,6 @@ import { exportTree } from './exporter.js';
  * @param {Function} switchToTree - Function to switch to a different tree
  * @param {Function} addNewTree - Function to add a new tree
  * @param {Object} options - Configuration options
- * @param {Function} onDimensionsChange - Callback when toolbar dimensions change
  * @returns {Function} Function to refresh the current tab's controls
  */
 export function createToolbar(
@@ -19,8 +18,7 @@ export function createToolbar(
   getCurrentTreeView,
   switchToTree,
   addNewTree,
-  options,
-  onDimensionsChange
+  options
 ) {
   const CONTROL_HEIGHT = 24; // Standard height for all controls
   let currentTab = null;
@@ -125,14 +123,6 @@ export function createToolbar(
       }
     }
   }
-
-  // Add transition end listener to notify when dimensions change
-  collapsiblePanel.addEventListener('transitionend', (e) => {
-    // Only trigger on max-height transitions (not other properties)
-    if (e.propertyName === 'max-height' && onDimensionsChange) {
-      onDimensionsChange();
-    }
-  });
 
   // Toggle button click handler
   toggleButton.addEventListener('click', () => {
@@ -247,16 +237,6 @@ export function createToolbar(
     // Show controls and populate with tab content
     controlsContainer.classList.remove('hidden');
     populateControls(tabId);
-
-    // Notify that dimensions have changed after the DOM has updated
-    if (onDimensionsChange) {
-      // Use requestAnimationFrame to ensure DOM has been updated
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          onDimensionsChange();
-        }, 50);
-      });
-    }
   }
 
   // Function to close the current tab
@@ -271,13 +251,6 @@ export function createToolbar(
     // Hide controls
     controlsContainer.classList.add('hidden');
     controlsContainer.innerHTML = '';
-
-    // Notify that dimensions have changed
-    if (onDimensionsChange) {
-      setTimeout(() => {
-        onDimensionsChange();
-      }, 50);
-    }
   }
 
   // Function to populate controls based on selected tab

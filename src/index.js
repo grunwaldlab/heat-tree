@@ -3,7 +3,7 @@ import { TreeState } from './treeState.js';
 import { TreeView } from './treeView.js';
 import { TextSizeEstimator } from './textAspectRatioPrediction.js';
 import { createToolbar } from './toolbar.js';
-import { injectStyles } from './utils.js';
+import { injectStyles, ContainerResizeHandler } from './utils.js';
 
 /**
  * Create a heat tree visualization
@@ -122,14 +122,20 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
   // Store toolbar refresh function
   let refreshToolbar = null;
 
-  /**
-   * Callback for when toolbar dimensions change
-   */
-  function onToolbarDimensionsChange() {
-    if (currentTreeView) {
-      currentTreeView.fitToView();
+  const resizeHandler = new ContainerResizeHandler(
+    treeDiv,
+    (details) => {
+      console.log('Container resized:', details);
+      console.log(`New size: ${details.width}px × ${details.height}px`);
+      if (currentTreeView) {
+        currentTreeView.fitToView();
+      }
+    },
+    {
+      debounce: 100,
+      immediate: true
     }
-  }
+  );
 
   /**
    * Add a new tree to the visualization
@@ -214,8 +220,7 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
     () => currentTreeView,
     switchToTree,
     addNewTree,
-    options,
-    onToolbarDimensionsChange
+    options
   );
 
   // Display the first tree initially (if any trees exist)
