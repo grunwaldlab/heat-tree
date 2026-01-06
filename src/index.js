@@ -3,57 +3,24 @@ import { TreeState } from './treeState.js';
 import { TreeView } from './treeView.js';
 import { TextSizeEstimator } from './textAspectRatioPrediction.js';
 import { createToolbar } from './toolbar.js';
-import styles from './styles.css?inline';
-
-/**
- * Inject styles into the document if not already present
- */
-function injectStyles() {
-  const styleId = 'heat-tree-styles';
-  if (!document.getElementById(styleId)) {
-    const styleElement = document.createElement('style');
-    styleElement.id = styleId;
-    styleElement.textContent = styles;
-    document.head.appendChild(styleElement);
-  }
-}
+import { injectStyles } from './utils.js';
 
 /**
  * Create a heat tree visualization
- * @param {Object|string} treesConfig - Configuration object with trees array, or container selector string
- * @param {Array} treesConfig.trees - Array of tree objects, each with newick, name, and metadata (optional)
  * @param {string} containerSelector - CSS selector for container element (required if first arg is config object)
+ * @param {Array|Object} treesInput - Array of tree objects, each with newick, name, and metadata (optional)
  * @param {Object} options - Configuration options
  * @returns {Object} Object containing references to tree components
  */
-export function heatTree(treesConfig, containerSelector, options = {}) {
-  // Handle different argument patterns
-  if (typeof treesConfig === 'string') {
-    // Pattern: heatTree('#container') or heatTree('#container', options)
-    // First argument is the container selector
-    options = containerSelector || {};
-    containerSelector = treesConfig;
-    treesConfig = { trees: [] };
-  } else if (treesConfig && typeof treesConfig === 'object') {
-    // Pattern: heatTree({ trees: [...] }, '#container', options)
-    // First argument is config object
-    if (!containerSelector || typeof containerSelector !== 'string') {
-      throw new Error('heatTree requires a container selector as the second argument when first argument is a config object');
-    }
-    // Ensure trees array exists
-    if (!treesConfig.trees) {
-      treesConfig.trees = [];
-    }
-  } else {
-    // Invalid first argument
-    throw new Error('heatTree requires either a container selector string or a configuration object as the first argument');
+export function heatTree(containerSelector, treesInput = [], options = {}) {
+  if (treesInput && !Array.isArray(treesInput)) {
+    treesInput = [treesInput];
+  }
+  if (treesInput === undefined || treesInput === null) {
+    treesInput = [];
   }
 
-  // Ensure trees is an array
-  if (!Array.isArray(treesConfig.trees)) {
-    throw new Error('treesConfig.trees must be an array');
-  }
-
+  // Inject static CSS
   injectStyles();
 
   // Set default options
@@ -73,7 +40,7 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
   const treeDataInstances = new Map();
   const treeConfigAesthetics = new Map();
 
-  treesConfig.trees.forEach((treeConfig, index) => {
+  treesInput.forEach((treeConfig, index) => {
     if (!treeConfig.newick) {
       throw new Error(`Tree at index ${index} is missing newick string`);
     }

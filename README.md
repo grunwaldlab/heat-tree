@@ -49,26 +49,23 @@ heatTree(
 The `heatTree` function creates an interactive tree visualization in a specified container element.
 
 ```javascript
-heatTree(treesConfig, containerSelector, options);
+heatTree(containerSelector, treesInput, options);
 ```
 
 **Parameters:**
 
-- `treesConfig` (Object): Configuration object containing tree data
-  - `trees` (Array): Array of tree objects, each with:
-    - `newick` (string, required): Newick format tree string
-    - `name` (string, optional): Display name for the tree
-    - `metadata` (Array|Object, optional): Metadata tables (see Metadata section)
-    - `aesthetics` (Object, optional): Initial aesthetic mappings (see Aesthetics section)
-
 - `containerSelector` (string): CSS selector for the container element (e.g., `'#my-tree'`)
-
+- `treesInput` (Array/Object, optional): Configuration object containing tree data or an array of such objects
+  - `newick` (string, required): Newick format tree string
+  - `name` (string, optional): Display name for the tree
+  - `metadata` (Array|Object, optional): Metadata tables (see Metadata section)
+  - `aesthetics` (Object, optional): Initial aesthetic mappings (see Aesthetics section)
 - `options` (Object, optional): Configuration options (see Options section)
 
-You can also pass just a container selector to create an empty visualization:
+You can also pass just a container selector to create an empty visualization (trees can be loaded interactively):
 
 ```javascript
-heatTree('#container', options);
+heatTree('#container');
 ```
 
 ### Adding Metadata
@@ -82,21 +79,17 @@ B\t892\tnursery
 C\t234\tcity`;
 
 heatTree(
+  '#container',
   {
-    trees: [
+    name: 'My Tree',
+    newick: newickString,
+    metadata: [
       {
-        name: 'My Tree',
-        newick: newickString,
-        metadata: [
-          {
-            name: 'Sample Data',
-            data: metadata
-          }
-        ]
+        name: 'Sample Data',
+        data: metadata
       }
     ]
-  },
-  '#container'
+  }
 );
 ```
 
@@ -108,21 +101,17 @@ Although the metadata columns used to color/size tree parts can be set interacti
 
 ```javascript
 heatTree(
+  '#container',
   {
-    trees: [
-      {
-        name: 'My Tree',
-        newick: newickString,
-        metadata: [{ name: 'Data', data: metadata }],
-        aesthetics: {
-          tipLabelColor: 'source',      // Color tips by 'source' column
-          tipLabelSize: 'abundance',    // Size tips by 'abundance' column
-          tipLabelStyle: 'font_style'   // Style tips by 'font_style' column
-        }
-      }
-    ]
-  },
-  '#container'
+    name: 'My Tree',
+    newick: newickString,
+    metadata: [{ name: 'Data', data: metadata }],
+    aesthetics: {
+      tipLabelColor: 'source',      // Color tips by 'source' column
+      tipLabelSize: 'abundance',    // Size tips by 'abundance' column
+      tipLabelStyle: 'font_style'   // Style tips by 'font_style' column
+    }
+  }
 );
 ```
 
@@ -186,19 +175,15 @@ Configure the visualization behavior and appearance:
 
 ```javascript
 heatTree(
-  {
-    trees: [
-      {
-        name: 'My Tree',
-        newick: newickString,
-        metadata: [{ name: 'Data', data: metadata }],
-        aesthetics: {
-          tipLabelColor: 'source'
-        }
-      }
-    ]
-  },
   '#container',
+  {
+    name: 'My Tree',
+    newick: newickString,
+    metadata: [{ name: 'Data', data: metadata }],
+    aesthetics: {
+      tipLabelColor: 'source'
+    }
+  },
   {
     layout: 'circular',
     branchLengthScale: 1.5,
@@ -217,21 +202,19 @@ The widget can be initialized with multiple trees:
 
 ```javascript
 heatTree(
-  {
-    trees: [
-      {
-        name: 'Tree 1',
-        newick: newickString1,
-        metadata: [{ name: 'Data 1', data: metadata1 }]
-      },
-      {
-        name: 'Tree 2',
-        newick: newickString2,
-        metadata: [{ name: 'Data 2', data: metadata2 }]
-      }
-    ]
-  },
-  '#container'
+  '#container',
+  [
+    {
+      name: 'Tree 1',
+      newick: newickString1,
+      metadata: [{ name: 'Data 1', data: metadata1 }]
+    },
+    {
+      name: 'Tree 2',
+      newick: newickString2,
+      metadata: [{ name: 'Data 2', data: metadata2 }]
+    }
+  ]
 );
 ```
 

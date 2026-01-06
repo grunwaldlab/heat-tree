@@ -1,4 +1,18 @@
 import { interpolateViridis } from "d3";
+import styles from './styles.css?inline';
+
+/**
+ * Inject styles into the document if not already present
+ */
+export function injectStyles() {
+  const styleId = 'heat-tree-styles';
+  if (!document.getElementById(styleId)) {
+    const styleElement = document.createElement('style');
+    styleElement.id = styleId;
+    styleElement.textContent = styles;
+    document.head.appendChild(styleElement);
+  }
+}
 
 // helper to choose a "nice" rounded scale bar length
 export function niceNumber(n) {
