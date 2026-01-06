@@ -54,7 +54,6 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     throw new Error('treesConfig.trees must be an array');
   }
 
-  // Inject styles
   injectStyles();
 
   // Set default options
@@ -72,6 +71,7 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
 
   // Create TreeData instances for each tree
   const treeDataInstances = new Map();
+  const treeConfigAesthetics = new Map();
 
   treesConfig.trees.forEach((treeConfig, index) => {
     if (!treeConfig.newick) {
@@ -101,7 +101,23 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
     }
 
     const treeData = new TreeData(treeConfig.newick, metadataTables, metadataNames);
+    let treeAesthetics;
+    if (treeConfig.aesthetics) {
+      treeAesthetics = Object.fromEntries(
+        Object.entries(treeConfig.aesthetics).map(([aes, col]) => {
+          for (const [assignedColId, originalName] of treeData.columnName.entries()) {
+            if (originalName === col) {
+              return [aes, assignedColId];
+            }
+          }
+          return undefined;
+        })
+      )
+    } else {
+      treeAesthetics = undefined;
+    }
     treeDataInstances.set(treeName, treeData);
+    treeConfigAesthetics.set(treeName, treeAesthetics);
   });
 
   // Cache for TreeState and TreeView instances
@@ -117,16 +133,10 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
   // Create main widget structure
   const widgetDiv = document.createElement('div');
   widgetDiv.className = 'ht-widget';
-
-  // Create toolbar div
   const toolbarDiv = document.createElement('div');
   toolbarDiv.className = 'ht-toolbar';
-
-  // Create tree div
   const treeDiv = document.createElement('div');
   treeDiv.className = 'ht-tree';
-
-  // Create SVG for tree
   const treeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   treeSvg.setAttribute('width', '100%');
   treeSvg.setAttribute('height', '100%');
@@ -199,9 +209,10 @@ export function heatTree(treesConfig, containerSelector, options = {}) {
 
     // Get or create TreeState for this tree
     if (!treeStateCache.has(treeName)) {
-      const treeData = treeDataInstances.get(treeName);
       const treeState = new TreeState({
-        treeData: treeData
+        treeData: treeDataInstances.get(treeName),
+        aesthetics: treeConfigAesthetics.get(treeName),
+        ...options
       }, textSizeEstimator);
       treeStateCache.set(treeName, treeState);
     }

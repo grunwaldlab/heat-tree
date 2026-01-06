@@ -54,7 +54,10 @@ GCF_014055005_1	765	0.67	city	normal`;
                   name: 'Test data',
                   data: metadata1
                 }
-              ]
+              ],
+              aesthetics: {
+                tipLabelColor: 'source'
+              }
             }, 
             {
               name: 'tree 2',
@@ -67,7 +70,8 @@ GCF_014055005_1	765	0.67	city	normal`;
           ]},
           "#output",
           {
-            zoomInitiallyEnabled: true,
+            treeHeightScale: 2,
+            layout: 'circular'
           }
         );
     </script>
