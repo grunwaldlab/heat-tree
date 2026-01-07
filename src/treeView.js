@@ -464,7 +464,7 @@ export class TreeView {
     // Process each legend from TreeState
     for (const legendData of this.treeState.legends) {
 
-      // Create appropriate legend type
+      //  Create appropriate legend type
       let legend;
       if (legendData.type === 'size') {
         legend = new TextSizeLegend({
@@ -741,9 +741,30 @@ export class TreeView {
         y: node.bounds.maxRadius * Math.sin(node.bounds.maxAngle)
       };
 
-      const largeArcFlag = (node.bounds.maxAngle - node.bounds.minAngle) > Math.PI ? 1 : 0;
+      // Use Bézier curves for arcs
+      const outerArc = this.#arcToBezier(
+        outerStart.x,
+        outerStart.y,
+        outerEnd.x,
+        outerEnd.y,
+        node.bounds.maxRadius,
+        node.bounds.minAngle,
+        node.bounds.maxAngle,
+        true
+      );
 
-      return `M${innerStart.x},${innerStart.y} L${outerStart.x},${outerStart.y} A${node.bounds.maxRadius},${node.bounds.maxRadius} 0 ${largeArcFlag},1 ${outerEnd.x},${outerEnd.y} L${innerEnd.x},${innerEnd.y} A${node.bounds.minRadius},${node.bounds.minRadius} 0 ${largeArcFlag},0 ${innerStart.x},${innerStart.y} Z`;
+      const innerArc = this.#arcToBezier(
+        innerEnd.x,
+        innerEnd.y,
+        innerStart.x,
+        innerStart.y,
+        node.bounds.minRadius,
+        node.bounds.maxAngle,
+        node.bounds.minAngle,
+        false
+      );
+
+      return `M${innerStart.x},${innerStart.y} L${outerStart.x},${outerStart.y}${outerArc} L${innerEnd.x},${innerEnd.y}${innerArc} Z`;
     } else {
       const topLeft = { x: node.bounds.minX, y: node.bounds.minY };
       const topRight = { x: node.bounds.maxX, y: node.bounds.minY };
@@ -1083,7 +1104,71 @@ export class TreeView {
   }
 
   /**
-   * Generate SVG path string for a branch segment
+   * Approximate a circular arc with cubic Bézier curves
+   * @param {number} startX - Start x coordinate
+   * @param {number} startY - Start y coordinate
+   * @param {number} endX - End x coordinate
+   * @param {number} endY - End y coordinate
+   * @param {number} radius - Arc radius
+   * @param {number} startAngle - Start angle in radians
+   * @param {number} endAngle - End angle in radians
+   * @param {boolean} clockwise - Direction of arc
+   * @returns {string} SVG path string with Bézier curves
+   */
+  #arcToBezier(startX, startY, endX, endY, radius, startAngle, endAngle, clockwise) {
+    // Calculate the total angle to sweep
+    let totalAngle = endAngle - startAngle;
+
+    // Normalize angle difference
+    if (clockwise && totalAngle < 0) {
+      totalAngle += 2 * Math.PI;
+    } else if (!clockwise && totalAngle > 0) {
+      totalAngle -= 2 * Math.PI;
+    }
+
+    const absAngle = Math.abs(totalAngle);
+
+    // Determine number of segments (use more segments for larger arcs)
+    // Each segment should be <= 90 degrees for good approximation
+    const numSegments = Math.max(1, Math.ceil(absAngle / (Math.PI / 2)));
+    const anglePerSegment = totalAngle / numSegments;
+
+    // Magic constant for cubic Bézier approximation of circular arc
+    // This gives the optimal control point distance for a 90-degree arc
+    const alpha = (4 / 3) * Math.tan(anglePerSegment / 4);
+
+    let path = '';
+    let currentAngle = startAngle;
+    let currentX = startX;
+    let currentY = startY;
+
+    for (let i = 0; i < numSegments; i++) {
+      const nextAngle = currentAngle + anglePerSegment;
+      const nextX = radius * Math.cos(nextAngle);
+      const nextY = radius * Math.sin(nextAngle);
+
+      // Calculate control points
+      // First control point (tangent from current point)
+      const cp1x = currentX - alpha * radius * Math.sin(currentAngle);
+      const cp1y = currentY + alpha * radius * Math.cos(currentAngle);
+
+      // Second control point (tangent to next point)
+      const cp2x = nextX + alpha * radius * Math.sin(nextAngle);
+      const cp2y = nextY - alpha * radius * Math.cos(nextAngle);
+
+      // Add cubic Bézier curve segment
+      path += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${nextX},${nextY}`;
+
+      currentAngle = nextAngle;
+      currentX = nextX;
+      currentY = nextY;
+    }
+
+    return path;
+  }
+
+  /**
+   * Generate SVG path string for a branch segment using Bézier curves
    * @param {Object} link - D3 link object with source and target nodes
    * @param {string} pathType - Either 'offset' or 'extension'
    * @returns {string} SVG path string
@@ -1091,31 +1176,56 @@ export class TreeView {
   #getBranchPath(link, pathType) {
     const isCircular = this.treeState.state.layout === 'circular';
 
-    if (isCircular) {
-      if (pathType === 'offset') {
-        // Radial offset: arc from source to point at source radius but target angle
+    if (pathType === 'offset') {
+      if (isCircular) {
+        // Circular layout: arc from source to point at source radius but target angle
         const arcEnd = {
           x: link.source.radiusPx * link.target.cos,
           y: link.source.radiusPx * link.target.sin
         };
-        const sweepFlag = link.target.angle > link.source.angle ? 1 : 0;
-        return `M${link.source.xPx},${link.source.yPx} A${link.source.radiusPx},${link.source.radiusPx} 0 0,${sweepFlag} ${arcEnd.x},${arcEnd.y}`;
+
+        // Determine sweep direction
+        const clockwise = link.target.angle > link.source.angle;
+
+        // Use Bézier approximation for arc
+        const bezierPath = this.#arcToBezier(
+          link.source.xPx,
+          link.source.yPx,
+          arcEnd.x,
+          arcEnd.y,
+          link.source.radiusPx,
+          link.source.angle,
+          link.target.angle,
+          clockwise
+        );
+
+        return `M${link.source.xPx},${link.source.yPx}${bezierPath}`;
       } else {
-        // Radial extension: straight line from arc end to target
+        // Rectangular layout: use Bézier curve that approximates a vertical line
+        // This allows smooth transitions between layouts
+        const startX = link.source.xPx;
+        const startY = link.source.yPx;
+        const endX = link.source.xPx;
+        const endY = link.target.yPx;
+
+        // Control points are positioned to create a nearly straight vertical line
+        // but with the same Bézier structure as circular arcs
+        const cp1x = startX;
+        const cp1y = startY + (endY - startY) / 3;
+        const cp2x = endX;
+        const cp2y = endY - (endY - startY) / 3;
+
+        return `M${startX},${startY} C${cp1x},${cp1y} ${cp2x},${cp2y} ${endX},${endY}`;
+      }
+    } else {
+      // Extension: straight line from offset end to target (same for both layouts)
+      if (isCircular) {
         const arcEnd = {
           x: link.source.radiusPx * link.target.cos,
           y: link.source.radiusPx * link.target.sin
         };
         return `M${arcEnd.x},${arcEnd.y} L${link.target.xPx},${link.target.yPx}`;
-      }
-    } else {
-      if (pathType === 'offset') {
-        // Rectangular offset: arc from source to point at source x but target y
-        const sweepFlag = link.target.angle > link.source.angle ? 1 : 0;
-        // return `M${link.source.xPx},${link.source.yPx} A2000,2000 0 0,${sweepFlag} ${link.source.xPx},${link.target.yPx}`;
-        return `M${link.source.xPx},${link.source.yPx} L${link.source.xPx},${link.target.yPx}`;
       } else {
-        // Rectangular extension: horizontal line from offset end to target
         return `M${link.source.xPx},${link.target.yPx} L${link.target.xPx},${link.target.yPx}`;
       }
     }
