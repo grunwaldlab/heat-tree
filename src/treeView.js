@@ -100,6 +100,23 @@ export class TreeView {
             this.#clearSelection();
           }
         }
+      },
+      {
+        id: 'rotate-subtree',
+        icon: 'rotate',
+        isVisible: (node) => {
+          if (!node || !node.children) return false;
+          const visibleChildCount = node.children.filter(child => !child.hidden).length;
+          return visibleChildCount > 1;
+        },
+        onClick: (node) => {
+          if (node && node.children) {
+            const visibleChildCount = node.children.filter(child => !child.hidden).length;
+            if (visibleChildCount > 1) {
+              this.treeState.rotateSubtree(node);
+            }
+          }
+        }
       }
     ];
 
@@ -203,8 +220,6 @@ export class TreeView {
     this.selectionButtons.forEach((buttonConfig) => {
       const btn = btnGroup.append('g')
         .attr('class', `btn-${buttonConfig.id}`)
-        .attr('width', this.options.buttonSize)
-        .attr('height', this.options.buttonSize)
         .style('cursor', 'pointer')
         .on('click', () => {
           buttonConfig.onClick(this.selectedNode);
@@ -334,6 +349,13 @@ export class TreeView {
           this.isExpanding = false;
         }, 150);
       }, this.options.transitionDuration);
+    } else {
+      // For non-expanding transitions (like rotation), update buttons after transition completes
+      if (this.selectedNode) {
+        setTimeout(() => {
+          this.#updateSelectionButtons(false);
+        }, this.options.transitionDuration);
+      }
     }
 
     // Auto-fit if enabled

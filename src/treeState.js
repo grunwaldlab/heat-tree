@@ -292,6 +292,23 @@ export class TreeState extends Subscribable {
     this.update();
   }
 
+  rotateSubtree(node) {
+    if (!node) {
+      console.warn('Tried to rotate non-existent node');
+      return;
+    }
+    if (!node.children || node.children.length < 2) {
+      console.warn('Tried to rotate node with fewer than 2 children');
+      return;
+    }
+
+    // Rotate children array by moving first element to end
+    const firstChild = node.children.shift();
+    node.children.push(firstChild);
+
+    this.update();
+  }
+
   hideSubtree(node) {
     if (!node) {
       console.warn('Tried to hide non-existent node');
