@@ -721,58 +721,80 @@ export class TreeView {
   #generateSelectionPath(node) {
     if (!node) return '';
 
-    const isCircular = this.treeState.state.layout === 'circular';
+    let innerStart, innerEnd, outerStart, outerEnd, innerArc, outerArc;
 
-    if (isCircular) {
-      const innerStart = {
+    if (this.treeState.state.layout === 'circular') {
+      innerStart = {
         x: node.bounds.minRadius * Math.cos(node.bounds.minAngle),
         y: node.bounds.minRadius * Math.sin(node.bounds.minAngle)
       };
-      const innerEnd = {
-        x: node.bounds.minRadius * Math.cos(node.bounds.maxAngle),
-        y: node.bounds.minRadius * Math.sin(node.bounds.maxAngle)
-      };
-      const outerStart = {
-        x: node.bounds.maxRadius * Math.cos(node.bounds.minAngle),
-        y: node.bounds.maxRadius * Math.sin(node.bounds.minAngle)
-      };
-      const outerEnd = {
+      outerStart = {
         x: node.bounds.maxRadius * Math.cos(node.bounds.maxAngle),
         y: node.bounds.maxRadius * Math.sin(node.bounds.maxAngle)
       };
-
-      // Use Bézier curves for arcs
-      const outerArc = this.#arcToBezier(
+      outerArc = this.#arcToBezier(
         outerStart.x,
         outerStart.y,
-        outerEnd.x,
-        outerEnd.y,
         node.bounds.maxRadius,
-        node.bounds.minAngle,
-        node.bounds.maxAngle,
-        true
-      );
-
-      const innerArc = this.#arcToBezier(
-        innerEnd.x,
-        innerEnd.y,
-        innerStart.x,
-        innerStart.y,
-        node.bounds.minRadius,
         node.bounds.maxAngle,
         node.bounds.minAngle,
         false
       );
-
-      return `M${innerStart.x},${innerStart.y} L${outerStart.x},${outerStart.y}${outerArc} L${innerEnd.x},${innerEnd.y}${innerArc} Z`;
+      innerArc = this.#arcToBezier(
+        innerStart.x,
+        innerStart.y,
+        node.bounds.minRadius,
+        node.bounds.minAngle,
+        node.bounds.maxAngle,
+        true
+      );
     } else {
-      const topLeft = { x: node.bounds.minX, y: node.bounds.minY };
-      const topRight = { x: node.bounds.maxX, y: node.bounds.minY };
-      const bottomRight = { x: node.bounds.maxX, y: node.bounds.maxY };
-      const bottomLeft = { x: node.bounds.minX, y: node.bounds.maxY };
+      innerStart = { x: node.bounds.minX, y: node.bounds.minY };
+      innerEnd = { x: node.bounds.minX, y: node.bounds.maxY };
+      outerStart = { x: node.bounds.maxX, y: node.bounds.maxY };
+      outerEnd = { x: node.bounds.maxX, y: node.bounds.minY };
 
-      return `M${topLeft.x},${topLeft.y} L${topRight.x},${topRight.y} L${bottomRight.x},${bottomRight.y} L${bottomLeft.x},${bottomLeft.y} L${topLeft.x},${topLeft.y} Z`;
+      // Calculate number of segments based on Y bounds fraction
+      // Assuming 25% of max Y bounds corresponds to 90 degrees
+      const root = this.treeState.displayedRoot;
+      const maxYRange = root.bounds.maxY - root.bounds.minY;
+      const nodeYRange = Math.abs(innerEnd.y - innerStart.y);
+      const angleFraction = nodeYRange / maxYRange;
+      const segments = Math.max(1, Math.ceil(angleFraction / .25));
+
+      // Control points are positioned to create a nearly straight vertical line
+      // but with the same Bézier structure as circular arcs
+      innerArc = this.#lineToBezier(innerStart, innerEnd, segments);
+      outerArc = this.#lineToBezier(outerStart, outerEnd, segments);
     }
+    return `M${innerStart.x},${innerStart.y} ${innerArc} L${outerStart.x},${outerStart.y} ${outerArc} Z`;
+  }
+
+  #lineToBezier(start, end, segments = 1) {
+    let path = '';
+
+    for (let i = 0; i < segments; i++) {
+      const t1 = i / segments;
+      const t2 = (i + 1) / segments;
+
+      const segmentStartX = start.x + (end.x - start.x) * t1;
+      const segmentStartY = start.y + (end.y - start.y) * t1;
+      const segmentEndX = start.x + (end.x - start.x) * t2;
+      const segmentEndY = start.y + (end.y - start.y) * t2;
+
+      const cp1x = segmentStartX;
+      const cp1y = segmentStartY + (segmentEndY - segmentStartY) / 3;
+      const cp2x = segmentEndX;
+      const cp2y = segmentEndY - (segmentEndY - segmentStartY) / 3;
+
+      path += `C${cp1x},${cp1y} ${cp2x},${cp2y} ${segmentEndX},${segmentEndY}`;
+
+      if (i < segments - 1) {
+        path += ' ';
+      }
+    }
+
+    return path;
   }
 
   /**
@@ -1115,7 +1137,7 @@ export class TreeView {
    * @param {boolean} clockwise - Direction of arc
    * @returns {string} SVG path string with Bézier curves
    */
-  #arcToBezier(startX, startY, endX, endY, radius, startAngle, endAngle, clockwise) {
+  #arcToBezier(startX, startY, radius, startAngle, endAngle, clockwise) {
     // Calculate the total angle to sweep
     let totalAngle = endAngle - startAngle;
 
@@ -1191,8 +1213,6 @@ export class TreeView {
         const bezierPath = this.#arcToBezier(
           link.source.xPx,
           link.source.yPx,
-          arcEnd.x,
-          arcEnd.y,
           link.source.radiusPx,
           link.source.angle,
           link.target.angle,
