@@ -26,20 +26,8 @@ npm install heat-tree
 
 ```javascript
 import { heatTree } from 'heat-tree';
-
 const newickString = "(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);";
-
-heatTree(
-  {
-    trees: [
-      {
-        name: 'My Tree',
-        newick: newickString
-      }
-    ]
-  },
-  '#container'
-);
+heatTree('#container', {name: 'My Tree', newick: newickString});
 ```
 
 ## Usage
