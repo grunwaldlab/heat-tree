@@ -1,6 +1,6 @@
 {
   "name": "@grunwaldlab/heat-tree",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A self-contained widget for phylogenetic and taxonomic tree visualization with categorical and continuous variables associated with nodes and tips",
   "keywords": [
     "phylogeny",
