@@ -615,6 +615,7 @@ function populateControlsTab(
       manualZoomPanToggle.classList.add('active');
     } else {
       manualZoomPanToggle.classList.remove('active');
+      treeView.fitToView();
     }
 
     // Reinitialize zoom behavior with new filter

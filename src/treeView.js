@@ -48,9 +48,6 @@ export class TreeView {
     // Flag to prevent overlapping transitions
     this.isTransitioning = false;
 
-    // Track previous layout state to detect transitions
-    this.wasCircularLayout = this.treeState.state.layout === 'circular';
-
     // Track if we're expanding a subtree (for delayed fade-in)
     this.isExpanding = false;
 
@@ -554,7 +551,7 @@ export class TreeView {
     const scaleX = availableWidth / treeWidth;
     const scaleY = availableHeight / treeHeight;
     if (input.autoZoom == 'Default') {
-      if (this.treeState.state.layout == 'circular' || scaleY >= 1 || !this.options.manualZoomAndPanEnabled) {
+      if (this.treeState.state.layout == 'circular' || !this.options.manualZoomAndPanEnabled) {
         input.autoZoom = 'Both';
       } else {
         input.autoZoom = 'X';
@@ -965,11 +962,8 @@ export class TreeView {
       });
 
     collapsedHitsEnter.merge(collapsedHits)
-      .attr('transform', d => `translate(${d.xPx}, ${d.yPx}) rotate(${this.#getLabelRotation(d)})`)
-      .attr('x', d => {
-        return this.#isLeftSide(d) ? -(this.treeState.getCollapsedTriangleHeight(d) + d.tipLabelBounds.width * this.treeState.labelSizeToPxFactor) : 0;
-      })
-      .attr('y', d => -d.tipLabelYOffsetPx * 1.5)
+      .attr('transform', d => `translate(${d.xPx}, ${d.yPx}) rotate(${this.#getNodeRotation(d)})`)
+      .attr('y', d => -d.tipLabelSizePx / 2.5)
       .attr('width', d => this.treeState.getCollapsedTriangleHeight(d) + d.tipLabelBounds.width * this.treeState.labelSizeToPxFactor)
       .attr('height', d => Math.max(d.tipLabelSizePx, this.treeState.getCollapsedTriangleHeight(d)));
 
@@ -1266,7 +1260,6 @@ export class TreeView {
 
     // Detect if we're transitioning between layouts
     const isCircular = this.treeState.state.layout === 'circular';
-    const layoutChanged = this.wasCircularLayout !== isCircular;
 
     // Get all nodes from the tree, excluding hidden nodes
     const nodes = root.descendants().filter(d => !d.hidden);
@@ -1322,9 +1315,6 @@ export class TreeView {
 
     // Store the selection for future updates
     this.selections.nodes = nodeGroupsUpdate;
-
-    // Update the previous layout state for next transition
-    this.wasCircularLayout = isCircular;
 
     return nodeGroupsEnter;
   }
@@ -1392,9 +1382,9 @@ export class TreeView {
       selection
         .transition('update node positions')
         .duration(this.options.transitionDuration)
-        .attr('transform', d => `translate(${d.xPx}, ${d.yPx})`);
+        .attr('transform', d => `translate(${d.xPx}, ${d.yPx}) rotate(${this.#getNodeRotation(d)})`);
     } else {
-      selection.attr('transform', d => `translate(${d.xPx}, ${d.yPx})`);
+      selection.attr('transform', d => `translate(${d.xPx}, ${d.yPx}) rotate(${this.#getNodeRotation(d)})`);
     }
   }
 
@@ -1408,57 +1398,33 @@ export class TreeView {
 
     // Update tip labels
     const tipLabels = selection.selectAll('.tip-label');
-
-    if (transition) {
-      tipLabels
-        .attr('x', d => this.#isLeftSide(d) ? -d.tipLabelXOffsetPx : d.tipLabelXOffsetPx)
-      tipLabels
-        .transition('update tip labels')
-        .duration(this.options.transitionDuration)
-        .attr('dy', d => d.tipLabelSizePx / 2.5)
-        .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
-        .style('text-anchor', d => this.#getTipLabelAnchor(d))
-        .style('font-size', d => `${d.tipLabelSizePx}px`);
-    } else {
-      tipLabels
-        .attr('dy', d => d.tipLabelSizePx / 2.5)
-        .attr('x', d => this.#isLeftSide(d) ? -d.tipLabelXOffsetPx : d.tipLabelXOffsetPx)
-        .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
-        .style('text-anchor', d => this.#getTipLabelAnchor(d))
-        .style('font-size', d => `${d.tipLabelSizePx}px`);
-    }
-
-    // Update text and color without transition
     tipLabels
+      .attr('x', d => this.#isLeftSide(d) && isCircular ? -d.tipLabelXOffsetPx : d.tipLabelXOffsetPx)
+      .style('text-anchor', d => this.#getTipLabelAnchor(d))
+      .attr('transform', d => `rotate(${this.#isLeftSide(d) && isCircular ? 180 : 0})`)
       .text(d => d.tipLabelText || '')
       .style('fill', d => d.tipLabelColor || '#000')
       .style('font-family', d => d.tipLabelFont || 'sans-serif')
       .style('font-style', d => d.tipLabelStyle || 'normal')
       .style('display', d => (d.children) ? 'none' : null);
+    if (transition) {
+      tipLabels
+        .transition('update tip labels')
+        .duration(this.options.transitionDuration)
+        .attr('dy', d => d.tipLabelSizePx / 2.5)
+        .style('font-size', d => `${d.tipLabelSizePx}px`);
+    } else {
+      tipLabels
+        .attr('dy', d => d.tipLabelSizePx / 2.5)
+        .style('font-size', d => `${d.tipLabelSizePx}px`);
+    }
 
     // Update node labels (interior nodes)
     const nodeLabels = selection.selectAll('.node-label');
-
-    if (transition) {
-      nodeLabels
-        .transition('update node labels')
-        .duration(this.options.transitionDuration)
-        .attr('dy', d => this.#getNodeLabelDy(d))
-        .attr('x', d => this.#isLeftSide(d) ? d.nodeLabelXOffsetPx : -d.nodeLabelXOffsetPx)
-        .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
-        .style('text-anchor', d => this.#getNodeLabelAnchor(d))
-        .style('font-size', d => `${d.nodeLabelSizePx}px`);
-    } else {
-      nodeLabels
-        .attr('dy', d => this.#getNodeLabelDy(d))
-        .attr('x', d => this.#isLeftSide(d) ? d.nodeLabelXOffsetPx : -d.nodeLabelXOffsetPx)
-        .attr('transform', d => `rotate(${this.#getLabelRotation(d)})`)
-        .style('text-anchor', d => this.#getNodeLabelAnchor(d))
-        .style('font-size', d => `${d.nodeLabelSizePx}px`);
-    }
-
-    // Update text and visibility without transition
     nodeLabels
+      .attr('x', d => this.#isLeftSide(d) && isCircular ? d.nodeLabelXOffsetPx : -d.nodeLabelXOffsetPx)
+      .attr('transform', d => `rotate(${this.#isLeftSide(d) && isCircular ? 180 : 0})`)
+      .style('text-anchor', d => this.#getNodeLabelAnchor(d))
       .text(d => d.nodeLabelText || '')
       .style('display', d => {
         // Hide if no children or collapsed children
@@ -1470,6 +1436,17 @@ export class TreeView {
         }
         return null;
       });
+    if (transition) {
+      nodeLabels
+        .transition('update node labels')
+        .duration(this.options.transitionDuration)
+        .attr('dy', d => this.#getNodeLabelDy(d))
+        .style('font-size', d => `${d.nodeLabelSizePx}px`);
+    } else {
+      nodeLabels
+        .attr('dy', d => this.#getNodeLabelDy(d))
+        .style('font-size', d => `${d.nodeLabelSizePx}px`);
+    }
   }
 
   /**
@@ -1480,19 +1457,14 @@ export class TreeView {
    */
   #updateNodeShapes(selection, transition) {
     const nodeShapes = selection.selectAll('.node-shape');
-
-    // Set translate offset immediately (no transition)
     nodeShapes
-      .attr('transform', d => `rotate(${this.#getTriangleRotation(d)}) translate(0, ${this.treeState.getCollapsedTriangleOffset(d)})`)
+      .attr('transform', d => `rotate(-90) translate(0, ${this.treeState.getCollapsedTriangleOffset(d)})`)
       .style('display', d => d.collapsedChildren ? null : 'none');
-
-    // Animate only the shape/path changes
     if (transition) {
       nodeShapes
         .transition()
         .duration(this.options.transitionDuration)
-        .attr('d', d => d.collapsedChildren ? this.#getCollapsedTrianglePath(d) : null)
-        .attr('transform', d => `rotate(${this.#getTriangleRotation(d)}) translate(0, ${this.treeState.getCollapsedTriangleOffset(d)})`);
+        .attr('d', d => d.collapsedChildren ? this.#getCollapsedTrianglePath(d) : null);
     } else {
       nodeShapes.attr('d', d => d.collapsedChildren ? this.#getCollapsedTrianglePath(d) : null);
     }
@@ -1506,8 +1478,6 @@ export class TreeView {
    * @param {number} collapsedRootLineLength - Length of collapsed root line
    */
   #updateCollapsedIndicators(selection, transition, branchWidth, collapsedRootLineLength) {
-    const isCircular = this.treeState.state.layout === 'circular';
-
     // Update collapsed root lines
     const collapsedRootLines = selection.selectAll('.collapsed-root-line');
 
@@ -1515,14 +1485,14 @@ export class TreeView {
       collapsedRootLines
         .transition()
         .duration(this.options.transitionDuration)
-        .attr('x2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).x)
-        .attr('y2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).y)
+        .attr('x2', -collapsedRootLineLength)
+        .attr('y2', 0)
         .attr('stroke-width', branchWidth)
         .attr('stroke-dasharray', d => d.collapsedParent ? createDashArray(collapsedRootLineLength, branchWidth, 4) : null);
     } else {
       collapsedRootLines
-        .attr('x2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).x)
-        .attr('y2', d => this.#getCollapsedRootLineEnd(d, collapsedRootLineLength).y)
+        .attr('x2', -collapsedRootLineLength)
+        .attr('y2', 0)
         .attr('stroke-width', branchWidth)
         .attr('stroke-dasharray', d => d.collapsedParent ? createDashArray(collapsedRootLineLength, branchWidth, 4) : null);
     }
@@ -1539,24 +1509,14 @@ export class TreeView {
    * @param {Object} node - Tree node
    * @returns {number} Rotation angle in degrees
    */
-  #getLabelRotation(node) {
+  #getNodeRotation(node) {
     const isCircular = this.treeState.state.layout === 'circular';
     if (!isCircular) return 0;
 
     const angleDeg = node.angle * (180 / Math.PI);
     // Flip labels on the left side so they're readable
-    return this.#isLeftSide(node) ? angleDeg + 180 : angleDeg;
-  }
-
-  /**
-   * Get triangle rotation angle
-   * @param {Object} node - Tree node
-   * @returns {number} Rotation angle in degrees
-   */
-  #getTriangleRotation(node) {
-    const isCircular = this.treeState.state.layout === 'circular';
-    if (!isCircular) return -90;
-    return node.angle * (180 / Math.PI) - 90;
+    // return this.#isLeftSide(node) ? angleDeg + 180 : angleDeg;
+    return angleDeg;
   }
 
   /**
@@ -1591,14 +1551,9 @@ export class TreeView {
    * @returns {number} Vertical offset value
    */
   #getNodeLabelDy(node) {
-    // Interior node labels
-    if (node.collapsedParent) {
-      return this.treeState.labelSizeToPxFactor * 1.2;
-    } else {
-      const parentBelow = node.parent && node.parent.yPx > node.yPx;
-      const size = node.nodeLabelSizePx;
-      return parentBelow ? -size * 0.3 : size * 1;
-    }
+    const parentBelow = node.parent && node.parent.yPx > node.yPx;
+    const size = node.nodeLabelSizePx;
+    return parentBelow ? -size * 0.3 : size * 1;
   }
 
   /**
@@ -1607,35 +1562,7 @@ export class TreeView {
    * @returns {boolean} True if node is on left side
    */
   #isLeftSide(node) {
-    const isCircular = this.treeState.state.layout === 'circular';
-    if (!isCircular) return false;
     return node.angle < Math.PI * 1.5 || node.angle > Math.PI * 2.5;
-  }
-
-  /**
-   * Get collapsed root line end coordinates
-   * @param {Object} node - Tree node
-   * @param {number} lineLength - Length of the line
-   * @returns {Object} Object with x and y coordinates
-   */
-  #getCollapsedRootLineEnd(node, lineLength) {
-    if (!node.collapsedParent) return { x: 0, y: 0 };
-
-    const isCircular = this.treeState.state.layout === 'circular';
-
-    if (isCircular) {
-      // Calculate average angle of children
-      const children = node.children || [];
-      if (children.length === 0) return { x: -lineLength, y: 0 };
-
-      const avgAngle = children.reduce((sum, child) => sum + child.angle, 0) / children.length;
-      return {
-        x: -lineLength * Math.cos(avgAngle),
-        y: -lineLength * Math.sin(avgAngle)
-      };
-    }
-
-    return { x: -lineLength, y: 0 };
   }
 
   /**

@@ -465,15 +465,11 @@ export class TreeState extends Subscribable {
       const originalY = d.y;
       d.x = originalY; // D3 uses y for what is the x axis in our case
       d.y = originalX;
+      d.angle = d.y * Math.PI * 2 + Math.PI;
+      d.cos = Math.cos(d.angle);
+      d.sin = Math.sin(d.angle);
+      d.radius = d.x;
     });
-    if (this.state.layout === 'circular') {
-      this.displayedRoot.each(d => {
-        d.angle = d.y * Math.PI * 2 + Math.PI;
-        d.cos = Math.cos(d.angle);
-        d.sin = Math.sin(d.angle);
-        d.radius = d.x;
-      });
-    }
 
     // Move tree so root is at 0,0
     this.displayedRoot.eachAfter(d => {
