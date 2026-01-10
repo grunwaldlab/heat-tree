@@ -81,7 +81,8 @@ heatTree(
 );
 ```
 
-Metadata tables should be tab-separated or comma-separated text with a `node_id` column that corresponds to node IDs in the newick string.
+Metadata tables should be tab-separated or comma-separated text with a column that corresponds to node IDs in the newick string.
+The column that contains node IDs is automaticly selected.
 
 ### Default Aesthetic Mappings
 
