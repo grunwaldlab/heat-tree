@@ -502,6 +502,8 @@ function populateDataControls(
     // Handle metadata selection change
     metadataSelect.addEventListener('change', (e) => {
       setSelectedMetadata(e.target.value);
+      // Refresh to update the Node/Tip ID Column dropdown
+      refreshCurrentTab();
     });
   }
 
@@ -571,6 +573,68 @@ function populateDataControls(
     metadataFileInput.click();
   });
   container.appendChild(addMetadataBtn);
+
+  // Node/Tip ID Column control group (only show if metadata is selected)
+  if (selectedMetadata) {
+    const treeData = currentTreeState.state.treeData;
+
+    // Find the table ID for the selected metadata
+    let selectedTableId = null;
+    for (const [tableId, tableName] of treeData.metadataTableNames.entries()) {
+      if (tableName === selectedMetadata) {
+        selectedTableId = tableId;
+        break;
+      }
+    }
+
+    if (selectedTableId) {
+      const validIdColumns = treeData.getValidIdColumns(selectedTableId);
+      const currentIdColumn = treeData.getNodeIdColumn(selectedTableId);
+
+      const nodeIdGroup = createControlGroup();
+      const nodeIdLabel = createLabel('Node/Tip ID Column:', controlHeight);
+      nodeIdGroup.appendChild(nodeIdLabel);
+
+      const nodeIdSelect = document.createElement('select');
+      nodeIdSelect.className = 'ht-select';
+      nodeIdSelect.style.height = `${controlHeight}px`;
+
+      if (validIdColumns.length === 0) {
+        // No valid ID columns found
+        const option = document.createElement('option');
+        option.textContent = 'No ID column found';
+        option.value = '';
+        nodeIdSelect.appendChild(option);
+        nodeIdSelect.disabled = true;
+      } else {
+        // Populate with valid ID columns
+        validIdColumns.forEach((columnName) => {
+          const option = document.createElement('option');
+          option.value = columnName;
+          option.textContent = treeData.columnDisplayName.get(columnName);
+          if (columnName === currentIdColumn) {
+            option.selected = true;
+          }
+          nodeIdSelect.appendChild(option);
+        });
+
+        // Handle ID column selection change
+        nodeIdSelect.addEventListener('change', (e) => {
+          const newIdColumn = e.target.value;
+          treeData.setNodeIdColumn(selectedTableId, newIdColumn);
+
+          // Trigger a tree update to reflect the new metadata mapping
+          currentTreeState.updateCoordinates();
+
+          // Refresh the controls to reflect any changes
+          refreshCurrentTab();
+        });
+      }
+
+      nodeIdGroup.appendChild(nodeIdSelect);
+      container.appendChild(nodeIdGroup);
+    }
+  }
 }
 
 /**

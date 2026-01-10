@@ -10,12 +10,14 @@ import { Aesthetic } from "./aesthetic.js";
 export class TreeData extends Subscribable {
 
   tree;
-  metadata = new Map();
+  metadata = new Map(); // Map of table ID to array of row objects
   metadataTableNames = new Map(); // Map of table ID to display name
   columnType = new Map(); // e.g. 'continuous' or 'categorical', keyed by unique column ID
   columnName = new Map(); // Original column name, keyed by unique column ID
   columnDisplayName = new Map(); // Display-friendly column name, keyed by unique column ID
   columnAesthetic = new Map(); // Map of columnId -> Map of aestheticId -> Aesthetic
+  nodeIdColumn = new Map(); // Map of table ID to the column name used for node IDs
+  validIdColumns = new Map(); // Map of table ID to array of column names that contain valid node IDs
   #nextTableId = 0;
 
   constructor(newickStr, metadataTables = [], metadataTableNames = []) {
@@ -25,8 +27,7 @@ export class TreeData extends Subscribable {
 
     if (Array.isArray(metadataTables)) {
       metadataTables.forEach((tableStr, index) => {
-        const tableName = metadataTableNames[index] || `Metadata ${index + 1}`;
-        this.addTable(tableStr, tableName);
+        this.addTable(tableStr, metadataTableNames[index]);
       });
     }
   }
@@ -62,7 +63,7 @@ export class TreeData extends Subscribable {
    */
   setTree(newickStr) {
     this.tree = this.parseTree(newickStr);
-    this.metadata.keys().forEach(this.#attachTable);
+    this.metadata.keys().forEach(tableId => this.#attachTable(tableId));
     this.notify('treeUpdated', this);
   }
 
@@ -75,6 +76,44 @@ export class TreeData extends Subscribable {
   }
 
   /**
+   * Get all node names from the tree
+   * @returns {Set<string>} Set of all node names in the tree
+   */
+  getTreeNodeNames() {
+    const nodeNames = new Set();
+    this.tree.each(d => {
+      if (d.data.name) {
+        nodeNames.add(d.data.name);
+      }
+    });
+    return nodeNames;
+  }
+
+  /**
+   * Generate a Map from node ID to row data for a given table
+   * @param {string} tableId - ID of the table
+   * @returns {Map} Map from node ID to row data
+   */
+  #generateMetadataMap(tableId) {
+    const rows = this.metadata.get(tableId);
+    const idColumn = this.nodeIdColumn.get(tableId);
+
+    if (!rows || !idColumn) {
+      return new Map();
+    }
+
+    const metadataMap = new Map();
+    for (const row of rows) {
+      const nodeId = row[idColumn];
+      if (nodeId) {
+        metadataMap.set(nodeId, row);
+      }
+    }
+
+    return metadataMap;
+  }
+
+  /**
    * Add a metadata table
    * @param {string} tableStr - TSV formatted string or path
    * @param {string} tableName - Display name for the table
@@ -82,30 +121,42 @@ export class TreeData extends Subscribable {
    * @returns {string} The table ID
    */
   addTable(tableStr, tableName = null, sep = '\t') {
-    // Parse table string
-    const { metadataMap, columnTypes } = parseTable(tableStr, sep);
+    // Parse table string (returns map keyed by row index)
+    let { metadataMap, columnTypes, idColumns } = parseTable(tableStr, this.getTreeNodeNames(), sep);
 
-    // Generate unique column IDs for this table
-    const id = `table_${this.#nextTableId++}`;
+    // Generate unique table ID
+    const tableId = `table_${this.#nextTableId++}`;
 
     // Set table name
     if (!tableName) {
       tableName = `Metadata ${this.#nextTableId}`;
     }
-    this.metadataTableNames.set(id, tableName);
+    this.metadataTableNames.set(tableId, tableName);
 
+    // Generate unique column IDs for this table (including the ID column)
     const columnIdMap = new Map();
     for (const [originalName, columnType] of columnTypes) {
-      const uniqueId = `${id}_${originalName}`;
+      const uniqueId = `${tableId}_${originalName}`;
       columnIdMap.set(originalName, uniqueId);
       this.columnType.set(uniqueId, columnType);
       this.columnName.set(uniqueId, originalName);
       this.columnDisplayName.set(uniqueId, columnToHeader(originalName));
     }
 
-    // Transform metadata to use unique column IDs
-    const transformedMetadata = new Map();
-    for (const [nodeName, nodeData] of metadataMap) {
+    // Update the ID columns to their unique names
+    idColumns = idColumns.map(x => columnIdMap.get(x));
+
+    // Select the column with the most matches as the default ID column
+    let selectedIdColumn = null;
+    if (idColumns.length > 0) {
+      selectedIdColumn = idColumns[0];
+    } else {
+      console.warn(`No valid node ID column found in table ${tableName}`);
+    }
+
+    // Transform metadata to use unique column IDs and convert to array
+    const metadataArray = [];
+    for (const nodeData of metadataMap.values()) {
       const transformedNodeData = {};
       for (const [originalColumnName, value] of Object.entries(nodeData)) {
         const uniqueId = columnIdMap.get(originalColumnName);
@@ -113,17 +164,108 @@ export class TreeData extends Subscribable {
           transformedNodeData[uniqueId] = value;
         }
       }
-      transformedMetadata.set(nodeName, transformedNodeData);
+      metadataArray.push(transformedNodeData);
     }
 
-    this.metadata.set(id, transformedMetadata);
-    this.#attachTable(id);
+    // Store valid ID columns for this table (just the column names)
+    this.validIdColumns.set(tableId, idColumns);
+
+    // Store which column is being used as the ID column
+    this.nodeIdColumn.set(tableId, selectedIdColumn);
+
+    // Store metadata as array
+    this.metadata.set(tableId, metadataArray);
+
+    this.#attachTable(tableId);
     this.notify('metadataAdded', {
-      tableId: id,
-      columnIds: columnIdMap.values()
+      tableId: tableId,
+      columnIds: Array.from(columnIdMap.values())
     });
 
-    return id;
+    return tableId;
+  }
+
+  /**
+   * Get valid ID columns for a table
+   * @param {string} tableId - ID of the table
+   * @returns {Array<string>} Array of column names that contain valid node IDs
+   */
+  getValidIdColumns(tableId) {
+    return this.validIdColumns.get(tableId) || [];
+  }
+
+  /**
+   * Get the current node ID column for a table
+   * @param {string} tableId - ID of the table
+   * @returns {string|null} Column name used as node ID, or null if none
+   */
+  getNodeIdColumn(tableId) {
+    return this.nodeIdColumn.get(tableId);
+  }
+
+  /**
+   * Get all column IDs for a table
+   * @param {string} tableId - ID of the table
+   * @returns {Array<string>} Array of column IDs in the table
+   */
+  getTableColumnIds(tableId) {
+    const table = this.metadata.get(tableId);
+    if (!table || table.length === 0) {
+      return [];
+    }
+    return Object.keys(table[0]);
+  }
+
+  /**
+   * Change the node ID column for a table
+   * @param {string} tableId - ID of the table
+   * @param {string} newIdColumnName - Name of the new ID column to use
+   */
+  setNodeIdColumn(tableId, newIdColumnName) {
+    const table = this.metadata.get(tableId);
+    if (!table) {
+      console.warn(`Table ${tableId} does not exist`);
+      return;
+    }
+
+    // Check if the new column is valid
+    if (!this.validIdColumns.get(tableId).includes(newIdColumnName)) {
+      console.warn(`Column ${newIdColumnName} is not a valid ID column for table ${tableId}`);
+      return;
+    }
+
+    const oldIdColumn = this.nodeIdColumn.get(tableId);
+    if (oldIdColumn === newIdColumnName) {
+      // No change needed
+      return;
+    }
+
+    // Get all column IDs for this table before making changes
+    const columnIds = this.getTableColumnIds(tableId);
+
+    // Clear all aesthetics for columns in this table since the data will change
+    for (const columnId of columnIds) {
+      this.columnAesthetic.delete(columnId);
+    }
+
+    // Detach current table from tree
+    this.#detachTable(tableId);
+
+    // Update the node ID column
+    this.nodeIdColumn.set(tableId, newIdColumnName);
+
+    // Re-attach the table to the tree with new keys
+    this.#attachTable(tableId);
+
+    // Notify listeners about the change with a flag indicating aesthetics need refresh
+    this.notify('metadataChanged', {
+      tableId: tableId,
+      oldIdColumn: oldIdColumn,
+      newIdColumn: newIdColumnName,
+      columnIds: columnIds,
+      requiresAestheticRefresh: true
+    });
+
   }
 
   /**
@@ -136,7 +278,9 @@ export class TreeData extends Subscribable {
       console.warn(`Table ${tableId} does not exist`);
       return;
     }
-    const keys = Object.keys(table.values().next().value);
+
+    // Get column keys from first row
+    const keys = table.length > 0 ? Object.keys(table[0]) : [];
 
     // Remove data associated with columns in the table
     for (const uniqueId of keys) {
@@ -149,7 +293,9 @@ export class TreeData extends Subscribable {
     this.#detachTable(tableId);
     this.metadata.delete(tableId);
     this.metadataTableNames.delete(tableId);
-    this.notify('metadataRemoved', {
+    this.nodeIdColumn.delete(tableId);
+    this.validIdColumns.delete(tableId);
+    this.notify('metadataChanged', {
       tableId,
       columnIds: keys
     });
@@ -240,11 +386,11 @@ export class TreeData extends Subscribable {
    * Add metadata to tree nodes
    */
   #attachTable(tableId) {
-    const table = this.metadata.get(tableId);
+    const metadataMap = this.#generateMetadataMap(tableId);
     this.tree.each(d => {
       const nodeName = d.data.name;
-      if (nodeName && table.has(nodeName)) {
-        const tableMetadata = table.get(nodeName);
+      if (nodeName && metadataMap.has(nodeName)) {
+        const tableMetadata = metadataMap.get(nodeName);
         d.metadata = { ...d.metadata, ...tableMetadata };
       }
     });
@@ -255,11 +401,17 @@ export class TreeData extends Subscribable {
    */
   #detachTable(tableId) {
     const table = this.metadata.get(tableId);
-    const keys = Object.keys(table.values().next().value);
+    if (!table || table.length === 0) {
+      return;
+    }
+
+    const keys = Object.keys(table[0]);
     this.tree.each(d => {
-      keys.forEach(key => {
-        delete d[key];
-      });
+      if (d.metadata) {
+        keys.forEach(key => {
+          delete d.metadata[key];
+        });
+      }
     });
   }
 

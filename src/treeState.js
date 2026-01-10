@@ -121,8 +121,27 @@ export class TreeState extends Subscribable {
     this.state.treeData.subscribe('treeUpdate', () => {
       this.#initalize();
     })
-    this.state.treeData.subscribe('metadataRemoved', (info) => {
-      this.setAesthetics(Object.fromEntries(info.columnIds.map(key => [key, undefined])));
+    this.state.treeData.subscribe('metadataChanged', (info) => {
+      if (info.columnIds && Array.isArray(info.columnIds)) {
+        if (info.requiresAestheticRefresh) {
+          // When node ID column changes, we need to refresh all aesthetics that use columns from this table
+          // Build a map of currently active aesthetics that use these columns
+          const aestheticsToRefresh = {};
+          for (const [aestheticId, columnId] of Object.entries(this.state.aesthetics)) {
+            if (columnId && info.columnIds.includes(columnId)) {
+              // This aesthetic uses a column from the changed table, so it needs to be refreshed
+              aestheticsToRefresh[aestheticId] = columnId;
+            }
+          }
+          // Force refresh of these aesthetics
+          if (Object.keys(aestheticsToRefresh).length > 0) {
+            this.setAesthetics(aestheticsToRefresh, true);
+          }
+        } else {
+          // For other metadata changes (like table deletion), reset affected aesthetics to undefined
+          this.setAesthetics(Object.fromEntries(info.columnIds.map(key => [key, undefined])));
+        }
+      }
     })
   }
 

@@ -310,11 +310,11 @@ export class TextSizeLegend extends LegendBase {
       }
     };
 
-    // Calculate polygon and tick positions (offset by leftOverhang)
-    ticks.forEach((tickValue, i) => {
-      const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
-
-      // Tick marks
+    // Handle single value case
+    if (minValue === maxValue) {
+      // Single tick in the middle
+      const x = leftOverhang + baseWidth / 2;
+      
       this.coordinates.ticks.push({
         x1: x,
         y1: rampBaseY,
@@ -322,21 +322,49 @@ export class TextSizeLegend extends LegendBase {
         y2: rampBaseY + this.tickHeight
       });
 
-      // Labels
       this.coordinates.labels.push({
         x,
         y: rampBaseY + this.tickHeight,
-        text: formatTickLabel(tickValue, ticks)
+        text: formatTickLabel(minValue, ticks)
       });
-    });
 
-    // Calculate polygon points (background shape) - offset by leftOverhang
-    this.coordinates.polygon = [
-      { x: leftOverhang, y: rampBaseY },
-      { x: leftOverhang, y: rampBaseY - minLetterFont },
-      { x: leftOverhang + baseWidth, y: rampBaseY - maxLetterFont },
-      { x: leftOverhang + baseWidth, y: rampBaseY }
-    ];
+      // Flat polygon (no size variation)
+      const avgLetterFont = (minLetterFont + maxLetterFont) / 2;
+      this.coordinates.polygon = [
+        { x: leftOverhang, y: rampBaseY },
+        { x: leftOverhang, y: rampBaseY - avgLetterFont },
+        { x: leftOverhang + baseWidth, y: rampBaseY - avgLetterFont },
+        { x: leftOverhang + baseWidth, y: rampBaseY }
+      ];
+    } else {
+      // Calculate polygon and tick positions (offset by leftOverhang)
+      ticks.forEach((tickValue, i) => {
+        const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
+
+        // Tick marks
+        this.coordinates.ticks.push({
+          x1: x,
+          y1: rampBaseY,
+          x2: x,
+          y2: rampBaseY + this.tickHeight
+        });
+
+        // Labels
+        this.coordinates.labels.push({
+          x,
+          y: rampBaseY + this.tickHeight,
+          text: formatTickLabel(tickValue, ticks)
+        });
+      });
+
+      // Calculate polygon points (background shape) - offset by leftOverhang
+      this.coordinates.polygon = [
+        { x: leftOverhang, y: rampBaseY },
+        { x: leftOverhang, y: rampBaseY - minLetterFont },
+        { x: leftOverhang + baseWidth, y: rampBaseY - maxLetterFont },
+        { x: leftOverhang + baseWidth, y: rampBaseY }
+      ];
+    }
   }
 
   /**
@@ -562,11 +590,11 @@ export class TextColorLegend extends LegendBase {
       }
     };
 
-    // Calculate tick positions
-    ticks.forEach((tickValue, i) => {
-      const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
+    // Handle single value case
+    if (minValue === maxValue) {
+      // Single tick in the middle
+      const x = leftOverhang + baseWidth / 2;
 
-      // Tick marks
       this.coordinates.ticks.push({
         x1: x,
         y1: ticksY,
@@ -574,13 +602,32 @@ export class TextColorLegend extends LegendBase {
         y2: ticksY + this.tickHeight
       });
 
-      // Labels
       this.coordinates.labels.push({
         x,
         y: labelsY,
-        text: formatTickLabel(tickValue, ticks)
+        text: formatTickLabel(minValue, ticks)
       });
-    });
+    } else {
+      // Calculate tick positions
+      ticks.forEach((tickValue, i) => {
+        const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
+
+        // Tick marks
+        this.coordinates.ticks.push({
+          x1: x,
+          y1: ticksY,
+          x2: x,
+          y2: ticksY + this.tickHeight
+        });
+
+        // Labels
+        this.coordinates.labels.push({
+          x,
+          y: labelsY,
+          text: formatTickLabel(tickValue, ticks)
+        });
+      });
+    }
   }
 
   /**
@@ -650,13 +697,25 @@ export class TextColorLegend extends LegendBase {
       .attr("y2", "0%");
 
     // Add color stops
-    for (let i = 0; i <= this.numGradientStops; i++) {
-      const t = i / this.numGradientStops;
-      const value = minValue + t * (maxValue - minValue);
-      const color = aesthetic.scale.getValue(value);
+    if (minValue === maxValue) {
+      // Single color for single value
+      const color = aesthetic.scale.getValue(minValue);
       gradient.append("stop")
-        .attr("offset", `${t * 100}%`)
+        .attr("offset", "0%")
         .attr("stop-color", color);
+      gradient.append("stop")
+        .attr("offset", "100%")
+        .attr("stop-color", color);
+    } else {
+      // Normal gradient
+      for (let i = 0; i <= this.numGradientStops; i++) {
+        const t = i / this.numGradientStops;
+        const value = minValue + t * (maxValue - minValue);
+        const color = aesthetic.scale.getValue(value);
+        gradient.append("stop")
+          .attr("offset", `${t * 100}%`)
+          .attr("stop-color", color);
+      }
     }
 
     // Draw gradient rectangle

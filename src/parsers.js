@@ -56,65 +56,66 @@ export function parseNewick(newickStr) {
 }
 
 
-export function parseTable(tsvStr, sep = '\t') {
+export function parseTable(tsvStr, valid_ids, sep = '\t') {
 
   let metadataMap = new Map();
-  let metadataColumns = [];
   let columnTypes = new Map(); // Track whether each column is continuous or categorical
+  let validIdCounts = []; // how many valid ids are present in each column
+  let idColumns = [];
 
   const lines = tsvStr.trim().split('\n');
   if (lines.length == 0) {
-    console.error('Empty metatdata table');
+    console.error('Empty metadata table');
   } else {
     const headers = lines[0].split(sep);
-    const nodeIdIndex = headers.indexOf('node_id');
 
-    if (nodeIdIndex === -1) {
-      console.warn('Metadata table must contain a "node_id" column');
-    } else {
-      // Get column names (excluding node_id)
-      metadataColumns = headers.filter((h, i) => i !== nodeIdIndex);
+    // Initialize column type detection
+    const columnValues = new Map();
+    headers.forEach(col => columnValues.set(col, []));
 
-      // Initialize column type detection
-      const columnValues = new Map();
-      metadataColumns.forEach(col => columnValues.set(col, []));
+    // Parse metadata rows
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(sep);
+      const metadata = {};
 
-      // Parse metadata rows
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(sep);
-        const nodeId = values[nodeIdIndex];
-        const metadata = {};
-
-        for (let j = 0; j < headers.length; j++) {
-          if (j !== nodeIdIndex) {
-            const colName = headers[j];
-            const value = values[j];
-            metadata[colName] = value;
-            columnValues.get(colName).push(value);
-          }
-        }
-
-        metadataMap.set(nodeId, metadata);
+      for (let j = 0; j < headers.length; j++) {
+        const colName = headers[j];
+        const value = values[j];
+        metadata[colName] = value;
+        columnValues.get(colName).push(value);
       }
 
-      // Determine column types (continuous vs categorical)
-      metadataColumns.forEach(col => {
-        const values = columnValues.get(col);
-        const numericValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
-
-        // If all non-empty values can be converted to numbers, treat as continuous
-        const isContinuous = numericValues.length > 0 &&
-          numericValues.length === values.filter(v => v !== '').length;
-
-        columnTypes.set(col, isContinuous ? 'continuous' : 'categorical');
-      });
+      // Store with row index as key
+      metadataMap.set(i - 1, metadata);
     }
+
+    headers.forEach(col => {
+      const values = columnValues.get(col);
+
+      // Determine column types (continuous vs categorical)
+      const numericValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
+      const isContinuous = numericValues.length > 0 &&
+        numericValues.length === values.filter(v => v !== '').length;
+      columnTypes.set(col, isContinuous ? 'continuous' : 'categorical');
+
+      // Count how many values in this column match tree node names
+      let matchCount = 0;
+      for (const value of values) {
+        if (value && valid_ids.has(value)) {
+          matchCount++;
+        }
+      }
+      if (matchCount > 0) {
+        validIdCounts.push({ col, matchCount });
+      }
+    });
+
+    // Sort by match count descending
+    validIdCounts = validIdCounts.sort((a, b) => b.matchCount - a.matchCount);
+    idColumns = validIdCounts.map(x => x.col);
   }
 
-  return {
-    metadataMap: metadataMap,
-    columnTypes: columnTypes
-  }
+  return { metadataMap, columnTypes, idColumns }
 }
 
 
@@ -168,6 +169,3 @@ export function parseMetadata(tsvStr, sep = '\t') {
     colorScales: colorScales
   }
 }
-
-
-
