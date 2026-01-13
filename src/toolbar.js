@@ -1,4 +1,13 @@
 import { exportTree } from './exporter.js';
+import {
+  createControlGroup,
+  createLabel,
+  createButton,
+  createIconButton,
+  createSlider,
+  createToggle,
+  createNumberInput
+} from './toolbarUtils.js';
 
 /**
  * Create and manage the toolbar with tabs and controls
@@ -20,9 +29,10 @@ export function createToolbar(
   addNewTree,
   options
 ) {
-  const CONTROL_HEIGHT = 24; // Standard height for all controls
+  const CONTROL_HEIGHT =  24; // Standard height for all controls
   let currentTab = null;
   let selectedMetadata = null; // Track which metadata table is "selected" for future controls
+  let currentAestheticSettings = null; // Track which aesthetic settings are open
 
   // Store references to buttons that need to be updated dynamically
   let expandSubtreesBtn = null;
@@ -66,6 +76,10 @@ export function createToolbar(
   const controlsContainer = document.createElement('div');
   controlsContainer.className = 'ht-controls hidden';
 
+  // Create aesthetic settings container (third toolbar div)
+  const aestheticSettingsContainer = document.createElement('div');
+  aestheticSettingsContainer.className = 'ht-aesthetic-settings hidden';
+
   // Define tabs
   const tabs = [
     { id: 'data', label: 'Data', requiresTree: false },
@@ -89,6 +103,9 @@ export function createToolbar(
         return;
       }
 
+      // Close aesthetic settings when clicking tabs
+      closeAestheticSettings();
+
       if (currentTab === tab.id) {
         // Clicking the same tab closes it
         closeTab();
@@ -100,6 +117,21 @@ export function createToolbar(
 
     tabElements[tab.id] = tabDiv;
     tabsContainer.appendChild(tabDiv);
+  });
+
+  // Add click handler to controls container to close aesthetic settings
+  controlsContainer.addEventListener('click', (e) => {
+    // Check if the click is on an edit button or within an aesthetic group
+    const editButton = e.target.closest('.ht-icon-button');
+    const aestheticGroup = e.target.closest('.ht-control-group.ht-aesthetic-editing');
+
+    // If clicking on an edit button or within the currently editing aesthetic group, don't close
+    if (editButton || aestheticGroup) {
+      return;
+    }
+
+    // Otherwise, close aesthetic settings
+    closeAestheticSettings();
   });
 
   // Function to update tab states based on whether a tree is loaded
@@ -214,6 +246,64 @@ export function createToolbar(
     return 'tree';
   }
 
+  // Function to open aesthetic settings
+  function openAestheticSettings(aestheticId, aestheticGroup) {
+    // If clicking the same aesthetic that's already open, close it
+    if (currentAestheticSettings === aestheticId) {
+      closeAestheticSettings();
+      return;
+    }
+
+    // Close any previously open aesthetic settings
+    closeAestheticSettings();
+
+    currentAestheticSettings = aestheticId;
+
+    // Add underline to the aesthetic group
+    aestheticGroup.classList.add('ht-aesthetic-editing');
+
+    // Show aesthetic settings container
+    aestheticSettingsContainer.classList.remove('hidden');
+
+    // Populate aesthetic settings
+    populateAestheticSettings(aestheticId);
+  }
+
+  // Function to close aesthetic settings
+  function closeAestheticSettings() {
+    if (!currentAestheticSettings) return;
+
+    // Remove underline from all aesthetic groups
+    const allGroups = controlsContainer.querySelectorAll('.ht-control-group');
+    allGroups.forEach(group => group.classList.remove('ht-aesthetic-editing'));
+
+    // Hide aesthetic settings container
+    aestheticSettingsContainer.classList.add('hidden');
+    aestheticSettingsContainer.innerHTML = '';
+
+    currentAestheticSettings = null;
+  }
+
+  // Function to populate aesthetic settings
+  function populateAestheticSettings(aestheticId) {
+    aestheticSettingsContainer.innerHTML = '';
+
+    const treeState = getCurrentTreeState();
+    if (!treeState) return;
+
+    // Handle tip label color aesthetic
+    if (aestheticId === 'tipLabelColor') {
+      populateTipLabelColorSettings(aestheticSettingsContainer, treeState, CONTROL_HEIGHT);
+      return;
+    }
+
+    // For other aesthetics, show placeholder
+    const placeholder = document.createElement('div');
+    placeholder.textContent = `Settings for ${aestheticId} (coming soon)`;
+    placeholder.style.padding = '10px';
+    aestheticSettingsContainer.appendChild(placeholder);
+  }
+
   // Function to open a tab
   function openTab(tabId) {
     // Check if tab requires a tree and no tree is loaded
@@ -251,11 +341,17 @@ export function createToolbar(
     // Hide controls
     controlsContainer.classList.add('hidden');
     controlsContainer.innerHTML = '';
+
+    // Close aesthetic settings
+    closeAestheticSettings();
   }
 
   // Function to populate controls based on selected tab
   function populateControls(tabId) {
     controlsContainer.innerHTML = '';
+
+    // Close aesthetic settings when changing tabs
+    closeAestheticSettings();
 
     switch (tabId) {
       case 'data':
@@ -297,7 +393,15 @@ export function createToolbar(
         );
         break;
       case 'tip-label-settings':
-        populateTipLabelSettingsControls(controlsContainer, getCurrentTreeState, options, CONTROL_HEIGHT);
+        populateTipLabelSettingsControls(
+          controlsContainer,
+          getCurrentTreeState,
+          options,
+          CONTROL_HEIGHT,
+          openAestheticSettings,
+          closeAestheticSettings,
+          populateAestheticSettings
+        );
         break;
       case 'export':
         populateExportControls(controlsContainer, getCurrentTreeState, getCurrentTreeView, getCurrentTreeName, options, CONTROL_HEIGHT);
@@ -337,6 +441,7 @@ export function createToolbar(
   // Assemble the collapsible panel
   collapsiblePanel.appendChild(tabsContainer);
   collapsiblePanel.appendChild(controlsContainer);
+  collapsiblePanel.appendChild(aestheticSettingsContainer);
 
   // Append toggle container and collapsible panel to toolbar
   toolbarDiv.appendChild(toggleContainer);
@@ -388,14 +493,14 @@ function populateDataControls(
   const currentTreeState = getCurrentTreeState();
   const currentTreeName = currentTreeState ? Array.from(treeDataInstances.entries()).find(([name, data]) => data === currentTreeState.state.treeData)?.[0] : null;
 
-  if (treeNames.length === 0) {
+  if (treeNames.length ===  0) {
     const option = document.createElement('option');
     option.textContent = 'No trees loaded';
     option.value = '';
     treeSelect.appendChild(option);
     treeSelect.disabled = true;
   } else {
-    treeNames.forEach((treeName) => {
+    treeNames.forEach((treeName)  => {
       const option = document.createElement('option');
       option.value = treeName;
       option.textContent = treeName;
@@ -951,7 +1056,7 @@ function populateTreeManipulationControls(
 /**
  * Populate Tip Label Settings tab controls
  */
-function populateTipLabelSettingsControls(container, getCurrentTreeState, options, controlHeight) {
+function populateTipLabelSettingsControls(container, getCurrentTreeState, options, controlHeight, openAestheticSettings, closeAestheticSettings, populateAestheticSettings) {
   container.innerHTML = '';
 
   const treeState = getCurrentTreeState();
@@ -960,10 +1065,25 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     return;
   }
 
+  // Edit icon SVG
+  const editIconSvg = `
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M10 3L13 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `;
+
   // Tip label text group
   const tipLabelTextGroup = createControlGroup();
   const tipLabelTextLabel = createLabel('Text:', controlHeight);
   tipLabelTextGroup.appendChild(tipLabelTextLabel);
+
+  const tipLabelTextEditBtn = createIconButton(editIconSvg, 'Edit text settings', controlHeight);
+  tipLabelTextEditBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent the click from bubbling to the controls container
+    openAestheticSettings('tipLabelText', tipLabelTextGroup);
+  });
+  tipLabelTextGroup.appendChild(tipLabelTextEditBtn);
 
   const tipLabelTextSelect = createMetadataColumnSelect(
     treeState,
@@ -971,14 +1091,10 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     'Default',
     controlHeight,
     true,
-    null
+    null,
+    populateAestheticSettings
   );
   tipLabelTextGroup.appendChild(tipLabelTextSelect);
-
-  // const tipLabelTextEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
-  // tipLabelTextEditBtn.style.width = `${controlHeight}px`;
-  // tipLabelTextEditBtn.style.flexShrink = '0';
-  // tipLabelTextGroup.appendChild(tipLabelTextEditBtn);
 
   container.appendChild(tipLabelTextGroup);
 
@@ -987,20 +1103,23 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelColorLabel = createLabel('Color:', controlHeight);
   tipLabelColorGroup.appendChild(tipLabelColorLabel);
 
+  const tipLabelColorEditBtn = createIconButton(editIconSvg, 'Edit color settings', controlHeight);
+  tipLabelColorEditBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent the click from bubbling to the controls container
+    openAestheticSettings('tipLabelColor', tipLabelColorGroup);
+  });
+  tipLabelColorGroup.appendChild(tipLabelColorEditBtn);
+
   const tipLabelColorSelect = createMetadataColumnSelect(
     treeState,
     'tipLabelColor',
     'Default',
     controlHeight,
     false,
-    null
+    null,
+    populateAestheticSettings
   );
   tipLabelColorGroup.appendChild(tipLabelColorSelect);
-
-  // const tipLabelColorEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
-  // tipLabelColorEditBtn.style.width = `${controlHeight}px`;
-  // tipLabelColorEditBtn.style.flexShrink = '0';
-  // tipLabelColorGroup.appendChild(tipLabelColorEditBtn);
 
   container.appendChild(tipLabelColorGroup);
 
@@ -1009,20 +1128,23 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelSizeLabel = createLabel('Size:', controlHeight);
   tipLabelSizeGroup.appendChild(tipLabelSizeLabel);
 
+  const tipLabelSizeEditBtn = createIconButton(editIconSvg, 'Edit size settings', controlHeight);
+  tipLabelSizeEditBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent the click from bubbling to the controls container
+    openAestheticSettings('tipLabelSize', tipLabelSizeGroup);
+  });
+  tipLabelSizeGroup.appendChild(tipLabelSizeEditBtn);
+
   const tipLabelSizeSelect = createMetadataColumnSelect(
     treeState,
     'tipLabelSize',
     'Default',
     controlHeight,
     false,
-    true
+    true,
+    populateAestheticSettings
   );
   tipLabelSizeGroup.appendChild(tipLabelSizeSelect);
-
-  // const tipLabelSizeEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
-  // tipLabelSizeEditBtn.style.width = `${controlHeight}px`;
-  // tipLabelSizeEditBtn.style.flexShrink = '0';
-  // tipLabelSizeGroup.appendChild(tipLabelSizeEditBtn);
 
   container.appendChild(tipLabelSizeGroup);
 
@@ -1031,20 +1153,23 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelStyleLabel = createLabel('Style:', controlHeight);
   tipLabelStyleGroup.appendChild(tipLabelStyleLabel);
 
+  const tipLabelStyleEditBtn = createIconButton(editIconSvg, 'Edit style settings', controlHeight);
+  tipLabelStyleEditBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent the click from bubbling to the controls container
+    openAestheticSettings('tipLabelStyle', tipLabelStyleGroup);
+  });
+  tipLabelStyleGroup.appendChild(tipLabelStyleEditBtn);
+
   const tipLabelStyleSelect = createMetadataColumnSelect(
     treeState,
     'tipLabelStyle',
     'Default',
     controlHeight,
     false,
-    false
+    false,
+    populateAestheticSettings
   );
   tipLabelStyleGroup.appendChild(tipLabelStyleSelect);
-
-  // const tipLabelStyleEditBtn = createButton('✎', 'Edit scale settings', controlHeight);
-  // tipLabelStyleEditBtn.style.width = `${controlHeight}px`;
-  // tipLabelStyleEditBtn.style.flexShrink = '0';
-  // tipLabelStyleGroup.appendChild(tipLabelStyleEditBtn);
 
   container.appendChild(tipLabelStyleGroup);
 
@@ -1092,9 +1217,63 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
 }
 
 /**
+ * Populate tip label color aesthetic settings
+ */
+function populateTipLabelColorSettings(container, treeState, controlHeight) {
+  // Check if tip label color is set to a metadata column
+  const columnId = treeState.state.aesthetics.tipLabelColor;
+
+  if (!columnId) {
+    const message = document.createElement('div');
+    message.textContent = 'Select a metadata column for tip label color to edit its settings';
+    message.style.padding = '10px';
+    message.style.color = '#666';
+    container.appendChild(message);
+    return;
+  }
+
+  // Get the aesthetic
+  const aesthetic = treeState.aestheticsScales.tipLabelColor;
+  if (!aesthetic) {
+    const message = document.createElement('div');
+    message.textContent = 'Error: Could not find color aesthetic';
+    message.style.padding = '10px';
+    message.style.color = '#d00';
+    container.appendChild(message);
+    return;
+  }
+
+  // Use the aesthetic's createSettingsWidget method
+  const settingsWidget = aesthetic.createSettingsWidget({
+    controlHeight: controlHeight
+  });
+
+  if (settingsWidget) {
+    container.appendChild(settingsWidget);
+  } else {
+    const message = document.createElement('div');
+    message.textContent = 'No settings available for this aesthetic';
+    message.style.padding = '10px';
+    message.style.color = '#666';
+    container.appendChild(message);
+  }
+
+  // TODO: Add additional controls for color aesthetic:
+  // - Min/max input value range (for continuous)
+  // - Number of significant figures for legend (for continuous)
+  // - Legend title
+  // - Units label (for continuous)
+  // - Toggle for treating out-of-range values as missing (for continuous)
+  // - Max number of colors before collapsing to "other" (for categorical)
+  // - Color for "other" category (for categorical)
+  // - Sort order dropdown (frequency, alphabetic, occurrence) (for categorical)
+  // - Toggle for modifying category labels for display (for categorical)
+}
+
+/**
  * Create a metadata column select dropdown
  */
-function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight, includeNone = false, continuous = null) {
+function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight, includeNone = false, continuous = null, populateAestheticSettings = null) {
   const select = document.createElement('select');
   select.className = 'ht-select';
   select.style.height = `${controlHeight}px`;
@@ -1152,7 +1331,7 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
     select.value = currentValue;
   }
 
-  // Handle selection change
+  //  Handle selection change
   select.addEventListener('change', (e) => {
     let columnId;
     if (e.target.value === 'none') {
@@ -1167,6 +1346,11 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
     const aestheticUpdate = {};
     aestheticUpdate[aesthetic] = columnId;
     treeState.setAesthetics(aestheticUpdate);
+
+    // If aesthetic settings are open for this aesthetic, refresh them
+    if (populateAestheticSettings) {
+      populateAestheticSettings(aesthetic);
+    }
   });
 
   return select;
@@ -1385,91 +1569,4 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
 
   marginGroup.appendChild(marginInput);
   container.appendChild(marginGroup);
-}
-
-
-/**
- * Helper function to create a control group container
- */
-function createControlGroup() {
-  const group = document.createElement('div');
-  group.className = 'ht-control-group';
-  return group;
-}
-
-/**
- * Helper function to create a label
- */
-function createLabel(text, height) {
-  const label = document.createElement('label');
-  label.className = 'ht-control-label';
-  label.textContent = text;
-  label.style.height = `${height}px`;
-  return label;
-}
-
-/**
- * Helper function to create a button
- */
-function createButton(text, title = '', height) {
-  const button = document.createElement('button');
-  button.className = 'ht-button';
-  button.textContent = text;
-  button.title = title;
-  button.style.height = `${height}px`;
-  return button;
-}
-
-/**
- * Helper function to create a slider
- */
-function createSlider(min, max, value, step, height) {
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.className = 'ht-slider';
-  slider.min = min;
-  slider.max = max;
-  slider.value = value;
-  slider.step = step;
-  slider.style.height = `${height}px`;
-  return slider;
-}
-
-/**
- * Helper function to create a toggle switch
- */
-function createToggle(initialState, height) {
-  const toggleHeight = Math.min(24, height - 4);
-  const knobSize = toggleHeight - 4;
-
-  const toggle = document.createElement('div');
-  toggle.className = initialState ? 'ht-toggle active' : 'ht-toggle';
-  toggle.style.height = `${toggleHeight}px`;
-
-  const knob = document.createElement('div');
-  knob.className = 'ht-toggle-knob';
-  knob.style.width = `${knobSize}px`;
-  knob.style.height = `${knobSize}px`;
-
-  toggle.appendChild(knob);
-
-  // Note: Click handler should be added by the caller, not here
-  // This allows the caller to control the toggle state explicitly
-
-  return toggle;
-}
-
-/**
- * Helper function to create a number input
- */
-function createNumberInput(value, min, max, step, height) {
-  const input = document.createElement('input');
-  input.type = 'number';
-  input.className = 'ht-number-input';
-  input.value = value;
-  input.min = min;
-  input.max = max;
-  input.step = step;
-  input.style.height = `${height}px`;
-  return input;
 }

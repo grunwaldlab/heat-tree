@@ -208,20 +208,17 @@ export class TreeState extends Subscribable {
         } else {
           // Get or create the aesthetic with default state from #AESTHETICS
           this.aestheticsScales[aestheticId] = this.state.treeData.getAesthetic(columnId, aestheticId, aesData);
+
+          // Subscribe to palette changes to update tree data
+          this.aestheticsScales[aestheticId].subscribe('paletteChange', () => {
+            this.#updateTreeDataForAesthetic(aestheticId, columnId);
+            this.#updateLegends();
+            this.notify(`${aestheticId}Change`);
+          });
         }
 
         // Update the tree data directly modified by the aesthetic
-        this.state.treeData.tree.each(d => {
-          if (columnId && columnId !== null && columnId !== undefined) {
-            if (d.metadata && d.metadata[columnId] !== undefined) {
-              d[aestheticId] = this.aestheticsScales[aestheticId].getValue(d.metadata[columnId]);
-            } else {
-              d[aestheticId] = aesData.default;
-            }
-          } else {
-            d[aestheticId] = this.aestheticsScales[aestheticId].getValue();
-          }
-        });
+        this.#updateTreeDataForAesthetic(aestheticId, columnId);
 
         // Record any functions to call later in a unique list
         for (const methodName of aesData.downstream) {
@@ -248,6 +245,26 @@ export class TreeState extends Subscribable {
       this[methodName]();
     }
 
+  }
+
+  /**
+   * Update tree data for a specific aesthetic
+   * @private
+   */
+  #updateTreeDataForAesthetic(aestheticId, columnId) {
+    const aesData = this.#AESTHETICS[aestheticId];
+
+    this.state.treeData.tree.each(d => {
+      if (columnId && columnId !== null && columnId !== undefined) {
+        if (d.metadata && d.metadata[columnId] !== undefined) {
+          d[aestheticId] = this.aestheticsScales[aestheticId].getValue(d.metadata[columnId]);
+        } else {
+          d[aestheticId] = aesData.default;
+        }
+      } else {
+        d[aestheticId] = this.aestheticsScales[aestheticId].getValue();
+      }
+    });
   }
 
   #updateLegends() {

@@ -126,6 +126,13 @@
   align-items: center;
   gap: 4px;
   white-space: nowrap;
+  padding: 2px 0;
+  border-bottom: 2px solid transparent;
+  transition: border-bottom-color 0.2s;
+}
+
+.ht-control-group.ht-aesthetic-editing {
+  border-bottom-color: #007bff;
 }
 
 .ht-control-label {
@@ -166,6 +173,28 @@
 
 .ht-button.primary:hover {
   background-color: #0056b3;
+}
+
+.ht-icon-button {
+  font-size: 14px;
+  font-family: sans-serif;
+  background-color: #e0e0e0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+
+.ht-icon-button:hover {
+  background-color: #d0d0d0;
+}
+
+.ht-icon-button svg {
+  display: block;
 }
 
 .ht-select {
@@ -213,6 +242,207 @@
   border: 1px solid #ccc;
   border-radius: 4px;
   width: 80px;
+}
+
+.ht-aesthetic-settings {
+  padding: 2px 8px;
+  background-color: #f0f0f0;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: center;
+  max-height: 1000px;
+  overflow: hidden;
+  transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
+}
+
+.ht-aesthetic-settings.hidden {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.ht-color-palette-editor {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ht-palette-buttons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ht-palette-button {
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  font-weight: bold;
+  background-color: #e0e0e0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.ht-palette-button:hover {
+  background-color: #d0d0d0;
+}
+
+.ht-gradient-container {
+  display: flex;
+  gap: 8px;
+}
+
+.ht-gradient-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ht-color-squares-container {
+  display: flex;
+  position: relative;
+  height: 16px;
+  width: 200px;
+}
+
+.ht-color-square-wrapper {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50%);
+}
+
+.ht-color-square {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #333;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ht-color-square-tick {
+  width: 2px;
+  height: 8px;
+  background-color: #333;
+}
+
+.ht-gradient-box {
+  width: 200px;
+  height: 24px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  position: relative;
+}
+
+.ht-range-slider-container {
+  width: 200px;
+  height: 12px;
+  position: relative;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+}
+
+.ht-range-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #333;
+  border-radius: 4px;
+  cursor: ew-resize;
+  transform: translateX(-50%);
+}
+
+.ht-range-handle-indicator {
+  position: absolute;
+  bottom: 90%;
+  left: 50%;
+  transform: translateX(-50%) rotate(180deg);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 6px solid #333;
+  border-radius: 2px;
+  margin-bottom: 2px;
+}
+
+.ht-null-color-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ht-null-color-square-container {
+  display: flex;
+  position: relative;
+  height: 16px;
+  justify-content: center;
+}
+
+.ht-null-color-square {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #333;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ht-null-color-square-tick {
+  width: 2px;
+  height: 6px;
+  background-color: #333;
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.ht-null-color-box {
+  width: 16px;
+  height: 24px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  position: relative;
+}
+
+.ht-null-color-reset-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ht-null-color-reset-indicator {
+  position: absolute;
+  bottom: 85%;
+  left: 50%;
+  transform: translateX(-50%) rotate(180deg);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 6px solid #333;
+  border-radius: 2px;
+  margin-bottom: 2px;
+}
+
+.ht-null-color-reset {
+  font-size: 14px;
+  color: #d00;
+  font-weight: bold;
+  line-height: 1;
+  user-select: none;
+  cursor: pointer;
 }
 
 .ht-tree {
