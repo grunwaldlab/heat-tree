@@ -29,7 +29,7 @@ export function createToolbar(
   addNewTree,
   options
 ) {
-  const CONTROL_HEIGHT =  24; // Standard height for all controls
+  const CONTROL_HEIGHT = 24; // Standard height for all controls
   let currentTab = null;
   let selectedMetadata = null; // Track which metadata table is "selected" for future controls
   let currentAestheticSettings = null; // Track which aesthetic settings are open
@@ -273,6 +273,14 @@ export function createToolbar(
   function closeAestheticSettings() {
     if (!currentAestheticSettings) return;
 
+    // Clean up any picker containers
+    const existingEditors = aestheticSettingsContainer.querySelectorAll('.ht-color-palette-editor');
+    existingEditors.forEach(editor => {
+      if (editor.cleanupFunction && typeof editor.cleanupFunction === 'function') {
+        editor.cleanupFunction();
+      }
+    });
+
     // Remove underline from all aesthetic groups
     const allGroups = controlsContainer.querySelectorAll('.ht-control-group');
     allGroups.forEach(group => group.classList.remove('ht-aesthetic-editing'));
@@ -400,7 +408,8 @@ export function createToolbar(
           CONTROL_HEIGHT,
           openAestheticSettings,
           closeAestheticSettings,
-          populateAestheticSettings
+          populateAestheticSettings,
+          () => currentAestheticSettings
         );
         break;
       case 'export':
@@ -493,14 +502,14 @@ function populateDataControls(
   const currentTreeState = getCurrentTreeState();
   const currentTreeName = currentTreeState ? Array.from(treeDataInstances.entries()).find(([name, data]) => data === currentTreeState.state.treeData)?.[0] : null;
 
-  if (treeNames.length ===  0) {
+  if (treeNames.length === 0) {
     const option = document.createElement('option');
     option.textContent = 'No trees loaded';
     option.value = '';
     treeSelect.appendChild(option);
     treeSelect.disabled = true;
   } else {
-    treeNames.forEach((treeName)  => {
+    treeNames.forEach((treeName) => {
       const option = document.createElement('option');
       option.value = treeName;
       option.textContent = treeName;
@@ -1056,7 +1065,7 @@ function populateTreeManipulationControls(
 /**
  * Populate Tip Label Settings tab controls
  */
-function populateTipLabelSettingsControls(container, getCurrentTreeState, options, controlHeight, openAestheticSettings, closeAestheticSettings, populateAestheticSettings) {
+function populateTipLabelSettingsControls(container, getCurrentTreeState, options, controlHeight, openAestheticSettings, closeAestheticSettings, populateAestheticSettings, getCurrentAestheticSettings) {
   container.innerHTML = '';
 
   const treeState = getCurrentTreeState();
@@ -1092,6 +1101,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     controlHeight,
     true,
     null,
+    getCurrentAestheticSettings,
     populateAestheticSettings
   );
   tipLabelTextGroup.appendChild(tipLabelTextSelect);
@@ -1117,6 +1127,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     controlHeight,
     false,
     null,
+    getCurrentAestheticSettings,
     populateAestheticSettings
   );
   tipLabelColorGroup.appendChild(tipLabelColorSelect);
@@ -1142,6 +1153,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     controlHeight,
     false,
     true,
+    getCurrentAestheticSettings,
     populateAestheticSettings
   );
   tipLabelSizeGroup.appendChild(tipLabelSizeSelect);
@@ -1167,6 +1179,7 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
     controlHeight,
     false,
     false,
+    getCurrentAestheticSettings,
     populateAestheticSettings
   );
   tipLabelStyleGroup.appendChild(tipLabelStyleSelect);
@@ -1273,7 +1286,7 @@ function populateTipLabelColorSettings(container, treeState, controlHeight) {
 /**
  * Create a metadata column select dropdown
  */
-function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight, includeNone = false, continuous = null, populateAestheticSettings = null) {
+function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlHeight, includeNone = false, continuous = null, getCurrentAestheticSettings = null, populateAestheticSettings = null) {
   const select = document.createElement('select');
   select.className = 'ht-select';
   select.style.height = `${controlHeight}px`;
@@ -1298,7 +1311,7 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
   const columnIds = Array.from(treeData.columnDisplayName.keys());
 
   // Filter columns for continuous/categorical metadata
-  let filteredColumnIds = columnIds;
+  let filteredColumnIds =columnIds;
   if (continuous !== null) {
     if (continuous) {
       filteredColumnIds = columnIds.filter(columnId => treeData.columnType.get(columnId) === 'continuous')
@@ -1331,7 +1344,7 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
     select.value = currentValue;
   }
 
-  //  Handle selection change
+  // Handle selection change
   select.addEventListener('change', (e) => {
     let columnId;
     if (e.target.value === 'none') {
@@ -1347,9 +1360,13 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
     aestheticUpdate[aesthetic] = columnId;
     treeState.setAesthetics(aestheticUpdate);
 
-    // If aesthetic settings are open for this aesthetic, refresh them
-    if (populateAestheticSettings) {
-      populateAestheticSettings(aesthetic);
+    // Only refresh aesthetic settings if they are currently open for this aesthetic
+    if (getCurrentAestheticSettings && populateAestheticSettings) {
+      const currentAestheticSettings = getCurrentAestheticSettings();
+      if (currentAestheticSettings === aesthetic) {
+        // The aesthetic settings are open, so we need to refresh them
+        populateAestheticSettings(aesthetic);
+      }
     }
   });
 

@@ -7,6 +7,7 @@ import {
   CategoricalColorScale
 } from "./scales.js";
 import { Subscribable } from "./utils.js";
+import Picker from 'vanilla-picker';
 
 /**
  * Manages the configuration and scale for a single aesthetic mapping
@@ -297,16 +298,194 @@ export class Aesthetic extends Subscribable {
     // Initial gradient display
     updateGradientDisplay();
 
-    // Create color squares with ticks
-    const colorSquares = [];
-    editorState.colors.forEach((color, i) => {
-      const squareContainer = createColorSquareWithTick(colorSquaresContainer, color, () => {
-        console.log(`Edit color ${i}: ${color}`);
-        // Will implement color picker later
-      });
-      squareContainer.style.left = `${editorState.positions[i] * 100}%`;
-      colorSquares.push(squareContainer);
+    // Track current parent for the shared picker
+    let currentPickerParent = null;
+
+    // Create a container div that will be appended to body for the gradient picker
+    const pickerContainer = document.createElement('div');
+    pickerContainer.style.position = 'fixed';
+    pickerContainer.style.zIndex = '999999';
+    pickerContainer.style.pointerEvents = 'auto';
+    document.body.appendChild(pickerContainer);
+
+    // Create a separate container for the null color picker
+    const nullPickerContainer = document.createElement('div');
+    nullPickerContainer.style.position = 'fixed';
+    nullPickerContainer.style.zIndex = '999999';
+    nullPickerContainer.style.pointerEvents = 'auto';
+    document.body.appendChild(nullPickerContainer);
+
+    // Function to close the gradient picker
+    const closeGradientPicker = () => {
+      pickerContainer.style.display = 'none';
+      currentPickerParent = null;
+    };
+
+    // Function to close the null picker
+    const closeNullPicker = () => {
+      nullPickerContainer.style.display = 'none';
+    };
+
+    // Create null color column (structured same as gradient column)
+    const nullColorColumn = document.createElement('div');
+    nullColorColumn.className = 'ht-null-color-column';
+
+    // Create color square container (aligned with gradient color squares)
+    const nullColorSquareContainer = document.createElement('div');
+    nullColorSquareContainer.className = 'ht-null-color-square-container';
+
+    // Color square with tick
+    const nullSquareWrapper = document.createElement('div');
+    nullSquareWrapper.style.display = 'flex';
+    nullSquareWrapper.style.flexDirection = 'column';
+    nullSquareWrapper.style.alignItems = 'center';
+
+    const nullSquare = document.createElement('div');
+    nullSquare.className = 'ht-null-color-square';
+    nullSquare.style.backgroundColor = editorState.nullColor;
+    nullSquare.title = 'Click to edit missing data color';
+
+    const nullTick = document.createElement('div');
+    nullTick.className = 'ht-null-color-square-tick';
+
+    nullSquareWrapper.appendChild(nullSquare);
+    nullSquareWrapper.appendChild(nullTick);
+    nullColorSquareContainer.appendChild(nullSquareWrapper);
+
+    // Create null color box (aligned with gradient box)
+    const nullColorBox = document.createElement('div');
+    nullColorBox.className = 'ht-null-color-box';
+    nullColorBox.style.backgroundColor = editorState.nullColor;
+
+    // Create shared color picker for palette colors
+    const sharedPicker = new Picker({
+      parent: pickerContainer,
+      popup: false,
+      alpha: false,
+      editor: true,
+      color: editorState.colors[0],
+      onChange: function(color) {
+        if (!currentPickerParent) return;
+        
+        const colorIndex = parseInt(currentPickerParent.getAttribute('data-color-index'));
+        const hexColor = color.hex.substring(0, 7); // Remove alpha if present
+        
+        // Update the color in editorState
+        editorState.colors[colorIndex] = hexColor;
+        
+        // Update the square's background color
+        currentPickerParent.style.backgroundColor = hexColor;
+        
+        // Update gradient display
+        updateGradientDisplay();
+        
+        // Update handle colors if they're affected
+        const minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
+        minHandle.style.backgroundColor = minColor;
+        const maxColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMax);
+        maxHandle.style.backgroundColor = maxColor;
+        
+        // Apply changes
+        applyPaletteChanges();
+      },
+      onDone: function() {
+        closeGradientPicker();
+      }
     });
+
+    // Initially hide the picker
+    pickerContainer.style.display = 'none';
+
+    // Add event listener to close picker when clicking outside
+    const closePickerOnClickOutside = (e) => {
+      if (!pickerContainer.contains(e.target) && !e.target.closest('.ht-color-square')) {
+        closeGradientPicker();
+      }
+    };
+    document.addEventListener('click', closePickerOnClickOutside);
+
+    // Create separate picker for null color
+    const nullColorPicker = new Picker({
+      parent: nullPickerContainer,
+      popup: false,
+      alpha: false,
+      editor: true,
+      color: editorState.nullColor,
+      onChange: function(color) {
+        const hexColor = color.hex.substring(0, 7); // Remove alpha if present
+        editorState.nullColor = hexColor;
+        nullSquare.style.backgroundColor = hexColor;
+        nullColorBox.style.backgroundColor = hexColor;
+        
+        // Apply changes
+        applyPaletteChanges();
+      },
+      onDone: function() {
+        closeNullPicker();
+      }
+    });
+
+    // Initially hide the null picker
+    nullPickerContainer.style.display = 'none';
+
+    // Add event listener to close null picker when clicking outside
+    const closeNullPickerOnClickOutside = (e) => {
+      if (!nullPickerContainer.contains(e.target) && e.target !== nullSquare) {
+        closeNullPicker();
+      }
+    };
+    document.addEventListener('click', closeNullPickerOnClickOutside);
+
+    // Store cleanup function on container
+    container.dataset.pickerCleanup = 'cleanup';
+    container.cleanupFunction = () => {
+      document.removeEventListener('click', closePickerOnClickOutside);
+      document.removeEventListener('click', closeNullPickerOnClickOutside);
+      if (pickerContainer.parentElement) {
+        pickerContainer.parentElement.removeChild(pickerContainer);
+      }
+      if (nullPickerContainer.parentElement) {
+        nullPickerContainer.parentElement.removeChild(nullPickerContainer);
+      }
+    };
+
+    // Function to recreate color squares
+    const colorSquares = [];
+    const recreateColorSquares = () => {
+      colorSquaresContainer.innerHTML = '';
+      colorSquares.length = 0;
+      
+      editorState.colors.forEach((color, i) => {
+        const squareContainer = createColorSquareWithTick(colorSquaresContainer, color, i, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const square = e.currentTarget;
+          const colorIndex = parseInt(square.getAttribute('data-color-index'));
+          
+          // Close null color picker if open
+          closeNullPicker();
+          
+          // Update current parent
+          currentPickerParent = square;
+          
+          // Get the position of the square for positioning the picker
+          const rect = square.getBoundingClientRect();
+          
+          // Update picker color
+          sharedPicker.setColor(editorState.colors[colorIndex], true);
+          
+          // Position and show the picker
+          pickerContainer.style.left = `${rect.left}px`;
+          pickerContainer.style.top = `${rect.bottom + 5}px`;
+          pickerContainer.style.display = 'block';
+        });
+        squareContainer.style.left = `${editorState.positions[i] * 100}%`;
+        colorSquares.push(squareContainer);
+      });
+    };
+
+    // Initial creation of color squares
+    recreateColorSquares();
 
     // Create range slider below gradient
     const rangeSliderContainer = document.createElement('div');
@@ -404,42 +583,24 @@ export class Aesthetic extends Subscribable {
     gradientColumn.appendChild(gradientBox);
     gradientColumn.appendChild(rangeSliderContainer);
 
-    // Create null color column (structured same as gradient column)
-    const nullColorColumn = document.createElement('div');
-    nullColorColumn.className = 'ht-null-color-column';
-
-    // Create color square container (aligned with gradient color squares)
-    const nullColorSquareContainer = document.createElement('div');
-    nullColorSquareContainer.className = 'ht-null-color-square-container';
-
-    // Color square with tick
-    const nullSquareWrapper = document.createElement('div');
-    nullSquareWrapper.style.display = 'flex';
-    nullSquareWrapper.style.flexDirection = 'column';
-    nullSquareWrapper.style.alignItems = 'center';
-
-    const nullSquare = document.createElement('div');
-    nullSquare.className = 'ht-null-color-square';
-    nullSquare.style.backgroundColor = editorState.nullColor;
-    nullSquare.title = 'Click to edit missing data color';
-
-    // Make only the square clickable
-    nullSquare.addEventListener('click', () => {
-      console.log(`Edit null color: ${editorState.nullColor}`);
-      // Will implement color picker later
+    // Add click handler to null square to position picker
+    nullSquare.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Close gradient picker if open
+      closeGradientPicker();
+      
+      const rect = nullSquare.getBoundingClientRect();
+      
+      // Update picker color
+      nullColorPicker.setColor(editorState.nullColor, true);
+      
+      // Position and show the picker
+      nullPickerContainer.style.left = `${rect.left}px`;
+      nullPickerContainer.style.top = `${rect.bottom + 5}px`;
+      nullPickerContainer.style.display = 'block';
     });
-
-    const nullTick = document.createElement('div');
-    nullTick.className = 'ht-null-color-square-tick';
-
-    nullSquareWrapper.appendChild(nullSquare);
-    nullSquareWrapper.appendChild(nullTick);
-    nullColorSquareContainer.appendChild(nullSquareWrapper);
-
-    // Create null color box (aligned with gradient box)
-    const nullColorBox = document.createElement('div');
-    nullColorBox.className = 'ht-null-color-box';
-    nullColorBox.style.backgroundColor = editorState.nullColor;
 
     // Create reset container (aligned with range slider)
     const resetContainer = document.createElement('div');
@@ -459,6 +620,9 @@ export class Aesthetic extends Subscribable {
       editorState.nullColor = defaultNullColor;
       nullSquare.style.backgroundColor = defaultNullColor;
       nullColorBox.style.backgroundColor = defaultNullColor;
+      
+      // Update the picker's color
+      nullColorPicker.setColor(defaultNullColor, true);
 
       // Apply changes
       applyPaletteChanges();
@@ -493,15 +657,7 @@ export class Aesthetic extends Subscribable {
       updateGradientDisplay();
 
       // Recreate color squares
-      colorSquaresContainer.innerHTML = '';
-      colorSquares.length = 0;
-      editorState.colors.forEach((color, i) => {
-        const squareContainer = createColorSquareWithTick(colorSquaresContainer, color, () => {
-          console.log(`Edit color ${i}: ${color}`);
-        });
-        squareContainer.style.left = `${editorState.positions[i] * 100}%`;
-        colorSquares.push(squareContainer);
-      });
+      recreateColorSquares();
 
       // Update handle colors
       minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
@@ -530,15 +686,7 @@ export class Aesthetic extends Subscribable {
       updateGradientDisplay();
 
       // Recreate color squares
-      colorSquaresContainer.innerHTML = '';
-      colorSquares.length = 0;
-      editorState.colors.forEach((color, i) => {
-        const squareContainer = createColorSquareWithTick(colorSquaresContainer, color, () => {
-          console.log(`Edit color ${i}: ${color}`);
-        });
-        squareContainer.style.left = `${editorState.positions[i] * 100}%`;
-        colorSquares.push(squareContainer);
-      });
+      recreateColorSquares();
 
       // Update handle colors
       minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
@@ -570,15 +718,7 @@ export class Aesthetic extends Subscribable {
       updateGradientDisplay();
 
       // Recreate color squares
-      colorSquaresContainer.innerHTML = '';
-      colorSquares.length = 0;
-      editorState.colors.forEach((color, i) => {
-        const squareContainer = createColorSquareWithTick(colorSquaresContainer, color, () => {
-          console.log(`Edit color ${i}: ${color}`);
-        });
-        squareContainer.style.left = `${editorState.positions[i] * 100}%`;
-        colorSquares.push(squareContainer);
-      });
+      recreateColorSquares();
 
       // Update handle colors
       minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
@@ -607,15 +747,7 @@ export class Aesthetic extends Subscribable {
       updateGradientDisplay();
 
       // Recreate color squares
-      colorSquaresContainer.innerHTML = '';
-      colorSquares.length = 0;
-      editorState.colors.forEach((color, i) => {
-        const squareContainer = createColorSquareWithTick(colorSquaresContainer, color, () => {
-          console.log(`Edit color ${i}: ${color}`);
-        });
-        squareContainer.style.left = `${editorState.positions[i] * 100}%`;
-        colorSquares.push(squareContainer);
-      });
+      recreateColorSquares();
 
       // Update handle colors
       minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
@@ -722,7 +854,7 @@ function rgbToHex(r, g, b) {
 /**
  * Create a color square with tick mark
  */
-function createColorSquareWithTick(parent, color, event) {
+function createColorSquareWithTick(parent, color, colorIndex, clickHandler) {
   const squareContainer = document.createElement('div');
   squareContainer.className = 'ht-color-square-wrapper';
 
@@ -731,9 +863,10 @@ function createColorSquareWithTick(parent, color, event) {
   square.className = 'ht-color-square';
   square.style.backgroundColor = color;
   square.title = 'Click to edit color';
+  square.setAttribute('data-color-index', colorIndex);
 
-  // TODO: Add color picker functionality
-  square.addEventListener('click', event);
+  // Add click handler for color picker
+  square.addEventListener('click', clickHandler);
 
   // Tick mark
   const tick = document.createElement('div');

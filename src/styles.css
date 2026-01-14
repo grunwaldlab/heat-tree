@@ -19,7 +19,6 @@
   position: absolute;
   top: 0;
   right: 0;
-  z-index: 10;
   padding: 4px 8px;
   pointer-events: none;
 }
@@ -54,7 +53,6 @@
 
 .ht-collapsible-panel {
   max-height: 1000px;
-  overflow: hidden;
   transition: max-height 0.3s ease-in-out;
 }
 
@@ -254,7 +252,6 @@
   row-gap: 2px;
   align-items: center;
   max-height: 1000px;
-  overflow: hidden;
   transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
 }
 
@@ -453,4 +450,28 @@
 
 .ht-tree svg {
   display: block;
+}
+
+/* Ensure vanilla-picker appears above all other elements */
+.picker_wrapper {
+  z-index: 999999 !important;
+  position: fixed !important;
+}
+
+.picker_wrapper.popup {
+  z-index: 999999 !important;
+  position: fixed !important;
+}
+
+.picker_wrapper * {
+  pointer-events: auto !important;
+}
+
+.picker_selector,
+.picker_slider,
+.picker_editor,
+.picker_sample,
+.picker_done,
+.picker_cancel {
+  pointer-events: auto !important;
 }
