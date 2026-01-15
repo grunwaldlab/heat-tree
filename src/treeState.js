@@ -210,7 +210,7 @@ export class TreeState extends Subscribable {
           this.aestheticsScales[aestheticId] = this.state.treeData.getAesthetic(columnId, aestheticId, aesData);
 
           // Subscribe to palette changes to update tree data
-          this.aestheticsScales[aestheticId].subscribe('paletteChange', () => {
+          this.aestheticsScales[aestheticId].subscribe('aestheticChange', () => {
             this.#updateTreeDataForAesthetic(aestheticId, columnId);
             this.#updateLegends();
             this.notify(`${aestheticId}Change`);

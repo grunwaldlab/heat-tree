@@ -17,6 +17,7 @@ export class Aesthetic extends Subscribable {
   state; // Object containing all configuration used to infer the scale
   scale; // the actual scale instance
   values; // Store the original values for scale recreation
+  defaultPalette = ['#440154', '#31688e', '#35b779', '#fde724'];
 
   constructor(values, options = {}) {
     super();
@@ -39,7 +40,8 @@ export class Aesthetic extends Subscribable {
       isCategorical: undefined,
       outputValues: null,
       outputRegex: null,
-      colorPalette: null,
+      colorPalette: this.defaultPalette,
+      colorPositions:  this.defaultPalette.map((_, i) => i / (this.defaultPalette.length - 1)),
       outputRange: null,
       inputUnits: null,
       title: null,
@@ -49,21 +51,12 @@ export class Aesthetic extends Subscribable {
       transformMin: 0,
       transformMax: 1,
       transformFn: null,
-      colorPositions: null,
       nullColor: '#808080',
       ...options
     };
 
     // Initialize the scale
-    this.updateScale(values);
-  }
-
-  /**
-   * Set the scale instance for this aesthetic
-   * @param {object} scale - The scale instance
-   */
-  setScale(scale) {
-    this.scale = scale;
+    this.updateScale(false);
   }
 
   /**
@@ -80,16 +73,10 @@ export class Aesthetic extends Subscribable {
    * Update the scale based on current state
    * Uses the stored state to create an appropriate scale
    */
-  updateScale(values) {
+  updateScale(notify = true) {
+    const values = this.values;
     const { scaleType, isCategorical } = this.state;
     let scale;
-
-    // Handle null scale
-    if (scaleType === 'null') {
-      scale = new NullScale(this.state.default);
-      this.setScale(scale);
-      return;
-    }
 
     // Handle identity scales and data already in the output format
     let isAlreadyOutputFormat = true;
@@ -113,28 +100,25 @@ export class Aesthetic extends Subscribable {
     } else {
       isAlreadyOutputFormat = false;
     }
-    if (scaleType === 'identity' || isAlreadyOutputFormat) {
+
+    // Handle null scale
+    if (scaleType === 'null') {
+      scale = new NullScale(this.state.default);
+      this.scale = scale;
+    } else if (scaleType === 'identity' || isAlreadyOutputFormat) {
       scale = new IdentityScale(
         this.state.default,
         this.state.outputValues,
         this.state.transformFn
       );
-      this.setScale(scale);
-      return;
-    }
-
-    // Handle text scales (only for categorical data)
-    if (scaleType === 'text') {
+      this.scale = scale;
+    } else if (scaleType === 'text') {
       if (!isCategorical) {
         throw new Error('Text scales can only be used with categorical data');
       }
       scale = new CategoricalTextScale(values, this.state.outputValues, this.state.default);
-      this.setScale(scale);
-      return;
-    }
-
-    // Handle size scales (only for continuous data)
-    if (scaleType === 'size') {
+      this.scale = scale;
+    } else if (scaleType === 'size') {
       if (isCategorical) {
         throw new Error('Size scales can only be used with continuous data');
       }
@@ -149,12 +133,8 @@ export class Aesthetic extends Subscribable {
         const range = this.state.outputRange || [0.5, 2];
         scale = new ContinuousSizeScale(min, max, range[0], range[1]);
       }
-      this.setScale(scale);
-      return;
-    }
-
-    // Handle color scales
-    if (scaleType === 'color') {
+      this.scale = scale;
+    } else if (scaleType === 'color') {
       if (isCategorical) {
         scale = new CategoricalColorScale(
           values,
@@ -182,11 +162,15 @@ export class Aesthetic extends Subscribable {
           );
         }
       }
-      this.setScale(scale);
-      return;
+      this.scale = scale;
+    } else {
+      throw new Error(`Unknown scale type: ${scaleType}`);
     }
 
-    throw new Error(`Unknown scale type: ${scaleType}`);
+    // Notify subscribers of the change
+    if (notify) {
+      this.notify('aestheticChange', this);
+    }
   }
 
   /**
@@ -195,6 +179,7 @@ export class Aesthetic extends Subscribable {
    */
   updateState(updates) {
     Object.assign(this.state, updates);
+    this.updateScale(this.values);
   }
 
   /**
@@ -230,46 +215,6 @@ export class Aesthetic extends Subscribable {
     const container = document.createElement('div');
     container.className = 'ht-color-palette-editor';
 
-    // Get colors from the scale
-    let colors = [];
-    if (this.scale.colors) {
-      colors = this.scale.colors.map(c => this.scale._rgbToHex(c.r, c.g, c.b));
-    }
-
-    // Calculate actual color positions if not provided
-    const positions = this.scale.colorPositions || colors.map((_, i) => i / (colors.length - 1));
-
-    // State for the editor - initialize from current scale/aesthetic state
-    const editorState = {
-      colors: [...colors],
-      positions: [...positions],
-      transformMin: this.state.transformMin,
-      transformMax: this.state.transformMax,
-      nullColor: this.scale.nullColor || this.state.nullColor
-    };
-
-    // Helper function to apply palette changes
-    const applyPaletteChanges = () => {
-      // Update aesthetic state directly
-      this.state.colorPalette = editorState.colors;
-      this.state.colorPositions = editorState.positions;
-      this.state.transformMin = editorState.transformMin;
-      this.state.transformMax = editorState.transformMax;
-      this.state.nullColor = editorState.nullColor;
-
-      // Recreate the scale with new settings
-      this.updateScale(this.values);
-
-      // Notify subscribers of the change
-      this.notify('paletteChange', {
-        colors: editorState.colors,
-        colorPositions: editorState.positions,
-        transformMin: editorState.transformMin,
-        transformMax: editorState.transformMax,
-        nullColor: editorState.nullColor
-      });
-    };
-
     // Create gradient container (holds both gradient and null color controls)
     const gradientContainer = document.createElement('div');
     gradientContainer.className = 'ht-gradient-container';
@@ -288,8 +233,8 @@ export class Aesthetic extends Subscribable {
 
     // Function to update gradient display
     const updateGradientDisplay = () => {
-      const gradientStops = editorState.colors.map((color, i) => {
-        const pos = editorState.positions[i] * 100;
+      const gradientStops = this.state.colorPalette.map((color, i) => {
+        const pos = this.state.colorPositions[i] * 100;
         return `${color} ${pos}%`;
       }).join(', ');
       gradientBox.style.background = `linear-gradient(to right, ${gradientStops})`;
@@ -342,7 +287,7 @@ export class Aesthetic extends Subscribable {
 
     const nullSquare = document.createElement('div');
     nullSquare.className = 'ht-null-color-square';
-    nullSquare.style.backgroundColor = editorState.nullColor;
+    nullSquare.style.backgroundColor = this.state.nullColor;
     nullSquare.title = 'Click to edit missing data color';
 
     const nullTick = document.createElement('div');
@@ -355,7 +300,7 @@ export class Aesthetic extends Subscribable {
     // Create null color box (aligned with gradient box)
     const nullColorBox = document.createElement('div');
     nullColorBox.className = 'ht-null-color-box';
-    nullColorBox.style.backgroundColor = editorState.nullColor;
+    nullColorBox.style.backgroundColor = this.state.nullColor;
 
     // Create shared color picker for palette colors
     const sharedPicker = new Picker({
@@ -363,15 +308,15 @@ export class Aesthetic extends Subscribable {
       popup: false,
       alpha: false,
       editor: true,
-      color: editorState.colors[0],
-      onChange: function(color) {
+      color: this.state.colorPalette[0],
+      onChange: (color) => {
         if (!currentPickerParent) return;
         
         const colorIndex = parseInt(currentPickerParent.getAttribute('data-color-index'));
         const hexColor = color.hex.substring(0, 7); // Remove alpha if present
         
-        // Update the color in editorState
-        editorState.colors[colorIndex] = hexColor;
+        // Update the color in state
+        this.state.colorPalette[colorIndex] = hexColor;
         
         // Update the square's background color
         currentPickerParent.style.backgroundColor = hexColor;
@@ -380,15 +325,15 @@ export class Aesthetic extends Subscribable {
         updateGradientDisplay();
         
         // Update handle colors if they're affected
-        const minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
+        const minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
         minHandle.style.backgroundColor = minColor;
-        const maxColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMax);
+        const maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
         maxHandle.style.backgroundColor = maxColor;
         
         // Apply changes
-        applyPaletteChanges();
+        this.updateScale();
       },
-      onDone: function() {
+      onDone: () => {
         closeGradientPicker();
       }
     });
@@ -410,17 +355,17 @@ export class Aesthetic extends Subscribable {
       popup: false,
       alpha: false,
       editor: true,
-      color: editorState.nullColor,
-      onChange: function(color) {
+      color: this.state.nullColor,
+      onChange: (color) => {
         const hexColor = color.hex.substring(0, 7); // Remove alpha if present
-        editorState.nullColor = hexColor;
+        this.state.nullColor = hexColor;
         nullSquare.style.backgroundColor = hexColor;
         nullColorBox.style.backgroundColor = hexColor;
         
         // Apply changes
-        applyPaletteChanges();
+        this.updateScale();
       },
-      onDone: function() {
+      onDone: () => {
         closeNullPicker();
       }
     });
@@ -455,7 +400,7 @@ export class Aesthetic extends Subscribable {
       colorSquaresContainer.innerHTML = '';
       colorSquares.length = 0;
       
-      editorState.colors.forEach((color, i) => {
+      this.state.colorPalette.forEach((color, i) => {
         const squareContainer = createColorSquareWithTick(colorSquaresContainer, color, i, (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -472,14 +417,14 @@ export class Aesthetic extends Subscribable {
           const rect = square.getBoundingClientRect();
           
           // Update picker color
-          sharedPicker.setColor(editorState.colors[colorIndex], true);
+          sharedPicker.setColor(this.state.colorPalette[colorIndex], true);
           
           // Position and show the picker
           pickerContainer.style.left = `${rect.left}px`;
           pickerContainer.style.top = `${rect.bottom + 5}px`;
           pickerContainer.style.display = 'block';
         });
-        squareContainer.style.left = `${editorState.positions[i] * 100}%`;
+        squareContainer.style.left = `${this.state.colorPositions[i] * 100}%`;
         colorSquares.push(squareContainer);
       });
     };
@@ -494,11 +439,11 @@ export class Aesthetic extends Subscribable {
     // Create min handle
     const minHandle = document.createElement('div');
     minHandle.className = 'ht-range-handle';
-    minHandle.style.left = `${editorState.transformMin * 100}%`;
+    minHandle.style.left = `${this.state.transformMin * 100}%`;
     minHandle.title = 'Drag to adjust minimum';
 
     // Set handle color based on gradient
-    let minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
+    let minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
     minHandle.style.backgroundColor = minColor;
 
     // Create upward triangle indicator for min handle
@@ -509,11 +454,11 @@ export class Aesthetic extends Subscribable {
     // Create max handle
     const maxHandle = document.createElement('div');
     maxHandle.className = 'ht-range-handle';
-    maxHandle.style.left = `${editorState.transformMax * 100}%`;
+    maxHandle.style.left = `${this.state.transformMax * 100}%`;
     maxHandle.title = 'Drag to adjust maximum';
 
     // Set handle color based on gradient
-    let maxColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMax);
+    let maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
     maxHandle.style.backgroundColor = maxColor;
 
     // Create upward triangle indicator for max handle
@@ -546,24 +491,24 @@ export class Aesthetic extends Subscribable {
 
       if (isDraggingMin) {
         // Ensure min doesn't go past max
-        newValue = Math.min(newValue, editorState.transformMax - 0.01);
-        editorState.transformMin = newValue;
+        newValue = Math.min(newValue, this.state.transformMax - 0.01);
+        this.state.transformMin = newValue;
         minHandle.style.left = `${newValue * 100}%`;
-        minColor = interpolateGradient(editorState.colors, editorState.positions, newValue);
+        minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, newValue);
         minHandle.style.backgroundColor = minColor;
 
         // Apply changes
-        applyPaletteChanges();
+        this.updateScale();
       } else if (isDraggingMax) {
         // Ensure max doesn't go before min
-        newValue = Math.max(newValue, editorState.transformMin + 0.01);
-        editorState.transformMax = newValue;
+        newValue = Math.max(newValue, this.state.transformMin + 0.01);
+        this.state.transformMax = newValue;
         maxHandle.style.left = `${newValue * 100}%`;
-        maxColor = interpolateGradient(editorState.colors, editorState.positions, newValue);
+        maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, newValue);
         maxHandle.style.backgroundColor = maxColor;
 
         // Apply changes
-        applyPaletteChanges();
+        this.updateScale();
       }
     };
 
@@ -594,7 +539,7 @@ export class Aesthetic extends Subscribable {
       const rect = nullSquare.getBoundingClientRect();
       
       // Update picker color
-      nullColorPicker.setColor(editorState.nullColor, true);
+      nullColorPicker.setColor(this.state.nullColor, true);
       
       // Position and show the picker
       nullPickerContainer.style.left = `${rect.left}px`;
@@ -617,7 +562,7 @@ export class Aesthetic extends Subscribable {
 
     resetX.addEventListener('click', () => {
       const defaultNullColor = '#808080';
-      editorState.nullColor = defaultNullColor;
+      this.state.nullColor = defaultNullColor;
       nullSquare.style.backgroundColor = defaultNullColor;
       nullColorBox.style.backgroundColor = defaultNullColor;
       
@@ -625,7 +570,7 @@ export class Aesthetic extends Subscribable {
       nullColorPicker.setColor(defaultNullColor, true);
 
       // Apply changes
-      applyPaletteChanges();
+      this.updateScale();
     });
 
     resetContainer.appendChild(resetIndicator);
@@ -647,11 +592,11 @@ export class Aesthetic extends Subscribable {
     const leftPlusBtn = createPaletteButton('+', 'Add color to left');
     leftPlusBtn.addEventListener('click', () => {
       // Add a new color at the beginning
-      const newColor = editorState.colors[0]; // Duplicate the first color
-      editorState.colors.unshift(newColor);
+      const newColor = this.state.colorPalette[0]; // Duplicate the first color
+      this.state.colorPalette.unshift(newColor);
 
       // Recalculate positions to evenly space colors
-      editorState.positions = editorState.colors.map((_, i) => i / (editorState.colors.length - 1));
+      this.state.colorPositions = this.state.colorPalette.map((_, i) => i / (this.state.colorPalette.length - 1));
 
       // Update display
       updateGradientDisplay();
@@ -660,27 +605,27 @@ export class Aesthetic extends Subscribable {
       recreateColorSquares();
 
       // Update handle colors
-      minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
+      minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
       minHandle.style.backgroundColor = minColor;
-      maxColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMax);
+      maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
       maxHandle.style.backgroundColor = maxColor;
 
       // Apply changes
-      applyPaletteChanges();
+      this.updateScale();
     });
 
     const leftMinusBtn = createPaletteButton('-', 'Remove color from left');
     leftMinusBtn.addEventListener('click', () => {
-      if (editorState.colors.length <= 2) {
+      if (this.state.colorPalette.length <= 2) {
         console.warn('Cannot remove color: minimum 2 colors required');
         return;
       }
 
       // Remove the first color
-      editorState.colors.shift();
+      this.state.colorPalette.shift();
 
       // Recalculate positions
-      editorState.positions = editorState.colors.map((_, i) => i / (editorState.colors.length - 1));
+      this.state.colorPositions = this.state.colorPalette.map((_, i) => i / (this.state.colorPalette.length - 1));
 
       // Update display
       updateGradientDisplay();
@@ -689,13 +634,13 @@ export class Aesthetic extends Subscribable {
       recreateColorSquares();
 
       // Update handle colors
-      minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
+      minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
       minHandle.style.backgroundColor = minColor;
-      maxColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMax);
+      maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
       maxHandle.style.backgroundColor = maxColor;
 
       // Apply changes
-      applyPaletteChanges();
+      this.updateScale();
     });
 
     leftButtonsContainer.appendChild(leftPlusBtn);
@@ -708,11 +653,11 @@ export class Aesthetic extends Subscribable {
     const rightPlusBtn = createPaletteButton('+', 'Add color to right');
     rightPlusBtn.addEventListener('click', () => {
       // Add a new color at the end
-      const newColor = editorState.colors[editorState.colors.length - 1]; // Duplicate the last color
-      editorState.colors.push(newColor);
+      const newColor = this.state.colorPalette[this.state.colorPalette.length - 1]; // Duplicate the last color
+      this.state.colorPalette.push(newColor);
 
       // Recalculate positions
-      editorState.positions = editorState.colors.map((_, i) => i / (editorState.colors.length - 1));
+      this.state.colorPositions = this.state.colorPalette.map((_, i) => i / (this.state.colorPalette.length - 1));
 
       // Update display
       updateGradientDisplay();
@@ -721,27 +666,27 @@ export class Aesthetic extends Subscribable {
       recreateColorSquares();
 
       // Update handle colors
-      minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
+      minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
       minHandle.style.backgroundColor = minColor;
-      maxColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMax);
+      maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
       maxHandle.style.backgroundColor = maxColor;
 
       // Apply changes
-      applyPaletteChanges();
+      this.updateScale();
     });
 
     const rightMinusBtn = createPaletteButton('-', 'Remove color from right');
     rightMinusBtn.addEventListener('click', () => {
-      if (editorState.colors.length <= 2) {
+      if (this.state.colorPalette.length <= 2) {
         console.warn('Cannot remove color: minimum 2 colors required');
         return;
       }
 
       // Remove the last color
-      editorState.colors.pop();
+      this.state.colorPalette.pop();
 
       // Recalculate positions
-      editorState.positions = editorState.colors.map((_, i) => i / (editorState.colors.length - 1));
+      this.state.colorPositions = this.state.colorPalette.map((_, i) => i / (this.state.colorPalette.length - 1));
 
       // Update display
       updateGradientDisplay();
@@ -750,13 +695,13 @@ export class Aesthetic extends Subscribable {
       recreateColorSquares();
 
       // Update handle colors
-      minColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMin);
+      minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
       minHandle.style.backgroundColor = minColor;
-      maxColor = interpolateGradient(editorState.colors, editorState.positions, editorState.transformMax);
+      maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
       maxHandle.style.backgroundColor = maxColor;
 
       // Apply changes
-      applyPaletteChanges();
+      this.updateScale();
     });
 
     rightButtonsContainer.appendChild(rightPlusBtn);
