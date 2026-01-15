@@ -211,7 +211,8 @@ Use the toolbar's "Data" tab to switch between loaded trees.
 
 ## Dependencies
 
-- [D3.js](https://d3js.org/) v7.9.0
+- [D3.js](https://d3js.org/)
+- [vanilla-picker](https://www.npmjs.com/package/vanilla-picker)
 
 ## License
 

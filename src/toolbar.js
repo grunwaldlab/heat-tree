@@ -1139,12 +1139,12 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelSizeLabel = createLabel('Size:', controlHeight);
   tipLabelSizeGroup.appendChild(tipLabelSizeLabel);
 
-  const tipLabelSizeEditBtn = createIconButton(editIconSvg, 'Edit size settings', controlHeight);
-  tipLabelSizeEditBtn.addEventListener('click', (e) => {
-    e.stopPropagation(); // Prevent the click from bubbling to the controls container
-    openAestheticSettings('tipLabelSize', tipLabelSizeGroup);
-  });
-  tipLabelSizeGroup.appendChild(tipLabelSizeEditBtn);
+  // const tipLabelSizeEditBtn = createIconButton(editIconSvg, 'Edit size settings', controlHeight);
+  // tipLabelSizeEditBtn.addEventListener('click', (e) => {
+  //   e.stopPropagation(); // Prevent the click from bubbling to the controls container
+  //   openAestheticSettings('tipLabelSize', tipLabelSizeGroup);
+  // });
+  // tipLabelSizeGroup.appendChild(tipLabelSizeEditBtn);
 
   const tipLabelSizeSelect = createMetadataColumnSelect(
     treeState,
@@ -1292,7 +1292,7 @@ function populateTipLabelColorSettings(container, treeState, controlHeight) {
 
       aesthetic.updateState({ maxCategories: value });
       aesthetic.updateScale(aesthetic.values);
-      
+
       // Update all nodes with new colors from the updated scale
       treeState.state.treeData.tree.each(node => {
         const columnValue = node[columnId];
@@ -1300,10 +1300,10 @@ function populateTipLabelColorSettings(container, treeState, controlHeight) {
           node.tipLabelColor = aesthetic.getValue(columnValue);
         }
       });
-      
+
       // Trigger coordinate update to refresh the tree
       treeState.updateCoordinates();
-      
+
       // Also notify legends to update
       treeState.notify('legendsChange');
     });
@@ -1385,7 +1385,7 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
   const columnIds = Array.from(treeData.columnDisplayName.keys());
 
   // Filter columns for continuous/categorical metadata
-  let filteredColumnIds =columnIds;
+  let filteredColumnIds = columnIds;
   if (continuous !== null) {
     if (continuous) {
       filteredColumnIds = columnIds.filter(columnId => treeData.columnType.get(columnId) === 'continuous')
