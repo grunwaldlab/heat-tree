@@ -11,6 +11,7 @@ export class TreeState extends Subscribable {
       title: 'Tip label text',
       scaleType: 'identity',
       default: '',
+      nullValue: '',
       downstream: ['updateTipLabelText', 'updateCoordinates'],
       hasLegend: false,
     },
@@ -18,6 +19,7 @@ export class TreeState extends Subscribable {
       title: 'Tip label color',
       scaleType: 'color',
       default: '#000000',
+      nullValue: '#808080',
       otherCategory: "#555555",
       downstream: [],
       hasLegend: true,
@@ -26,6 +28,7 @@ export class TreeState extends Subscribable {
       title: 'Tip label size',
       scaleType: 'size',
       default: 1,
+      nullValue: 1,
       isCategorical: false,
       outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
@@ -35,6 +38,7 @@ export class TreeState extends Subscribable {
       title: 'Tip label font',
       scaleType: 'identity',
       default: 'sans-serif',
+      nullValue: 'sans-serif',
       downstream: ['updateCoordinates'],
       hasLegend: false,
     },
@@ -43,6 +47,7 @@ export class TreeState extends Subscribable {
       scaleType: 'text',
       outputValues: ['normal', 'bold', 'italic', 'bold italic'],
       default: 'normal',
+      nullValue: 'normal',
       otherCategory: 'italic',
       downstream: ['updateCoordinates'],
       hasLegend: false,
@@ -51,6 +56,7 @@ export class TreeState extends Subscribable {
       title: 'Node label text',
       scaleType: 'identity',
       default: '',
+      nullValue: '',
       downstream: ['updateNodeLabelText'],
       hasLegend: false,
     },
@@ -58,6 +64,7 @@ export class TreeState extends Subscribable {
       title: 'Node label size',
       scaleType: 'size',
       default: 1,
+      nullValue: 1,
       isCategorical: false,
       outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
@@ -204,7 +211,7 @@ export class TreeState extends Subscribable {
 
         // Update the aesthetic for the column
         if (!columnId) {
-          this.aestheticsScales[aestheticId] = new NullScale({default: aesData.default});
+          this.aestheticsScales[aestheticId] = new NullScale({ default: aesData.default });
         } else {
           // Get or create the aesthetic with default state from #AESTHETICS
           this.aestheticsScales[aestheticId] = this.state.treeData.getAesthetic(columnId, aestheticId, aesData);

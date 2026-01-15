@@ -125,6 +125,7 @@ export class ContinuousSizeScale {
   constructor(dataMin, dataMax, options = {}) {
     this.state = {
       outputRange: [0.5, 2],
+      nullValue: 1,
       ...options
     };
 
@@ -138,6 +139,11 @@ export class ContinuousSizeScale {
    * @returns {number} The corresponding size, clamped to min/max
    */
   getValue(value) {
+    // Handle null/undefined/empty values
+    if (value === null || value === undefined || value === '') {
+      return this.state.nullValue;
+    }
+
     // Clamp value to data range
     const clampedValue = Math.max(this.dataMin, Math.min(this.dataMax, value));
 
@@ -168,7 +174,7 @@ export class ContinuousColorScale {
       transformMax: 1,
       colorPalette: null,
       colorPositions: null,
-      nullColor: '#808080',
+      nullValue: '#808080',
       ...options
     };
 
@@ -228,7 +234,7 @@ export class ContinuousColorScale {
   getValue(value) {
     // Handle null/undefined/empty values
     if (value === null || value === undefined || value === '') {
-      return this.state.nullColor;
+      return this.state.nullValue;
     }
 
     // Handle single color case
@@ -356,7 +362,7 @@ export class CategoricalColorScale {
       colorPalette: null,
       colorPositions: null,
       maxCategories: 10,
-      nullColor: '#808080',
+      nullValue: '#808080',
       ...options
     };
 
@@ -516,7 +522,7 @@ export class CategoricalColorScale {
   getValue(category) {
     // Handle null/undefined/empty values
     if (category === null || category === undefined || category === '') {
-      return this.state.nullColor;
+      return this.state.nullValue;
     }
 
     if (this.categoryColorMap.has(category)) {

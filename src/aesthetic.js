@@ -41,7 +41,7 @@ export class Aesthetic extends Subscribable {
       outputValues: null,
       outputRegex: null,
       colorPalette: this.defaultPalette,
-      colorPositions:  this.defaultPalette.map((_, i) => i / (this.defaultPalette.length - 1)),
+      colorPositions: this.defaultPalette.map((_, i) => i / (this.defaultPalette.length - 1)),
       outputRange: null,
       inputUnits: null,
       title: null,
@@ -51,7 +51,7 @@ export class Aesthetic extends Subscribable {
       transformMin: 0,
       transformMax: 1,
       transformFn: null,
-      nullColor: '#808080',
+      nullValue: null,
       ...options
     };
 
@@ -268,7 +268,7 @@ export class Aesthetic extends Subscribable {
 
     const nullSquare = document.createElement('div');
     nullSquare.className = 'ht-null-color-square';
-    nullSquare.style.backgroundColor = this.state.nullColor;
+    nullSquare.style.backgroundColor = this.state.nullValue;
     nullSquare.title = 'Click to edit missing data color';
 
     const nullTick = document.createElement('div');
@@ -281,7 +281,7 @@ export class Aesthetic extends Subscribable {
     // Create null color box (aligned with gradient box)
     const nullColorBox = document.createElement('div');
     nullColorBox.className = 'ht-null-color-box';
-    nullColorBox.style.backgroundColor = this.state.nullColor;
+    nullColorBox.style.backgroundColor = this.state.nullValue;
 
     // Create shared color picker for palette colors
     const sharedPicker = new Picker({
@@ -292,25 +292,25 @@ export class Aesthetic extends Subscribable {
       color: this.state.colorPalette[0],
       onChange: (color) => {
         if (!currentPickerParent) return;
-        
+
         const colorIndex = parseInt(currentPickerParent.getAttribute('data-color-index'));
         const hexColor = color.hex.substring(0, 7); // Remove alpha if present
-        
+
         // Update the color in state
         this.state.colorPalette[colorIndex] = hexColor;
-        
+
         // Update the square's background color
         currentPickerParent.style.backgroundColor = hexColor;
-        
+
         // Update gradient display
         updateGradientDisplay();
-        
+
         // Update handle colors if they're affected
         const minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
         minHandle.style.backgroundColor = minColor;
         const maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
         maxHandle.style.backgroundColor = maxColor;
-        
+
         // Apply changes
         this.updateScale();
       },
@@ -336,13 +336,13 @@ export class Aesthetic extends Subscribable {
       popup: false,
       alpha: false,
       editor: true,
-      color: this.state.nullColor,
+      color: this.state.nullValue,
       onChange: (color) => {
         const hexColor = color.hex.substring(0, 7); // Remove alpha if present
-        this.state.nullColor = hexColor;
+        this.state.nullValue = hexColor;
         nullSquare.style.backgroundColor = hexColor;
         nullColorBox.style.backgroundColor = hexColor;
-        
+
         // Apply changes
         this.updateScale();
       },
@@ -380,26 +380,26 @@ export class Aesthetic extends Subscribable {
     const recreateColorSquares = () => {
       colorSquaresContainer.innerHTML = '';
       colorSquares.length = 0;
-      
+
       this.state.colorPalette.forEach((color, i) => {
         const squareContainer = createColorSquareWithTick(colorSquaresContainer, color, i, (e) => {
           e.preventDefault();
           e.stopPropagation();
           const square = e.currentTarget;
           const colorIndex = parseInt(square.getAttribute('data-color-index'));
-          
+
           // Close null color picker if open
           closeNullPicker();
-          
+
           // Update current parent
           currentPickerParent = square;
-          
+
           // Get the position of the square for positioning the picker
           const rect = square.getBoundingClientRect();
-          
+
           // Update picker color
           sharedPicker.setColor(this.state.colorPalette[colorIndex], true);
-          
+
           // Position and show the picker
           pickerContainer.style.left = `${rect.left}px`;
           pickerContainer.style.top = `${rect.bottom + 5}px`;
@@ -513,15 +513,15 @@ export class Aesthetic extends Subscribable {
     nullSquare.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      
+
       // Close gradient picker if open
       closeGradientPicker();
-      
+
       const rect = nullSquare.getBoundingClientRect();
-      
+
       // Update picker color
-      nullColorPicker.setColor(this.state.nullColor, true);
-      
+      nullColorPicker.setColor(this.state.nullValue, true);
+
       // Position and show the picker
       nullPickerContainer.style.left = `${rect.left}px`;
       nullPickerContainer.style.top = `${rect.bottom + 5}px`;
@@ -543,10 +543,10 @@ export class Aesthetic extends Subscribable {
 
     resetX.addEventListener('click', () => {
       const defaultNullColor = '#808080';
-      this.state.nullColor = defaultNullColor;
+      this.state.nullValue = defaultNullColor;
       nullSquare.style.backgroundColor = defaultNullColor;
       nullColorBox.style.backgroundColor = defaultNullColor;
-      
+
       // Update the picker's color
       nullColorPicker.setColor(defaultNullColor, true);
 

@@ -249,8 +249,8 @@ export class TextSizeLegend extends LegendBase {
     // Get the data range from the scale
     const minValue = this.state.aesthetic.scale.dataMin;
     const maxValue = this.state.aesthetic.scale.dataMax;
-    const minSize = this.state.aesthetic.scale.sizeMin;
-    const maxSize = this.state.aesthetic.scale.sizeMax;
+    const minSize = this.state.aesthetic.state.outputRange[0];
+    const maxSize = this.state.aesthetic.state.outputRange[1];
 
     // Generate nice tick values
     const ticks = generateNiceTicks(minValue, maxValue, 5);
@@ -314,7 +314,7 @@ export class TextSizeLegend extends LegendBase {
     if (minValue === maxValue) {
       // Single tick in the middle
       const x = leftOverhang + baseWidth / 2;
-      
+
       this.coordinates.ticks.push({
         x1: x,
         y1: rampBaseY,
@@ -496,7 +496,7 @@ export class TextColorLegend extends LegendBase {
     let currentY = titleHeightOffset + this.verticalSpacing + this.squareSize / 2;
     let rowHeight = this.squareSize;
 
-    categories.slice(0, aesthetic.scale.maxColors).forEach((category, i) => {
+    categories.slice(0, aesthetic.state.maxCategories).forEach((category, i) => {
       const color = aesthetic.scale.getValue(category);
       const labelSize = this.textSizeEstimator.getTextSize(category, this.state.labelFontSize);
       const itemWidth = this.squareSize + this.itemLabelGap + labelSize.widthPx;
@@ -512,7 +512,7 @@ export class TextColorLegend extends LegendBase {
         x: currentX,
         y: currentY,
         color: color,
-        label: i < aesthetic.scale.maxColors - 1 ? category : aesthetic.state.otherLabel,
+        label: i < aesthetic.state.maxCategories - 1 ? category : aesthetic.state.otherLabel,
         squareX: currentX,
         squareY: currentY - this.squareSize / 2,
         labelX: currentX + this.squareSize + this.itemLabelGap,
@@ -657,6 +657,7 @@ export class TextColorLegend extends LegendBase {
   #renderCategorical() {
     // Render each category item
     this.coordinates.items.forEach(item => {
+
       // Color square
       this.group.append("rect")
         .attr("x", item.squareX)
