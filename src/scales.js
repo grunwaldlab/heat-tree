@@ -4,17 +4,15 @@ import { max } from "d3";
  * Placeholder scale for contant output when a mapping variable is not used
  */
 export class NullScale {
-  defaultValue;
-  constructor(defaultValue) {
-    if (defaultValue === undefined) {
-      console.error('A defualt value for a NullScale is needed.');
-    } else {
-      this.defaultValue = defaultValue;
+  constructor(options = {}) {
+    this.state = { ...options };
+    if (this.state.default === undefined) {
+      console.error('A default value for a NullScale is needed.');
     }
   }
 
   getValue() {
-    return this.defaultValue;
+    return this.state.default;
   }
 }
 
@@ -23,10 +21,15 @@ export class NullScale {
  * Can optionally apply a custom transformation function and validate against a list of valid values
  */
 export class IdentityScale {
-  constructor(defaultValue = null, validValues = null, transformFn = null) {
-    this.validValues = validValues ? new Set(validValues) : null;
-    this.transformFn = transformFn;
-    this.defaultValue = defaultValue;
+  constructor(options = {}) {
+    this.state = {
+      default: null,
+      outputValues: null,
+      transformFn: null,
+      ...options
+    };
+
+    this.validValues = this.state.outputValues ? new Set(this.state.outputValues) : null;
   }
 
   /**
@@ -36,7 +39,7 @@ export class IdentityScale {
    */
   getValue(value) {
     // Apply transformation if provided
-    let result = this.transformFn ? this.transformFn(value) : value;
+    let result = this.state.transformFn ? this.state.transformFn(value) : value;
 
     // Validate against valid values if provided
     if (this.validValues !== null && !this.validValues.has(result)) {
@@ -45,7 +48,7 @@ export class IdentityScale {
 
     // Handle null/undefined/empty values
     if (result === null || result === undefined || result === '') {
-      result = this.defaultValue;
+      result = this.state.default;
     }
 
     return result;
@@ -56,13 +59,16 @@ export class IdentityScale {
  * Scale for mapping categorical data to text outputs
  */
 export class CategoricalTextScale {
-  constructor(values, outputCategories, defaultValue) {
+  constructor(values, options = {}) {
     if (!Array.isArray(values) || values.length === 0) {
       throw new Error('values must be a non-empty array');
     }
 
-    this.outputCategories = outputCategories;
-    this.defaultValue = defaultValue;
+    this.state = {
+      outputValues: null,
+      default: null,
+      ...options
+    };
 
     // Sort categories by frequency (descending)
     const frequencyMap = new Map();
@@ -80,8 +86,8 @@ export class CategoricalTextScale {
       [...frequencyMap.entries()].sort((a, b) => a[0] - b[0])
     );
 
-    if (sortedCategories.length > outputCategories.length) {
-      this.otheredCategories = sortedCategories.keys().slice(outputCategories.length - 2, sortedCategories.length);
+    if (sortedCategories.length > this.state.outputValues.length) {
+      this.otheredCategories = sortedCategories.keys().slice(this.state.outputValues.length - 2, sortedCategories.length);
     } else {
       this.otheredCategories = [];
     }
@@ -90,10 +96,10 @@ export class CategoricalTextScale {
     this.categoryMap = new Map();
     const sortedCategoriesKeys = [...sortedCategories.keys()];
     for (let i = 0; i < sortedCategoriesKeys.length; i++) {
-      if (i < outputCategories.length) {
-        this.categoryMap.set(sortedCategoriesKeys[i], outputCategories[i]);
+      if (i < this.state.outputValues.length) {
+        this.categoryMap.set(sortedCategoriesKeys[i], this.state.outputValues[i]);
       } else {
-        this.categoryMap.set(sortedCategoriesKeys[i], outputCategories[outputCategories.length - 1]);
+        this.categoryMap.set(sortedCategoriesKeys[i], this.state.outputValues[this.state.outputValues.length - 1]);
       }
     }
   }
@@ -106,7 +112,7 @@ export class CategoricalTextScale {
   getValue(category) {
     // Handle null/undefined/empty values
     if (category === null || category === undefined || category === '') {
-      return this.defaultValue;
+      return this.state.default;
     }
     return this.categoryMap.get(category);
   }
@@ -116,11 +122,14 @@ export class CategoricalTextScale {
  * Scale for mapping continuous numeric values to sizes
  */
 export class ContinuousSizeScale {
-  constructor(dataMin, dataMax, sizeMin, sizeMax) {
+  constructor(dataMin, dataMax, options = {}) {
+    this.state = {
+      outputRange: [0.5, 2],
+      ...options
+    };
+
     this.dataMin = dataMin;
     this.dataMax = dataMax;
-    this.sizeMin = sizeMin;
-    this.sizeMax = sizeMax;
   }
 
   /**
@@ -135,17 +144,17 @@ export class ContinuousSizeScale {
     // Handle edge case where dataMin === dataMax
     if (this.dataMin === this.dataMax) {
       if (value === this.dataMax) {
-        return (this.sizeMin + this.sizeMax) / 2;
+        return (this.state.outputRange[0] + this.state.outputRange[1]) / 2;
       } else if (value < this.dataMin) {
-        return this.sizeMin
+        return this.state.outputRange[0];
       } else {
-        return this.sizeMax;
+        return this.state.outputRange[1];
       }
     }
 
     // Linear interpolation
     const t = (clampedValue - this.dataMin) / (this.dataMax - this.dataMin);
-    return this.sizeMin + t * (this.sizeMax - this.sizeMin);
+    return this.state.outputRange[0] + t * (this.state.outputRange[1] - this.state.outputRange[0]);
   }
 }
 
@@ -153,22 +162,29 @@ export class ContinuousSizeScale {
  * Scale for mapping continuous numeric values to colors
  */
 export class ContinuousColorScale {
-  constructor(dataMin, dataMax, transformMin = 0, transformMax = 1, colors = null, colorPositions = null) {
+  constructor(dataMin, dataMax, options = {}) {
+    this.state = {
+      transformMin: 0,
+      transformMax: 1,
+      colorPalette: null,
+      colorPositions: null,
+      nullColor: '#808080',
+      ...options
+    };
+
     this.dataMin = dataMin;
     this.dataMax = dataMax;
-    this.transformMin = transformMin;
-    this.transformMax = transformMax;
-    this.nullColor = "#808080"; // Default grey for null/empty values
 
     // Default to viridis-like color scheme if not provided
-    if (colors === null) {
-      this.colors = ['#440154', '#31688e', '#35b779', '#fde724'].map(c => this._hexToRgb(c));
-    } else {
-      if (colors.length < 1) {
-        throw new Error('At least 1 color is required');
-      }
-      this.colors = colors.map(c => this._hexToRgb(c));
+    if (this.state.colorPalette === null) {
+      this.state.colorPalette = ['#440154', '#31688e', '#35b779', '#fde724'];
     }
+
+    if (this.state.colorPalette.length < 1) {
+      throw new Error('At least 1 color is required');
+    }
+
+    this.colors = this.state.colorPalette.map(c => this._hexToRgb(c));
 
     // Handle single color case
     if (this.colors.length === 1) {
@@ -177,15 +193,15 @@ export class ContinuousColorScale {
     }
 
     // Default to equally spaced positions if not provided
-    if (colorPositions === null) {
+    if (this.state.colorPositions === null) {
       this.colorPositions = this.colors.map((_, i) => i / (this.colors.length - 1));
     } else {
-      if (colorPositions.length !== this.colors.length) {
+      if (this.state.colorPositions.length !== this.colors.length) {
         throw new Error('colorPositions must have the same length as colors');
       }
 
       // Sort colorPositions and reorder colors to match
-      const paired = colorPositions.map((pos, i) => ({ pos, color: this.colors[i] }));
+      const paired = this.state.colorPositions.map((pos, i) => ({ pos, color: this.colors[i] }));
       paired.sort((a, b) => a.pos - b.pos);
 
       this.colorPositions = paired.map(p => p.pos);
@@ -212,7 +228,7 @@ export class ContinuousColorScale {
   getValue(value) {
     // Handle null/undefined/empty values
     if (value === null || value === undefined || value === '') {
-      return this.nullColor;
+      return this.state.nullColor;
     }
 
     // Handle single color case
@@ -242,7 +258,7 @@ export class ContinuousColorScale {
     const dataT = (clampedValue - this.dataMin) / (this.dataMax - this.dataMin);
 
     // Transform to [transformMin, transformMax] range
-    const transformedT = this.transformMin + dataT * (this.transformMax - this.transformMin);
+    const transformedT = this.state.transformMin + dataT * (this.state.transformMax - this.state.transformMin);
 
     // Clamp to [0, 1] and handle values outside colorPositions range
     const clampedT = Math.max(0, Math.min(1, transformedT));
@@ -329,15 +345,20 @@ export class CategoricalColorScale {
 
   defaultPalette = ['#440154', '#31688e', '#35b779', '#fde724'];
 
-  constructor(categoryData, transformMin = 0, transformMax = 1, colors = null, colorPositions = null, maxColors = 10) {
+  constructor(categoryData, options = {}) {
     if (!Array.isArray(categoryData) || categoryData.length === 0) {
       throw new Error('categoryData must be a non-empty array');
     }
 
-    this.transformMin = transformMin;
-    this.transformMax = transformMax;
-    this.nullColor = "#808080"; // Default grey for null/empty values
-    this.maxColors = maxColors;
+    this.state = {
+      transformMin: 0,
+      transformMax: 1,
+      colorPalette: null,
+      colorPositions: null,
+      maxCategories: 10,
+      nullColor: '#808080',
+      ...options
+    };
 
     // Calculate unique categories and their frequencies
     this.frequencyMap = new Map();
@@ -355,14 +376,15 @@ export class CategoricalColorScale {
       .map(entry => entry[0]);
 
     // Default to viridis-like color scheme if not provided
-    if (colors === null) {
-      this.colors = this.defaultPalette.map(c => this._hexToRgb(c));
-    } else {
-      if (colors.length < 1) {
-        throw new Error('At least 1 color is required');
-      }
-      this.colors = colors.map(c => this._hexToRgb(c));
+    if (this.state.colorPalette === null) {
+      this.state.colorPalette = this.defaultPalette;
     }
+
+    if (this.state.colorPalette.length < 1) {
+      throw new Error('At least 1 color is required');
+    }
+
+    this.colors = this.state.colorPalette.map(c => this._hexToRgb(c));
 
     // Handle single color case
     if (this.colors.length === 1) {
@@ -372,15 +394,15 @@ export class CategoricalColorScale {
     }
 
     // Default to equally spaced positions if not provided
-    if (colorPositions === null) {
+    if (this.state.colorPositions === null) {
       this.colorPositions = this.colors.map((_, i) => i / (this.colors.length - 1));
     } else {
-      if (colorPositions.length !== this.colors.length) {
+      if (this.state.colorPositions.length !== this.colors.length) {
         throw new Error('colorPositions must have the same length as colors');
       }
 
       // Sort colorPositions and reorder colors to match
-      const paired = colorPositions.map((pos, i) => ({ pos, color: this.colors[i] }));
+      const paired = this.state.colorPositions.map((pos, i) => ({ pos, color: this.colors[i] }));
       paired.sort((a, b) => a.pos - b.pos);
 
       this.colorPositions = paired.map(p => p.pos);
@@ -420,15 +442,15 @@ export class CategoricalColorScale {
 
     if (this.categories.length === 1) {
       // Single category gets the first color
-      const color = this._getColorAtPosition(this.transformMin);
+      const color = this._getColorAtPosition(this.state.transformMin);
       this.categoryColorMap.set(this.categories[0], color);
     } else {
-      const nCategories = this.categories.length > this.maxColors ? this.maxColors : this.categories.length;
+      const nCategories = this.categories.length > this.state.maxCategories ? this.state.maxCategories : this.categories.length;
 
       // Multiple categories spread across the transform range
       for (let i = 0; i < this.categories.length; i++) {
         const t = i >= nCategories ? 1 : i / (nCategories - 1);
-        const transformedT = this.transformMin + t * (this.transformMax - this.transformMin);
+        const transformedT = this.state.transformMin + t * (this.state.transformMax - this.state.transformMin);
         const color = this._getColorAtPosition(transformedT);
         this.categoryColorMap.set(this.categories[i], color);
       }
@@ -494,7 +516,7 @@ export class CategoricalColorScale {
   getValue(category) {
     // Handle null/undefined/empty values
     if (category === null || category === undefined || category === '') {
-      return this.nullColor;
+      return this.state.nullColor;
     }
 
     if (this.categoryColorMap.has(category)) {

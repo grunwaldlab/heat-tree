@@ -103,20 +103,16 @@ export class Aesthetic extends Subscribable {
 
     // Handle null scale
     if (scaleType === 'null') {
-      scale = new NullScale(this.state.default);
+      scale = new NullScale(this.state);
       this.scale = scale;
     } else if (scaleType === 'identity' || isAlreadyOutputFormat) {
-      scale = new IdentityScale(
-        this.state.default,
-        this.state.outputValues,
-        this.state.transformFn
-      );
+      scale = new IdentityScale(this.state);
       this.scale = scale;
     } else if (scaleType === 'text') {
       if (!isCategorical) {
         throw new Error('Text scales can only be used with categorical data');
       }
-      scale = new CategoricalTextScale(values, this.state.outputValues, this.state.default);
+      scale = new CategoricalTextScale(values, this.state);
       this.scale = scale;
     } else if (scaleType === 'size') {
       if (isCategorical) {
@@ -126,40 +122,25 @@ export class Aesthetic extends Subscribable {
       const numericValues = values.map(v => Number(v)).filter(v => !isNaN(v));
       if (numericValues.length === 0) {
         console.warn('No numeric values found for size scale, using NullScale');
-        scale = new NullScale(this.state.default);
+        scale = new NullScale(this.state);
       } else {
         const min = Math.min(...numericValues);
         const max = Math.max(...numericValues);
-        const range = this.state.outputRange || [0.5, 2];
-        scale = new ContinuousSizeScale(min, max, range[0], range[1]);
+        scale = new ContinuousSizeScale(min, max, this.state);
       }
       this.scale = scale;
     } else if (scaleType === 'color') {
       if (isCategorical) {
-        scale = new CategoricalColorScale(
-          values,
-          this.state.transformMin,
-          this.state.transformMax,
-          this.state.colorPalette,
-          this.state.colorPositions,
-          this.state.maxCategories
-        );
+        scale = new CategoricalColorScale(values, this.state);
       } else {
         const numericValues = values.map(v => Number(v)).filter(v => !isNaN(v));
         if (numericValues.length === 0) {
           console.warn('No numeric values found for color scale, using NullScale');
-          scale = new NullScale(this.state.default);
+          scale = new NullScale(this.state);
         } else {
           const min = Math.min(...numericValues);
           const max = Math.max(...numericValues);
-          scale = new ContinuousColorScale(
-            min,
-            max,
-            this.state.transformMin,
-            this.state.transformMax,
-            this.state.colorPalette,
-            this.state.colorPositions
-          );
+          scale = new ContinuousColorScale(min, max, this.state);
         }
       }
       this.scale = scale;

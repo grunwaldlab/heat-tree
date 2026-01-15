@@ -204,7 +204,7 @@ export class TreeState extends Subscribable {
 
         // Update the aesthetic for the column
         if (!columnId) {
-          this.aestheticsScales[aestheticId] = new NullScale(aesData.default);
+          this.aestheticsScales[aestheticId] = new NullScale({default: aesData.default});
         } else {
           // Get or create the aesthetic with default state from #AESTHETICS
           this.aestheticsScales[aestheticId] = this.state.treeData.getAesthetic(columnId, aestheticId, aesData);
@@ -256,7 +256,7 @@ export class TreeState extends Subscribable {
 
     this.state.treeData.tree.each(d => {
       if (columnId && columnId !== null && columnId !== undefined) {
-        if (d.metadata && d.metadata[columnId] !== undefined) {
+        if (d.metadata) {
           d[aestheticId] = this.aestheticsScales[aestheticId].getValue(d.metadata[columnId]);
         } else {
           d[aestheticId] = aesData.default;
