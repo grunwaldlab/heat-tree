@@ -157,7 +157,10 @@ export function createToolbar(
   }
 
   // Toggle button click handler
-  toggleButton.addEventListener('click', () => {
+  toggleButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     controlPanelVisible = !controlPanelVisible;
 
     if (controlPanelVisible) {
@@ -165,7 +168,8 @@ export function createToolbar(
       collapsiblePanel.classList.remove('ht-panel-collapsed');
       toggleButton.classList.remove('collapsed');
     } else {
-      // Hide the control panel
+      // Hide the control panel and close aesthetic settings
+      closeAestheticSettings();
       collapsiblePanel.classList.add('ht-panel-collapsed');
       toggleButton.classList.add('collapsed');
     }

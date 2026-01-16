@@ -20,7 +20,7 @@
   top: 0;
   right: 0;
   padding: 4px 8px;
-  pointer-events: none;
+  z-index: 10;
 }
 
 .ht-control-panel-toggle {
@@ -32,7 +32,6 @@
   align-items: center;
   gap: 4px;
   transition: opacity 0.2s;
-  pointer-events: auto;
 }
 
 .ht-control-panel-toggle:hover {
@@ -53,6 +52,7 @@
 
 .ht-collapsible-panel {
   max-height: 1000px;
+  overflow: hidden;
   transition: max-height 0.3s ease-in-out;
 }
 
@@ -260,6 +260,7 @@
   row-gap: 2px;
   align-items: center;
   max-height: 1000px;
+  overflow: hidden;
   transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
 }
 
