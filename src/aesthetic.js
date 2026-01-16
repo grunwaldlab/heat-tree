@@ -45,13 +45,14 @@ export class Aesthetic extends Subscribable {
       outputRange: null,
       inputUnits: null,
       title: null,
-      maxCategories: 10,
+      maxCategories: 7,
       otherCategory: "#888888",
       otherLabel: "Other",
       transformMin: 0,
       transformMax: 1,
       transformFn: null,
-      nullValue: null,
+      nullValue: '#808080',
+      showNullInLegend: true,
       ...options
     };
 

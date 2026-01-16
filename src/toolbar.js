@@ -1284,7 +1284,7 @@ function populateTipLabelColorSettings(container, treeState, controlHeight) {
 
     const maxCategoriesInput = createNumberInput(
       aesthetic.state.maxCategories || 7,
-      1,
+      2,
       100,
       1,
       controlHeight

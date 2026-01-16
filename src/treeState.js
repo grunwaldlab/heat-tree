@@ -14,6 +14,7 @@ export class TreeState extends Subscribable {
       nullValue: '',
       downstream: ['updateTipLabelText', 'updateCoordinates'],
       hasLegend: false,
+      subset: 'tips'
     },
     tipLabelColor: {
       title: 'Tip label color',
@@ -23,6 +24,7 @@ export class TreeState extends Subscribable {
       otherCategory: "#555555",
       downstream: [],
       hasLegend: true,
+      subset: 'tips'
     },
     tipLabelSize: {
       title: 'Tip label size',
@@ -33,6 +35,7 @@ export class TreeState extends Subscribable {
       outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
       hasLegend: true,
+      subset: 'tips'
     },
     tipLabelFont: {
       title: 'Tip label font',
@@ -41,6 +44,7 @@ export class TreeState extends Subscribable {
       nullValue: 'sans-serif',
       downstream: ['updateCoordinates'],
       hasLegend: false,
+      subset: 'tips'
     },
     tipLabelStyle: {
       title: 'Tip label font style',
@@ -51,6 +55,7 @@ export class TreeState extends Subscribable {
       otherCategory: 'italic',
       downstream: ['updateCoordinates'],
       hasLegend: false,
+      subset: 'tips'
     },
     nodeLabelText: {
       title: 'Node label text',
@@ -59,6 +64,7 @@ export class TreeState extends Subscribable {
       nullValue: '',
       downstream: ['updateNodeLabelText'],
       hasLegend: false,
+      subset: 'all'
     },
     nodeLabelSize: {
       title: 'Node label size',
@@ -69,6 +75,7 @@ export class TreeState extends Subscribable {
       outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
       hasLegend: false,
+      subset: 'all'
     },
   }
 

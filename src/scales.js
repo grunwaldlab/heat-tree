@@ -232,7 +232,7 @@ export class ContinuousColorScale {
    * @returns {string} The corresponding color as a hex string
    */
   getValue(value) {
-    // Handle null/undefined/empty values
+    // Handle null/undefined/empty values - always return nullValue
     if (value === null || value === undefined || value === '') {
       return this.state.nullValue;
     }
@@ -366,9 +366,13 @@ export class CategoricalColorScale {
       ...options
     };
 
-    // Calculate unique categories and their frequencies
+    // Calculate unique categories and their frequencies, excluding null/undefined/empty
     this.frequencyMap = new Map();
     for (const category of categoryData) {
+      // Skip null/undefined/empty values - they don't count as categories
+      if (category === null || category === undefined || category === '') {
+        continue;
+      }
       if (this.frequencyMap.has(category)) {
         this.frequencyMap.set(category, this.frequencyMap.get(category) + 1);
       } else {
@@ -376,20 +380,9 @@ export class CategoricalColorScale {
       }
     }
 
-    // Store categories in order of descending frequency, always putting falsy values in back
+    // Store categories in order of descending frequency
     this.categories = [...this.frequencyMap.entries()]
-      .sort((a, b) => {
-        const isEmptyA = a[0] === null || a[0] === undefined || a[0] === '';
-        const isEmptyB = b[0] === null || b[0] === undefined || b[0] === '';
-
-        // If both are empty or both are non-empty, sort normally
-        if (isEmptyA && isEmptyB) return 0;
-        if (isEmptyA) return 1;
-        if (isEmptyB) return -1;
-
-        // Both are non-empty, sort by frequency (descending)
-        return b[1] - a[1];
-      })
+      .sort((a, b) => b[1] - a[1])
       .map(entry => entry[0]);
 
     // Default to viridis-like color scheme if not provided
@@ -457,15 +450,15 @@ export class CategoricalColorScale {
       return;
     }
 
-    if (this.categories.length === 1) {
+    if (this.categories.length === 0) {
+      // No categories (all data is null/undefined/empty)
+      return;
+    } else if (this.categories.length === 1) {
       // Single category gets the first color
       const color = this._getColorAtPosition(this.state.transformMin);
       this.categoryColorMap.set(this.categories[0], color);
     } else {
-      const nonEmptyCategories = this.categories
-        .filter(key => key !== null && key !== undefined && key !== '')
-        .length;
-      const nCategories = nonEmptyCategories > this.state.maxCategories ? this.state.maxCategories : nonEmptyCategories;
+      const nCategories = this.categories.length > this.state.maxCategories ? this.state.maxCategories : this.categories.length;
 
       // Multiple categories spread across the transform range
       for (let i = 0; i < this.categories.length; i++) {
@@ -534,7 +527,7 @@ export class CategoricalColorScale {
    * @returns {string} The corresponding color as a hex string
    */
   getValue(category) {
-    // Handle null/undefined/empty values
+    // Handle null/undefined/empty values - always return nullValue
     if (category === null || category === undefined || category === '') {
       return this.state.nullValue;
     }

@@ -1,5 +1,5 @@
 import { niceNumber, columnToHeader, generateNiceTicks, formatTickLabel, interpolateViridisSubset } from "./utils.js";
-import { TextSizeEstimator } from './textAspectRatioPrediction.js'
+import { TextSizeEstimator } from './textAspectRatioPrediction.js';
 import { interpolateViridis } from "d3";
 
 /**
@@ -496,9 +496,12 @@ export class TextColorLegend extends LegendBase {
     let currentY = titleHeightOffset + this.verticalSpacing + this.squareSize / 2;
     let rowHeight = this.squareSize;
 
-    categories.slice(0, aesthetic.state.maxCategories).forEach((category, i) => {
+    // Add regular categories (up to maxCategories)
+    const categoriesToShow = categories.slice(0, aesthetic.state.maxCategories);
+    categoriesToShow.forEach((category, i) => {
       const color = aesthetic.scale.getValue(category);
-      const labelSize = this.textSizeEstimator.getTextSize(category, this.state.labelFontSize);
+      const labelText = category === '' ? 'No data' : category;
+      const labelSize = this.textSizeEstimator.getTextSize(labelText, this.state.labelFontSize);
       const itemWidth = this.squareSize + this.itemLabelGap + labelSize.widthPx;
 
       // Check if we need to wrap to next row
@@ -508,12 +511,11 @@ export class TextColorLegend extends LegendBase {
         rowHeight = this.squareSize;
       }
 
-      const labelText = category === '' ? 'No data' : category;
       this.coordinates.items.push({
         x: currentX,
         y: currentY,
         color: color,
-        label: i < aesthetic.state.maxCategories - 1 ? labelText : aesthetic.state.otherLabel,
+        label: i < aesthetic.state.maxCategories - 1 || i == categories.length - 1 ? labelText : aesthetic.state.otherLabel,
         squareX: currentX,
         squareY: currentY - this.squareSize / 2,
         labelX: currentX + this.squareSize + this.itemLabelGap,
@@ -523,6 +525,36 @@ export class TextColorLegend extends LegendBase {
       currentX += itemWidth + this.itemGap;
       this.coordinates.width = Math.max(this.coordinates.width, currentX - this.itemGap);
     });
+
+    // Add "No Data" item if showNullInLegend is true
+    const hasNullValues = aesthetic.values.some(x => x == undefined);
+    if (aesthetic.state.showNullInLegend && hasNullValues) {
+      const color = aesthetic.state.nullValue;
+      const labelText = 'No Data';
+      const labelSize = this.textSizeEstimator.getTextSize(labelText, this.state.labelFontSize);
+      const itemWidth = this.squareSize + this.itemLabelGap + labelSize.widthPx;
+
+      // Check if we need to wrap to next row
+      if (currentX > 0 && currentX + itemWidth > maxWidth) {
+        currentX = 0;
+        currentY += rowHeight + this.verticalSpacing;
+        rowHeight = this.squareSize;
+      }
+
+      this.coordinates.items.push({
+        x: currentX,
+        y: currentY,
+        color: color,
+        label: labelText,
+        squareX: currentX,
+        squareY: currentY - this.squareSize / 2,
+        labelX: currentX + this.squareSize + this.itemLabelGap,
+        labelY: currentY
+      });
+
+      currentX += itemWidth + this.itemGap;
+      this.coordinates.width = Math.max(this.coordinates.width, currentX - this.itemGap);
+    }
 
     this.coordinates.height = currentY + this.squareSize / 2;
   }
@@ -564,7 +596,7 @@ export class TextColorLegend extends LegendBase {
 
     // Calculate total height
     const unitsSize = this.textSizeEstimator.getTextSize(aesthetic.state.inputUnits || "", this.state.labelFontSize);
-    const height = labelsY + this.state.labelFontSize + unitsSize.heightPx;
+    let height = labelsY + this.state.labelFontSize + unitsSize.heightPx;
 
     this.coordinates = {
       width,
@@ -588,7 +620,8 @@ export class TextColorLegend extends LegendBase {
         x: width / 2,
         y: height,
         text: aesthetic.state.inputUnits || ""
-      }
+      },
+      nullItem: null
     };
 
     // Handle single value case
@@ -628,6 +661,30 @@ export class TextColorLegend extends LegendBase {
           text: formatTickLabel(tickValue, ticks)
         });
       });
+    }
+
+    // Add "No Data" item if showNullInLegend is true
+    if (aesthetic.state.showNullInLegend) {
+      const color = aesthetic.state.nullValue;
+      const labelText = 'No Data';
+      const labelSize = this.textSizeEstimator.getTextSize(labelText, this.state.labelFontSize);
+      
+      // Position below the gradient
+      const nullItemY = height + this.verticalSpacing;
+      
+      this.coordinates.nullItem = {
+        x: leftOverhang,
+        y: nullItemY + this.squareSize / 2,
+        color: color,
+        label: labelText,
+        squareX: leftOverhang,
+        squareY: nullItemY,
+        labelX: leftOverhang + this.squareSize + this.itemLabelGap,
+        labelY: nullItemY + this.squareSize / 2
+      };
+
+      // Update total height to include null item
+      this.coordinates.height = nullItemY + this.squareSize;
     }
   }
 

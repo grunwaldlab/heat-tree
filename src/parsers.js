@@ -80,7 +80,7 @@ export function parseTable(tsvStr, valid_ids, sep = '\t') {
 
       for (let j = 0; j < headers.length; j++) {
         const colName = headers[j];
-        const value = values[j];
+        const value = values[j] === '' ? undefined : values[j];
         metadata[colName] = value;
         columnValues.get(colName).push(value);
       }
@@ -95,7 +95,7 @@ export function parseTable(tsvStr, valid_ids, sep = '\t') {
       // Determine column types (continuous vs categorical)
       const numericValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
       const isContinuous = numericValues.length > 0 &&
-        numericValues.length === values.filter(v => v !== '').length;
+        numericValues.length === values.filter(v => v !== undefined).length;
       columnTypes.set(col, isContinuous ? 'continuous' : 'categorical');
 
       // Count how many values in this column match tree node names

@@ -360,8 +360,13 @@ export class TreeData extends Subscribable {
     // Collect all values for this column from the tree
     let values = [];
     this.tree.each(node => {
-      if (node.metadata && node.metadata[columnId] !== undefined) {
+      if (state.subset == 'tips' && node.children) {
+        return;
+      }
+      if (node.metadata) {
         values.push(node.metadata[columnId]);
+      } else {
+        values.push(undefined)
       }
     });
 
