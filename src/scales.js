@@ -376,9 +376,20 @@ export class CategoricalColorScale {
       }
     }
 
-    // Store categories in order of descending frequency
+    // Store categories in order of descending frequency, always putting falsy values in back
     this.categories = [...this.frequencyMap.entries()]
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => {
+        const isEmptyA = a[0] === null || a[0] === undefined || a[0] === '';
+        const isEmptyB = b[0] === null || b[0] === undefined || b[0] === '';
+
+        // If both are empty or both are non-empty, sort normally
+        if (isEmptyA && isEmptyB) return 0;
+        if (isEmptyA) return 1;
+        if (isEmptyB) return -1;
+
+        // Both are non-empty, sort by frequency (descending)
+        return b[1] - a[1];
+      })
       .map(entry => entry[0]);
 
     // Default to viridis-like color scheme if not provided
@@ -451,7 +462,10 @@ export class CategoricalColorScale {
       const color = this._getColorAtPosition(this.state.transformMin);
       this.categoryColorMap.set(this.categories[0], color);
     } else {
-      const nCategories = this.categories.length > this.state.maxCategories ? this.state.maxCategories : this.categories.length;
+      const nonEmptyCategories = this.categories
+        .filter(key => key !== null && key !== undefined && key !== '')
+        .length;
+      const nCategories = nonEmptyCategories > this.state.maxCategories ? this.state.maxCategories : nonEmptyCategories;
 
       // Multiple categories spread across the transform range
       for (let i = 0; i < this.categories.length; i++) {

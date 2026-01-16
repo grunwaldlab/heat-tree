@@ -725,7 +725,7 @@ function populateDataControls(
         validIdColumns.forEach((columnName) => {
           const option = document.createElement('option');
           option.value = columnName;
-          option.textContent = treeData.columnDisplayName.get(columnName);
+          option.textContent = treeData.columnName.get(columnName);
           if (columnName === currentIdColumn) {
             option.selected = true;
           }

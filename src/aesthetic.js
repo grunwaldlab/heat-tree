@@ -17,7 +17,7 @@ export class Aesthetic extends Subscribable {
   state; // Object containing all configuration used to infer the scale
   scale; // the actual scale instance
   values; // Store the original values for scale recreation
-  defaultPalette = ['#440154', '#31688e', '#35b779', '#fde724'];
+  defaultPalette = ["#440154", "#365C8D", "#1FA187", "#9FDA3A"];
 
   constructor(values, options = {}) {
     super();
@@ -45,7 +45,7 @@ export class Aesthetic extends Subscribable {
       outputRange: null,
       inputUnits: null,
       title: null,
-      maxCategories: 7,
+      maxCategories: 10,
       otherCategory: "#888888",
       otherLabel: "Other",
       transformMin: 0,
@@ -528,39 +528,25 @@ export class Aesthetic extends Subscribable {
       nullPickerContainer.style.display = 'block';
     });
 
-    // Create reset container (aligned with range slider)
-    const resetContainer = document.createElement('div');
-    resetContainer.className = 'ht-null-color-reset-container';
-    resetContainer.title = 'Reset to default missing data color';
+    // Create null color container (aligned with range slider)
+    const missingDataXContainer = document.createElement('div');
+    missingDataXContainer.className = 'missing-data-x-container';
 
     // Create upward triangle indicator
     const resetIndicator = document.createElement('div');
-    resetIndicator.className = 'ht-null-color-reset-indicator';
+    resetIndicator.className = 'missing-data-x-container-triangle';
 
-    const resetX = document.createElement('div');
-    resetX.className = 'ht-null-color-reset';
-    resetX.textContent = '✕';
+    const missingDataX = document.createElement('div');
+    missingDataX.className = 'missing-data-x';
+    missingDataX.textContent = '✕';
 
-    resetX.addEventListener('click', () => {
-      const defaultNullColor = '#808080';
-      this.state.nullValue = defaultNullColor;
-      nullSquare.style.backgroundColor = defaultNullColor;
-      nullColorBox.style.backgroundColor = defaultNullColor;
-
-      // Update the picker's color
-      nullColorPicker.setColor(defaultNullColor, true);
-
-      // Apply changes
-      this.updateScale();
-    });
-
-    resetContainer.appendChild(resetIndicator);
-    resetContainer.appendChild(resetX);
+    missingDataXContainer.appendChild(resetIndicator);
+    missingDataXContainer.appendChild(missingDataX);
 
     // Assemble null color column
     nullColorColumn.appendChild(nullColorSquareContainer);
     nullColorColumn.appendChild(nullColorBox);
-    nullColorColumn.appendChild(resetContainer);
+    nullColorColumn.appendChild(missingDataXContainer);
 
     // Assemble gradient container with both columns
     gradientContainer.appendChild(gradientColumn);

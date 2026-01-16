@@ -508,11 +508,12 @@ export class TextColorLegend extends LegendBase {
         rowHeight = this.squareSize;
       }
 
+      const labelText = category === '' ? 'No data' : category;
       this.coordinates.items.push({
         x: currentX,
         y: currentY,
         color: color,
-        label: i < aesthetic.state.maxCategories - 1 ? category : aesthetic.state.otherLabel,
+        label: i < aesthetic.state.maxCategories - 1 ? labelText : aesthetic.state.otherLabel,
         squareX: currentX,
         squareY: currentY - this.squareSize / 2,
         labelX: currentX + this.squareSize + this.itemLabelGap,
