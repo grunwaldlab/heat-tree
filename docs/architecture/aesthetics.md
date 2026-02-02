@@ -1,5 +1,5 @@
 Aesthetics define how user-defined values map to some output.
-They are like d3 scales, but intended to be changed after creation by use-controlled widgets.
+They are like d3 scales, but intended to be changed after creation by user-controlled widgets and change in response to changing user data.
 The interpretation of what user-defined values represent might need to change and the details of the conversion to the target values may change, but the type of the target values is likely known ahead of time.
 Therefore, aesthetic classes will be split into functions based on their output type: Size, Color, Text
 
@@ -7,8 +7,8 @@ Therefore, aesthetic classes will be split into functions based on their output 
 
 - Constructor with `values` (array) and `options` (object) inputs
 - A `state` object that is the "source of truth" for all settings. All other class data is derived from this and is automatically regenerated when state changes.
-- `renderLegend(container)`: creates a SVG legend in the specified container
-- `renderControls(container)`: creates HTML-based controls in the specified container
+- `renderLegend(container)`: creates a SVG legend in the specified container. This legend automatically updates when the aesthetic's state changes.
+- `renderControls(container)`: creates HTML-based controls in the specified container that allow the user to modify the aesthetic's state.
 - `getValue(x)`: transform a value to the output type of the aesthetic
 
 
@@ -16,12 +16,11 @@ Therefore, aesthetic classes will be split into functions based on their output 
 
 state:
 
+- `values`: unique values ordered by frequency
 - `domain`: An array of input data reference points to interpolate between
 - `range`: An array of output numbers corresponding to the `domain`
 - `nullOutput`: Value returned when the input is `null`
-- `undefinedOutput`: Value returned when the input is `undefined`
-- `emptyOutput`: Value returned when the input is an empty string `''`
-- `defaultOutput`: Value returned if no non-nullish values were supplied
+- `defaultOutput`: Value returned when the input, `domain`, or `range` is `undefined`
 - `inputType`: one of `'number'`, `'date'`, `'text'`
 - `outputType`: one of `'continuous'`, `'quantized'`, `'custom'`
 - `transform`: one of `'linear'`, `'log'`, '`pow`', '`symlog`'
@@ -31,13 +30,22 @@ state:
 - `legendShape`: For Quantized and Custom legends, a function that takes a width and height parameters and returns a shape to draw that fits in those dimensions.
 - `legendTitle`: The title printed above the legend
 - `inputLabel`: The label below the axis, generally used for the units/description of the input value
-- `showNullInLegend`: If `true` include the size of the null values in the legend
+- `nullInLegend`: If `true` include the size of the null values in the legend
 - `showLegend`: If `true`, show the legend, otherwise `renderLegend` returns `null`
 - `nCategories`: The number of size categories to output when `outputType` is `'quantized'`, or `'custom'`
+- `otherLabel`: The label in the legend for the "other" category when text inputs are grouped
+- `nullLabel`: The label in the legend for `null` values
+- `textLabels`: A map used to override text labels for custom categories.
 
+Derived:
+- `scale`: The d3 scale function used to map input values to output size
+- `legendData`: The data used to render the legend. Calculated independent of rendering to allow for multiple output types and to allow for calculating the legend size before rendering.
 
+Functions:
 
-
+- constructor: 
+- `renderLegend(container)`
+- `render*Control(container)` where * is `inputType`, `outputType`, `transform`, `nullInLegend`, `showLegend`, `nCategories`
 
 ### Continuous -> Continuous
 

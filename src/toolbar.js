@@ -303,17 +303,29 @@ export function createToolbar(
     const treeState = getCurrentTreeState();
     if (!treeState) return;
 
-    // Handle tip label color aesthetic
-    if (aestheticId === 'tipLabelColor') {
-      populateTipLabelColorSettings(aestheticSettingsContainer, treeState, CONTROL_HEIGHT);
+    // Get the column ID this aesthetic is mapped to
+    const columnId = treeState.state.aesthetics[aestheticId];
+
+    // Get the aesthetic instance
+    const aesthetic = treeState.aestheticsScales[aestheticId];
+    if (!aesthetic) {
+      const message = document.createElement('div');
+      message.textContent = 'Error: Could not find aesthetic';
+      message.style.padding = '10px';
+      message.style.color = '#d00';
+      aestheticSettingsContainer.appendChild(message);
       return;
     }
 
-    // For other aesthetics, show placeholder
-    const placeholder = document.createElement('div');
-    placeholder.textContent = `Settings for ${aestheticId} (coming soon)`;
-    placeholder.style.padding = '10px';
-    aestheticSettingsContainer.appendChild(placeholder);
+    // Use the aesthetic's createSettingsWidget method
+    const settingsWidget = aesthetic.createSettingsWidget({
+      controlHeight: CONTROL_HEIGHT,
+      columnId: columnId
+    });
+
+    if (settingsWidget) {
+      aestheticSettingsContainer.appendChild(settingsWidget);
+    }
   }
 
   // Function to open a tab
@@ -1091,13 +1103,6 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelTextLabel = createLabel('Text:', controlHeight);
   tipLabelTextGroup.appendChild(tipLabelTextLabel);
 
-  // const tipLabelTextEditBtn = createIconButton(editIconSvg, 'Edit text settings', controlHeight);
-  // tipLabelTextEditBtn.addEventListener('click', (e) => {
-  //   e.stopPropagation(); // Prevent the click from bubbling to the controls container
-  //   openAestheticSettings('tipLabelText', tipLabelTextGroup);
-  // });
-  // tipLabelTextGroup.appendChild(tipLabelTextEditBtn);
-
   const tipLabelTextSelect = createMetadataColumnSelect(
     treeState,
     'tipLabelText',
@@ -1143,13 +1148,6 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelSizeLabel = createLabel('Size:', controlHeight);
   tipLabelSizeGroup.appendChild(tipLabelSizeLabel);
 
-  // const tipLabelSizeEditBtn = createIconButton(editIconSvg, 'Edit size settings', controlHeight);
-  // tipLabelSizeEditBtn.addEventListener('click', (e) => {
-  //   e.stopPropagation(); // Prevent the click from bubbling to the controls container
-  //   openAestheticSettings('tipLabelSize', tipLabelSizeGroup);
-  // });
-  // tipLabelSizeGroup.appendChild(tipLabelSizeEditBtn);
-
   const tipLabelSizeSelect = createMetadataColumnSelect(
     treeState,
     'tipLabelSize',
@@ -1168,13 +1166,6 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
   const tipLabelStyleGroup = createControlGroup();
   const tipLabelStyleLabel = createLabel('Style:', controlHeight);
   tipLabelStyleGroup.appendChild(tipLabelStyleLabel);
-
-  // const tipLabelStyleEditBtn = createIconButton(editIconSvg, 'Edit style settings', controlHeight);
-  // tipLabelStyleEditBtn.addEventListener('click', (e) => {
-  //   e.stopPropagation(); // Prevent the click from bubbling to the controls container
-  //   openAestheticSettings('tipLabelStyle', tipLabelStyleGroup);
-  // });
-  // tipLabelStyleGroup.appendChild(tipLabelStyleEditBtn);
 
   const tipLabelStyleSelect = createMetadataColumnSelect(
     treeState,
@@ -1231,134 +1222,6 @@ function populateTipLabelSettingsControls(container, getCurrentTreeState, option
 
   tipLabelFontGroup.appendChild(tipLabelFontSelect);
   container.appendChild(tipLabelFontGroup);
-}
-
-/**
- * Populate tip label color aesthetic settings
- */
-function populateTipLabelColorSettings(container, treeState, controlHeight) {
-  // Check if tip label color is set to a metadata column
-  const columnId = treeState.state.aesthetics.tipLabelColor;
-
-  if (!columnId) {
-    const message = document.createElement('div');
-    message.textContent = 'Select a metadata column for tip label color to edit its settings';
-    message.style.padding = '10px';
-    message.style.color = '#666';
-    container.appendChild(message);
-    return;
-  }
-
-  // Get the aesthetic
-  const aesthetic = treeState.aestheticsScales.tipLabelColor;
-  if (!aesthetic) {
-    const message = document.createElement('div');
-    message.textContent = 'Error: Could not find color aesthetic';
-    message.style.padding = '10px';
-    message.style.color = '#d00';
-    container.appendChild(message);
-    return;
-  }
-
-  // Use the aesthetic's createSettingsWidget method
-  const settingsWidget = aesthetic.createSettingsWidget({
-    controlHeight: controlHeight
-  });
-
-  if (settingsWidget) {
-    container.appendChild(settingsWidget);
-  } else {
-    const message = document.createElement('div');
-    message.textContent = 'No settings available for this aesthetic';
-    message.style.padding = '10px';
-    message.style.color = '#666';
-    container.appendChild(message);
-    return;
-  }
-
-  // Add max categories control (only for categorical scales)
-  if (aesthetic.state.isCategorical) {
-    const maxCategoriesGroup = createControlGroup();
-    const maxCategoriesLabel = createLabel('Max colors:', controlHeight);
-    maxCategoriesGroup.appendChild(maxCategoriesLabel);
-
-    const maxCategoriesInput = createNumberInput(
-      aesthetic.state.maxCategories || 7,
-      2,
-      100,
-      1,
-      controlHeight
-    );
-
-    maxCategoriesInput.addEventListener('input', (e) => {
-      const value = parseInt(e.target.value);
-      if (isNaN(value) || value < 1) return;
-
-      aesthetic.updateState({ maxCategories: value });
-      aesthetic.updateScale(aesthetic.values);
-
-      // Update all nodes with new colors from the updated scale
-      treeState.state.treeData.tree.each(node => {
-        const columnValue = node[columnId];
-        if (columnValue !== undefined && columnValue !== null) {
-          node.tipLabelColor = aesthetic.getValue(columnValue);
-        }
-      });
-
-      // Trigger coordinate update to refresh the tree
-      treeState.updateCoordinates();
-
-      // Also notify legends to update
-      treeState.notify('legendsChange');
-    });
-
-    maxCategoriesGroup.appendChild(maxCategoriesInput);
-    container.appendChild(maxCategoriesGroup);
-  }
-
-  // Add legend title control
-  const titleGroup = createControlGroup();
-  const titleLabel = createLabel('Legend title:', controlHeight);
-  titleGroup.appendChild(titleLabel);
-
-  const titleInput = document.createElement('input');
-  titleInput.type = 'text';
-  titleInput.className = 'ht-text-input';
-  titleInput.style.height = `${controlHeight}px`;
-  titleInput.style.flex = '1';
-  titleInput.value = aesthetic.state.title || '';
-  titleInput.placeholder = 'Enter legend title';
-
-  titleInput.addEventListener('input', (e) => {
-    aesthetic.updateState({ title: e.target.value });
-    treeState.notify('legendsChange');
-  });
-
-  titleGroup.appendChild(titleInput);
-  container.appendChild(titleGroup);
-
-  // Add units label control (only for continuous scales)
-  if (!aesthetic.state.isCategorical) {
-    const unitsGroup = createControlGroup();
-    const unitsLabel = createLabel('Units label:', controlHeight);
-    unitsGroup.appendChild(unitsLabel);
-
-    const unitsInput = document.createElement('input');
-    unitsInput.type = 'text';
-    unitsInput.className = 'ht-text-input';
-    unitsInput.style.height = `${controlHeight}px`;
-    unitsInput.style.flex = '1';
-    unitsInput.value = aesthetic.state.inputUnits || '';
-    unitsInput.placeholder = 'Enter units (e.g., °C, km)';
-
-    unitsInput.addEventListener('input', (e) => {
-      aesthetic.updateState({ inputUnits: e.target.value });
-      treeState.notify('legendsChange');
-    });
-
-    unitsGroup.appendChild(unitsInput);
-    container.appendChild(unitsGroup);
-  }
 }
 
 /**

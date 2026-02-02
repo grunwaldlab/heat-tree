@@ -8,6 +8,11 @@ import {
 } from "./scales.js";
 import { Subscribable } from "./utils.js";
 import Picker from 'vanilla-picker';
+import {
+  createControlGroup,
+  createLabel,
+  createNumberInput
+} from './toolbarUtils.js';
 
 /**
  * Manages the configuration and scale for a single aesthetic mapping
@@ -18,6 +23,7 @@ export class Aesthetic extends Subscribable {
   scale; // the actual scale instance
   values; // Store the original values for scale recreation
   defaultPalette = ["#440154", "#365C8D", "#1FA187", "#9FDA3A"];
+  treeState; // Reference to the tree state for updates
 
   constructor(values, options = {}) {
     super();
@@ -32,6 +38,9 @@ export class Aesthetic extends Subscribable {
 
     // Store values for later use
     this.values = values;
+
+    // Store tree state reference if provided
+    this.treeState = options.treeState || null;
 
     // Initialize state with all configuration variables
     this.state = {
@@ -168,20 +177,135 @@ export class Aesthetic extends Subscribable {
    * Create settings widget(s) for this aesthetic
    * @param {Object} options - Configuration options
    * @param {number} options.controlHeight - Height of controls
+   * @param {string} options.columnId - The column ID this aesthetic is mapped to
    * @returns {HTMLElement|null} The settings widget container, or null if no settings available
    */
   createSettingsWidget(options = {}) {
     const {
-      controlHeight = 24
+      controlHeight = 24,
+      columnId = null
     } = options;
+
+    // Check if aesthetic is mapped to a metadata column
+    if (!columnId) {
+      const message = document.createElement('div');
+      message.textContent = 'Select a metadata column to edit its settings';
+      message.style.padding = '10px';
+      message.style.color = '#666';
+      return message;
+    }
+
+    const container = document.createElement('div');
+    container.className = 'ht-aesthetic-settings-content';
 
     // For color scales, create color palette editor
     if (this.state.scaleType === 'color') {
-      return this.createColorPaletteEditor(controlHeight);
+      const paletteEditor = this.createColorPaletteEditor(controlHeight);
+      if (paletteEditor) {
+        container.appendChild(paletteEditor);
+      }
+
+      // Add max categories control (only for categorical scales)
+      if (this.state.isCategorical) {
+        const maxCategoriesGroup = createControlGroup();
+        const maxCategoriesLabel = createLabel('Max colors:', controlHeight);
+        maxCategoriesGroup.appendChild(maxCategoriesLabel);
+
+        const maxCategoriesInput = createNumberInput(
+          this.state.maxCategories || 7,
+          2,
+          100,
+          1,
+          controlHeight
+        );
+
+        maxCategoriesInput.addEventListener('input', (e) => {
+          const value = parseInt(e.target.value);
+          if (isNaN(value) || value < 1) return;
+
+          this.updateState({ maxCategories: value });
+          this.updateScale(this.values);
+
+          // Update all nodes with new colors from the updated scale
+          if (this.treeState) {
+            this.treeState.state.treeData.tree.each(node => {
+              const columnValue = node[columnId];
+              if (columnValue !== undefined && columnValue !== null) {
+                node.tipLabelColor = this.getValue(columnValue);
+              }
+            });
+
+            // Trigger coordinate update to refresh the tree
+            this.treeState.updateCoordinates();
+
+            // Also notify legends to update
+            this.treeState.notify('legendsChange');
+          }
+        });
+
+        maxCategoriesGroup.appendChild(maxCategoriesInput);
+        container.appendChild(maxCategoriesGroup);
+      }
+
+      // Add legend title control
+      const titleGroup = createControlGroup();
+      const titleLabel = createLabel('Legend title:', controlHeight);
+      titleGroup.appendChild(titleLabel);
+
+      const titleInput = document.createElement('input');
+      titleInput.type = 'text';
+      titleInput.className = 'ht-text-input';
+      titleInput.style.height = `${controlHeight}px`;
+      titleInput.style.flex = '1';
+      titleInput.value = this.state.title || '';
+      titleInput.placeholder = 'Enter legend title';
+
+      titleInput.addEventListener('input', (e) => {
+        this.updateState({ title: e.target.value });
+        if (this.treeState) {
+          this.treeState.notify('legendsChange');
+        }
+      });
+
+      titleGroup.appendChild(titleInput);
+      container.appendChild(titleGroup);
+
+      // Add units label control (only for continuous scales)
+      if (!this.state.isCategorical) {
+        const unitsGroup = createControlGroup();
+        const unitsLabel = createLabel('Units label:', controlHeight);
+        unitsGroup.appendChild(unitsLabel);
+
+        const unitsInput = document.createElement('input');
+        unitsInput.type = 'text';
+        unitsInput.className = 'ht-text-input';
+        unitsInput.style.height = `${controlHeight}px`;
+        unitsInput.style.flex = '1';
+        unitsInput.value = this.state.inputUnits || '';
+        unitsInput.placeholder = 'Enter units (e.g., °C, km)';
+
+        unitsInput.addEventListener('input', (e) => {
+          this.updateState({ inputUnits: e.target.value });
+          if (this.treeState) {
+            this.treeState.notify('legendsChange');
+          }
+        });
+
+        unitsGroup.appendChild(unitsInput);
+        container.appendChild(unitsGroup);
+      }
     }
 
-    // For other scale types, return null (no settings widget yet)
-    return null;
+    // For other scale types, show placeholder
+    if (container.children.length === 0) {
+      const placeholder = document.createElement('div');
+      placeholder.textContent = 'No settings available for this aesthetic';
+      placeholder.style.padding = '10px';
+      placeholder.style.color = '#666';
+      container.appendChild(placeholder);
+    }
+
+    return container;
   }
 
   /**
@@ -303,7 +427,7 @@ export class Aesthetic extends Subscribable {
         // Update the square's background color
         currentPickerParent.style.backgroundColor = hexColor;
 
-        // Update gradient display
+        //Update gradient display
         updateGradientDisplay();
 
         // Update handle colors if they're affected
