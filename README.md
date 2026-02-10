@@ -1,6 +1,6 @@
 # heat-tree
 
-A self-contained widget for phylogenetic and taxonomic tree visualization with categorical and continuous variables associated with nodes and tips.
+*heat-tree* is a self-contained widget for interactive phylogenetic and taxonomic tree visualization with categorical and continuous variables associated with nodes and tips.
 
 ![](docs/images/example_screenshot.png)
 
