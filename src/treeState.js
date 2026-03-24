@@ -11,57 +11,71 @@ export class TreeState extends Subscribable {
       title: 'Tip label text',
       scaleType: 'identity',
       default: '',
+      nullValue: '',
       downstream: ['updateTipLabelText', 'updateCoordinates'],
       hasLegend: false,
+      subset: 'tips'
     },
     tipLabelColor: {
       title: 'Tip label color',
       scaleType: 'color',
       default: '#000000',
+      nullValue: '#808080',
       otherCategory: "#555555",
       downstream: [],
       hasLegend: true,
+      subset: 'tips'
     },
     tipLabelSize: {
       title: 'Tip label size',
       scaleType: 'size',
       default: 1,
+      nullValue: 1,
       isCategorical: false,
       outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
       hasLegend: true,
+      subset: 'tips'
     },
     tipLabelFont: {
       title: 'Tip label font',
       scaleType: 'identity',
       default: 'sans-serif',
+      nullValue: 'sans-serif',
       downstream: ['updateCoordinates'],
       hasLegend: false,
+      subset: 'tips'
     },
     tipLabelStyle: {
       title: 'Tip label font style',
       scaleType: 'text',
       outputValues: ['normal', 'bold', 'italic', 'bold italic'],
       default: 'normal',
+      nullValue: 'normal',
       otherCategory: 'italic',
       downstream: ['updateCoordinates'],
       hasLegend: false,
+      subset: 'tips'
     },
     nodeLabelText: {
       title: 'Node label text',
       scaleType: 'identity',
       default: '',
+      nullValue: '',
       downstream: ['updateNodeLabelText'],
       hasLegend: false,
+      subset: 'all'
     },
     nodeLabelSize: {
       title: 'Node label size',
       scaleType: 'size',
       default: 1,
+      nullValue: 1,
       isCategorical: false,
       outputRange: [0.5, 2],
       downstream: ['updateCoordinates'],
       hasLegend: false,
+      subset: 'all'
     },
   }
 
@@ -121,8 +135,27 @@ export class TreeState extends Subscribable {
     this.state.treeData.subscribe('treeUpdate', () => {
       this.#initalize();
     })
-    this.state.treeData.subscribe('metadataRemoved', (info) => {
-      this.setAesthetics(Object.fromEntries(info.columnIds.map(key => [key, undefined])));
+    this.state.treeData.subscribe('metadataChanged', (info) => {
+      if (info.columnIds && Array.isArray(info.columnIds)) {
+        if (info.requiresAestheticRefresh) {
+          // When node ID column changes, we need to refresh all aesthetics that use columns from this table
+          // Build a map of currently active aesthetics that use these columns
+          const aestheticsToRefresh = {};
+          for (const [aestheticId, columnId] of Object.entries(this.state.aesthetics)) {
+            if (columnId && info.columnIds.includes(columnId)) {
+              // This aesthetic uses a column from the changed table, so it needs to be refreshed
+              aestheticsToRefresh[aestheticId] = columnId;
+            }
+          }
+          // Force refresh of these aesthetics
+          if (Object.keys(aestheticsToRefresh).length > 0) {
+            this.setAesthetics(aestheticsToRefresh, true);
+          }
+        } else {
+          // For other metadata changes (like table deletion), reset affected aesthetics to undefined
+          this.setAesthetics(Object.fromEntries(info.columnIds.map(key => [key, undefined])));
+        }
+      }
     })
   }
 
@@ -185,24 +218,21 @@ export class TreeState extends Subscribable {
 
         // Update the aesthetic for the column
         if (!columnId) {
-          this.aestheticsScales[aestheticId] = new NullScale(aesData.default);
+          this.aestheticsScales[aestheticId] = new NullScale({ default: aesData.default });
         } else {
           // Get or create the aesthetic with default state from #AESTHETICS
           this.aestheticsScales[aestheticId] = this.state.treeData.getAesthetic(columnId, aestheticId, aesData);
+
+          // Subscribe to palette changes to update tree data
+          this.aestheticsScales[aestheticId].subscribe('aestheticChange', () => {
+            this.#updateTreeDataForAesthetic(aestheticId, columnId);
+            this.#updateLegends();
+            this.notify(`${aestheticId}Change`);
+          });
         }
 
         // Update the tree data directly modified by the aesthetic
-        this.state.treeData.tree.each(d => {
-          if (columnId && columnId !== null && columnId !== undefined) {
-            if (d.metadata && d.metadata[columnId] !== undefined) {
-              d[aestheticId] = this.aestheticsScales[aestheticId].getValue(d.metadata[columnId]);
-            } else {
-              d[aestheticId] = aesData.default;
-            }
-          } else {
-            d[aestheticId] = this.aestheticsScales[aestheticId].getValue();
-          }
-        });
+        this.#updateTreeDataForAesthetic(aestheticId, columnId);
 
         // Record any functions to call later in a unique list
         for (const methodName of aesData.downstream) {
@@ -229,6 +259,26 @@ export class TreeState extends Subscribable {
       this[methodName]();
     }
 
+  }
+
+  /**
+   * Update tree data for a specific aesthetic
+   * @private
+   */
+  #updateTreeDataForAesthetic(aestheticId, columnId) {
+    const aesData = this.#AESTHETICS[aestheticId];
+
+    this.state.treeData.tree.each(d => {
+      if (columnId && columnId !== null && columnId !== undefined) {
+        if (d.metadata) {
+          d[aestheticId] = this.aestheticsScales[aestheticId].getValue(d.metadata[columnId]);
+        } else {
+          d[aestheticId] = aesData.default;
+        }
+      } else {
+        d[aestheticId] = this.aestheticsScales[aestheticId].getValue();
+      }
+    });
   }
 
   #updateLegends() {

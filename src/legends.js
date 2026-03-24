@@ -1,5 +1,5 @@
 import { niceNumber, columnToHeader, generateNiceTicks, formatTickLabel, interpolateViridisSubset } from "./utils.js";
-import { TextSizeEstimator } from './textAspectRatioPrediction.js'
+import { TextSizeEstimator } from './textAspectRatioPrediction.js';
 import { interpolateViridis } from "d3";
 
 /**
@@ -249,8 +249,8 @@ export class TextSizeLegend extends LegendBase {
     // Get the data range from the scale
     const minValue = this.state.aesthetic.scale.dataMin;
     const maxValue = this.state.aesthetic.scale.dataMax;
-    const minSize = this.state.aesthetic.scale.sizeMin;
-    const maxSize = this.state.aesthetic.scale.sizeMax;
+    const minSize = this.state.aesthetic.state.outputRange[0];
+    const maxSize = this.state.aesthetic.state.outputRange[1];
 
     // Generate nice tick values
     const ticks = generateNiceTicks(minValue, maxValue, 5);
@@ -310,11 +310,11 @@ export class TextSizeLegend extends LegendBase {
       }
     };
 
-    // Calculate polygon and tick positions (offset by leftOverhang)
-    ticks.forEach((tickValue, i) => {
-      const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
+    // Handle single value case
+    if (minValue === maxValue) {
+      // Single tick in the middle
+      const x = leftOverhang + baseWidth / 2;
 
-      // Tick marks
       this.coordinates.ticks.push({
         x1: x,
         y1: rampBaseY,
@@ -322,21 +322,49 @@ export class TextSizeLegend extends LegendBase {
         y2: rampBaseY + this.tickHeight
       });
 
-      // Labels
       this.coordinates.labels.push({
         x,
         y: rampBaseY + this.tickHeight,
-        text: formatTickLabel(tickValue, ticks)
+        text: formatTickLabel(minValue, ticks)
       });
-    });
 
-    // Calculate polygon points (background shape) - offset by leftOverhang
-    this.coordinates.polygon = [
-      { x: leftOverhang, y: rampBaseY },
-      { x: leftOverhang, y: rampBaseY - minLetterFont },
-      { x: leftOverhang + baseWidth, y: rampBaseY - maxLetterFont },
-      { x: leftOverhang + baseWidth, y: rampBaseY }
-    ];
+      // Flat polygon (no size variation)
+      const avgLetterFont = (minLetterFont + maxLetterFont) / 2;
+      this.coordinates.polygon = [
+        { x: leftOverhang, y: rampBaseY },
+        { x: leftOverhang, y: rampBaseY - avgLetterFont },
+        { x: leftOverhang + baseWidth, y: rampBaseY - avgLetterFont },
+        { x: leftOverhang + baseWidth, y: rampBaseY }
+      ];
+    } else {
+      // Calculate polygon and tick positions (offset by leftOverhang)
+      ticks.forEach((tickValue, i) => {
+        const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
+
+        // Tick marks
+        this.coordinates.ticks.push({
+          x1: x,
+          y1: rampBaseY,
+          x2: x,
+          y2: rampBaseY + this.tickHeight
+        });
+
+        // Labels
+        this.coordinates.labels.push({
+          x,
+          y: rampBaseY + this.tickHeight,
+          text: formatTickLabel(tickValue, ticks)
+        });
+      });
+
+      // Calculate polygon points (background shape) - offset by leftOverhang
+      this.coordinates.polygon = [
+        { x: leftOverhang, y: rampBaseY },
+        { x: leftOverhang, y: rampBaseY - minLetterFont },
+        { x: leftOverhang + baseWidth, y: rampBaseY - maxLetterFont },
+        { x: leftOverhang + baseWidth, y: rampBaseY }
+      ];
+    }
   }
 
   /**
@@ -468,9 +496,12 @@ export class TextColorLegend extends LegendBase {
     let currentY = titleHeightOffset + this.verticalSpacing + this.squareSize / 2;
     let rowHeight = this.squareSize;
 
-    categories.slice(0, aesthetic.scale.maxColors).forEach((category, i) => {
+    // Add regular categories (up to maxCategories)
+    const categoriesToShow = categories.slice(0, aesthetic.state.maxCategories);
+    categoriesToShow.forEach((category, i) => {
       const color = aesthetic.scale.getValue(category);
-      const labelSize = this.textSizeEstimator.getTextSize(category, this.state.labelFontSize);
+      const labelText = category === '' ? 'No data' : category;
+      const labelSize = this.textSizeEstimator.getTextSize(labelText, this.state.labelFontSize);
       const itemWidth = this.squareSize + this.itemLabelGap + labelSize.widthPx;
 
       // Check if we need to wrap to next row
@@ -484,7 +515,7 @@ export class TextColorLegend extends LegendBase {
         x: currentX,
         y: currentY,
         color: color,
-        label: i < aesthetic.scale.maxColors - 1 ? category : aesthetic.state.otherLabel,
+        label: i < aesthetic.state.maxCategories - 1 || i == categories.length - 1 ? labelText : aesthetic.state.otherLabel,
         squareX: currentX,
         squareY: currentY - this.squareSize / 2,
         labelX: currentX + this.squareSize + this.itemLabelGap,
@@ -494,6 +525,36 @@ export class TextColorLegend extends LegendBase {
       currentX += itemWidth + this.itemGap;
       this.coordinates.width = Math.max(this.coordinates.width, currentX - this.itemGap);
     });
+
+    // Add "No Data" item if showNullInLegend is true
+    const hasNullValues = aesthetic.values.some(x => x == undefined);
+    if (aesthetic.state.showNullInLegend && hasNullValues) {
+      const color = aesthetic.state.nullValue;
+      const labelText = 'No Data';
+      const labelSize = this.textSizeEstimator.getTextSize(labelText, this.state.labelFontSize);
+      const itemWidth = this.squareSize + this.itemLabelGap + labelSize.widthPx;
+
+      // Check if we need to wrap to next row
+      if (currentX > 0 && currentX + itemWidth > maxWidth) {
+        currentX = 0;
+        currentY += rowHeight + this.verticalSpacing;
+        rowHeight = this.squareSize;
+      }
+
+      this.coordinates.items.push({
+        x: currentX,
+        y: currentY,
+        color: color,
+        label: labelText,
+        squareX: currentX,
+        squareY: currentY - this.squareSize / 2,
+        labelX: currentX + this.squareSize + this.itemLabelGap,
+        labelY: currentY
+      });
+
+      currentX += itemWidth + this.itemGap;
+      this.coordinates.width = Math.max(this.coordinates.width, currentX - this.itemGap);
+    }
 
     this.coordinates.height = currentY + this.squareSize / 2;
   }
@@ -535,7 +596,7 @@ export class TextColorLegend extends LegendBase {
 
     // Calculate total height
     const unitsSize = this.textSizeEstimator.getTextSize(aesthetic.state.inputUnits || "", this.state.labelFontSize);
-    const height = labelsY + this.state.labelFontSize + unitsSize.heightPx;
+    let height = labelsY + this.state.labelFontSize + unitsSize.heightPx;
 
     this.coordinates = {
       width,
@@ -559,14 +620,15 @@ export class TextColorLegend extends LegendBase {
         x: width / 2,
         y: height,
         text: aesthetic.state.inputUnits || ""
-      }
+      },
+      nullItem: null
     };
 
-    // Calculate tick positions
-    ticks.forEach((tickValue, i) => {
-      const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
+    // Handle single value case
+    if (minValue === maxValue) {
+      // Single tick in the middle
+      const x = leftOverhang + baseWidth / 2;
 
-      // Tick marks
       this.coordinates.ticks.push({
         x1: x,
         y1: ticksY,
@@ -574,13 +636,56 @@ export class TextColorLegend extends LegendBase {
         y2: ticksY + this.tickHeight
       });
 
-      // Labels
       this.coordinates.labels.push({
         x,
         y: labelsY,
-        text: formatTickLabel(tickValue, ticks)
+        text: formatTickLabel(minValue, ticks)
       });
-    });
+    } else {
+      // Calculate tick positions
+      ticks.forEach((tickValue, i) => {
+        const x = leftOverhang + (i / (ticks.length - 1)) * baseWidth;
+
+        // Tick marks
+        this.coordinates.ticks.push({
+          x1: x,
+          y1: ticksY,
+          x2: x,
+          y2: ticksY + this.tickHeight
+        });
+
+        // Labels
+        this.coordinates.labels.push({
+          x,
+          y: labelsY,
+          text: formatTickLabel(tickValue, ticks)
+        });
+      });
+    }
+
+    // Add "No Data" item if showNullInLegend is true
+    if (aesthetic.state.showNullInLegend) {
+      const color = aesthetic.state.nullValue;
+      const labelText = 'No Data';
+      const labelSize = this.textSizeEstimator.getTextSize(labelText, this.state.labelFontSize);
+      
+      // Position below the gradient
+      const nullItemY = height + this.verticalSpacing;
+      
+      this.coordinates.nullItem = {
+        x: leftOverhang,
+        y: nullItemY + this.squareSize / 2,
+        color: color,
+        label: labelText,
+        squareX: leftOverhang,
+        squareY: nullItemY,
+        labelX: leftOverhang + this.squareSize + this.itemLabelGap,
+        labelY: nullItemY + this.squareSize / 2
+      };
+
+      // Update total height to include null item
+      this.coordinates.height = nullItemY + this.squareSize;
+    }
   }
 
   /**
@@ -610,6 +715,7 @@ export class TextColorLegend extends LegendBase {
   #renderCategorical() {
     // Render each category item
     this.coordinates.items.forEach(item => {
+
       // Color square
       this.group.append("rect")
         .attr("x", item.squareX)
@@ -650,13 +756,25 @@ export class TextColorLegend extends LegendBase {
       .attr("y2", "0%");
 
     // Add color stops
-    for (let i = 0; i <= this.numGradientStops; i++) {
-      const t = i / this.numGradientStops;
-      const value = minValue + t * (maxValue - minValue);
-      const color = aesthetic.scale.getValue(value);
+    if (minValue === maxValue) {
+      // Single color for single value
+      const color = aesthetic.scale.getValue(minValue);
       gradient.append("stop")
-        .attr("offset", `${t * 100}%`)
+        .attr("offset", "0%")
         .attr("stop-color", color);
+      gradient.append("stop")
+        .attr("offset", "100%")
+        .attr("stop-color", color);
+    } else {
+      // Normal gradient
+      for (let i = 0; i <= this.numGradientStops; i++) {
+        const t = i / this.numGradientStops;
+        const value = minValue + t * (maxValue - minValue);
+        const color = aesthetic.scale.getValue(value);
+        gradient.append("stop")
+          .attr("offset", `${t * 100}%`)
+          .attr("stop-color", color);
+      }
     }
 
     // Draw gradient rectangle

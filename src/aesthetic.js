@@ -6,16 +6,22 @@ import {
   ContinuousColorScale,
   CategoricalColorScale
 } from "./scales.js";
+import { Subscribable } from "./utils.js";
+import Picker from 'vanilla-picker';
 
 /**
  * Manages the configuration and scale for a single aesthetic mapping
  * (e.g., tip label color mapped to a metadata column)
  */
-export class Aesthetic {
+export class Aesthetic extends Subscribable {
   state; // Object containing all configuration used to infer the scale
   scale; // the actual scale instance
+  values; // Store the original values for scale recreation
+  defaultPalette = ["#440154", "#365C8D", "#1FA187", "#9FDA3A"];
 
   constructor(values, options = {}) {
+    super();
+
     // Required options
     if (!options.scaleType) {
       throw new Error('scaleType is required');
@@ -24,6 +30,9 @@ export class Aesthetic {
       throw new Error('default is required');
     }
 
+    // Store values for later use
+    this.values = values;
+
     // Initialize state with all configuration variables
     this.state = {
       scaleType: undefined,
@@ -31,7 +40,8 @@ export class Aesthetic {
       isCategorical: undefined,
       outputValues: null,
       outputRegex: null,
-      colorPalette: null,
+      colorPalette: this.defaultPalette,
+      colorPositions: this.defaultPalette.map((_, i) => i / (this.defaultPalette.length - 1)),
       outputRange: null,
       inputUnits: null,
       title: null,
@@ -41,20 +51,13 @@ export class Aesthetic {
       transformMin: 0,
       transformMax: 1,
       transformFn: null,
-      colorPositions: null,
+      nullValue: '#808080',
+      showNullInLegend: true,
       ...options
     };
 
     // Initialize the scale
-    this.updateScale(values);
-  }
-
-  /**
-   * Set the scale instance for this aesthetic
-   * @param {object} scale - The scale instance
-   */
-  setScale(scale) {
-    this.scale = scale;
+    this.updateScale(false);
   }
 
   /**
@@ -71,16 +74,10 @@ export class Aesthetic {
    * Update the scale based on current state
    * Uses the stored state to create an appropriate scale
    */
-  updateScale(values) {
+  updateScale(notify = true) {
+    const values = this.values;
     const { scaleType, isCategorical } = this.state;
     let scale;
-
-    // Handle null scale
-    if (scaleType === 'null') {
-      scale = new NullScale(this.state.default);
-      this.setScale(scale);
-      return;
-    }
 
     // Handle identity scales and data already in the output format
     let isAlreadyOutputFormat = true;
@@ -104,28 +101,21 @@ export class Aesthetic {
     } else {
       isAlreadyOutputFormat = false;
     }
-    if (scaleType === 'identity' || isAlreadyOutputFormat) {
-      scale = new IdentityScale(
-        this.state.default,
-        this.state.outputValues,
-        this.state.transformFn
-      );
-      this.setScale(scale);
-      return;
-    }
 
-    // Handle text scales (only for categorical data)
-    if (scaleType === 'text') {
+    // Handle null scale
+    if (scaleType === 'null') {
+      scale = new NullScale(this.state);
+      this.scale = scale;
+    } else if (scaleType === 'identity' || isAlreadyOutputFormat) {
+      scale = new IdentityScale(this.state);
+      this.scale = scale;
+    } else if (scaleType === 'text') {
       if (!isCategorical) {
         throw new Error('Text scales can only be used with categorical data');
       }
-      scale = new CategoricalTextScale(values, this.state.outputValues, this.state.default);
-      this.setScale(scale);
-      return;
-    }
-
-    // Handle size scales (only for continuous data)
-    if (scaleType === 'size') {
+      scale = new CategoricalTextScale(values, this.state);
+      this.scale = scale;
+    } else if (scaleType === 'size') {
       if (isCategorical) {
         throw new Error('Size scales can only be used with continuous data');
       }
@@ -133,50 +123,670 @@ export class Aesthetic {
       const numericValues = values.map(v => Number(v)).filter(v => !isNaN(v));
       if (numericValues.length === 0) {
         console.warn('No numeric values found for size scale, using NullScale');
-        scale = new NullScale(this.state.default);
+        scale = new NullScale(this.state);
       } else {
         const min = Math.min(...numericValues);
         const max = Math.max(...numericValues);
-        const range = this.state.outputRange || [0.5, 2];
-        scale = new ContinuousSizeScale(min, max, range[0], range[1]);
+        scale = new ContinuousSizeScale(min, max, this.state);
       }
-      this.setScale(scale);
-      return;
-    }
-
-    // Handle color scales
-    if (scaleType === 'color') {
+      this.scale = scale;
+    } else if (scaleType === 'color') {
       if (isCategorical) {
-        scale = new CategoricalColorScale(
-          values,
-          this.state.transformMin,
-          this.state.transformMax,
-          this.state.colorPalette,
-          this.state.colorPositions,
-          this.state.maxCategories
-        );
+        scale = new CategoricalColorScale(values, this.state);
       } else {
         const numericValues = values.map(v => Number(v)).filter(v => !isNaN(v));
         if (numericValues.length === 0) {
           console.warn('No numeric values found for color scale, using NullScale');
-          scale = new NullScale(this.state.default);
+          scale = new NullScale(this.state);
         } else {
           const min = Math.min(...numericValues);
           const max = Math.max(...numericValues);
-          scale = new ContinuousColorScale(
-            min,
-            max,
-            this.state.transformMin,
-            this.state.transformMax,
-            this.state.colorPalette,
-            this.state.colorPositions
-          );
+          scale = new ContinuousColorScale(min, max, this.state);
         }
       }
-      this.setScale(scale);
-      return;
+      this.scale = scale;
+    } else {
+      throw new Error(`Unknown scale type: ${scaleType}`);
     }
 
-    throw new Error(`Unknown scale type: ${scaleType}`);
+    // Notify subscribers of the change
+    if (notify) {
+      this.notify('aestheticChange', this);
+    }
   }
+
+  /**
+   * Update aesthetic state properties
+   * @param {Object} updates - Object with properties to update
+   */
+  updateState(updates) {
+    Object.assign(this.state, updates);
+    this.updateScale(this.values);
+  }
+
+  /**
+   * Create settings widget(s) for this aesthetic
+   * @param {Object} options - Configuration options
+   * @param {number} options.controlHeight - Height of controls
+   * @returns {HTMLElement|null} The settings widget container, or null if no settings available
+   */
+  createSettingsWidget(options = {}) {
+    const {
+      controlHeight = 24
+    } = options;
+
+    // For color scales, create color palette editor
+    if (this.state.scaleType === 'color') {
+      return this.createColorPaletteEditor(controlHeight);
+    }
+
+    // For other scale types, return null (no settings widget yet)
+    return null;
+  }
+
+  /**
+   * Create a color palette editor widget
+   * @param {number} controlHeight - Height of controls
+   * @returns {HTMLElement} The palette editor container
+   */
+  createColorPaletteEditor(controlHeight) {
+    if (!this.scale) {
+      return null;
+    }
+
+    const container = document.createElement('div');
+    container.className = 'ht-color-palette-editor';
+
+    // Create gradient container (holds both gradient and null color controls)
+    const gradientContainer = document.createElement('div');
+    gradientContainer.className = 'ht-gradient-container';
+
+    // Create gradient column
+    const gradientColumn = document.createElement('div');
+    gradientColumn.className = 'ht-gradient-column';
+
+    // Create color squares above gradient
+    const colorSquaresContainer = document.createElement('div');
+    colorSquaresContainer.className = 'ht-color-squares-container';
+
+    // Create gradient box
+    const gradientBox = document.createElement('div');
+    gradientBox.className = 'ht-gradient-box';
+
+    // Function to update gradient display
+    const updateGradientDisplay = () => {
+      const gradientStops = this.state.colorPalette.map((color, i) => {
+        const pos = this.state.colorPositions[i] * 100;
+        return `${color} ${pos}%`;
+      }).join(', ');
+      gradientBox.style.background = `linear-gradient(to right, ${gradientStops})`;
+    };
+
+    // Initial gradient display
+    updateGradientDisplay();
+
+    // Track current parent for the shared picker
+    let currentPickerParent = null;
+
+    // Create a container div that will be appended to body for the gradient picker
+    const pickerContainer = document.createElement('div');
+    pickerContainer.style.position = 'fixed';
+    pickerContainer.style.zIndex = '999999';
+    pickerContainer.style.pointerEvents = 'auto';
+    document.body.appendChild(pickerContainer);
+
+    // Create a separate container for the null color picker
+    const nullPickerContainer = document.createElement('div');
+    nullPickerContainer.style.position = 'fixed';
+    nullPickerContainer.style.zIndex = '999999';
+    nullPickerContainer.style.pointerEvents = 'auto';
+    document.body.appendChild(nullPickerContainer);
+
+    // Function to close the gradient picker
+    const closeGradientPicker = () => {
+      pickerContainer.style.display = 'none';
+      currentPickerParent = null;
+    };
+
+    // Function to close the null picker
+    const closeNullPicker = () => {
+      nullPickerContainer.style.display = 'none';
+    };
+
+    // Create null color column (structured same as gradient column)
+    const nullColorColumn = document.createElement('div');
+    nullColorColumn.className = 'ht-null-color-column';
+
+    // Create color square container (aligned with gradient color squares)
+    const nullColorSquareContainer = document.createElement('div');
+    nullColorSquareContainer.className = 'ht-null-color-square-container';
+
+    // Color square with tick
+    const nullSquareWrapper = document.createElement('div');
+    nullSquareWrapper.style.display = 'flex';
+    nullSquareWrapper.style.flexDirection = 'column';
+    nullSquareWrapper.style.alignItems = 'center';
+
+    const nullSquare = document.createElement('div');
+    nullSquare.className = 'ht-null-color-square';
+    nullSquare.style.backgroundColor = this.state.nullValue;
+    nullSquare.title = 'Click to edit missing data color';
+
+    const nullTick = document.createElement('div');
+    nullTick.className = 'ht-null-color-square-tick';
+
+    nullSquareWrapper.appendChild(nullSquare);
+    nullSquareWrapper.appendChild(nullTick);
+    nullColorSquareContainer.appendChild(nullSquareWrapper);
+
+    // Create null color box (aligned with gradient box)
+    const nullColorBox = document.createElement('div');
+    nullColorBox.className = 'ht-null-color-box';
+    nullColorBox.style.backgroundColor = this.state.nullValue;
+
+    // Create shared color picker for palette colors
+    const sharedPicker = new Picker({
+      parent: pickerContainer,
+      popup: false,
+      alpha: false,
+      editor: true,
+      color: this.state.colorPalette[0],
+      onChange: (color) => {
+        if (!currentPickerParent) return;
+
+        const colorIndex = parseInt(currentPickerParent.getAttribute('data-color-index'));
+        const hexColor = color.hex.substring(0, 7); // Remove alpha if present
+
+        // Update the color in state
+        this.state.colorPalette[colorIndex] = hexColor;
+
+        // Update the square's background color
+        currentPickerParent.style.backgroundColor = hexColor;
+
+        // Update gradient display
+        updateGradientDisplay();
+
+        // Update handle colors if they're affected
+        const minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
+        minHandle.style.backgroundColor = minColor;
+        const maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
+        maxHandle.style.backgroundColor = maxColor;
+
+        // Apply changes
+        this.updateScale();
+      },
+      onDone: () => {
+        closeGradientPicker();
+      }
+    });
+
+    // Initially hide the picker
+    pickerContainer.style.display = 'none';
+
+    // Add event listener to close picker when clicking outside
+    const closePickerOnClickOutside = (e) => {
+      if (!pickerContainer.contains(e.target) && !e.target.closest('.ht-color-square')) {
+        closeGradientPicker();
+      }
+    };
+    document.addEventListener('click', closePickerOnClickOutside);
+
+    // Create separate picker for null color
+    const nullColorPicker = new Picker({
+      parent: nullPickerContainer,
+      popup: false,
+      alpha: false,
+      editor: true,
+      color: this.state.nullValue,
+      onChange: (color) => {
+        const hexColor = color.hex.substring(0, 7); // Remove alpha if present
+        this.state.nullValue = hexColor;
+        nullSquare.style.backgroundColor = hexColor;
+        nullColorBox.style.backgroundColor = hexColor;
+
+        // Apply changes
+        this.updateScale();
+      },
+      onDone: () => {
+        closeNullPicker();
+      }
+    });
+
+    // Initially hide the null picker
+    nullPickerContainer.style.display = 'none';
+
+    // Add event listener to close null picker when clicking outside
+    const closeNullPickerOnClickOutside = (e) => {
+      if (!nullPickerContainer.contains(e.target) && e.target !== nullSquare) {
+        closeNullPicker();
+      }
+    };
+    document.addEventListener('click', closeNullPickerOnClickOutside);
+
+    // Store cleanup function on container
+    container.dataset.pickerCleanup = 'cleanup';
+    container.cleanupFunction = () => {
+      document.removeEventListener('click', closePickerOnClickOutside);
+      document.removeEventListener('click', closeNullPickerOnClickOutside);
+      if (pickerContainer.parentElement) {
+        pickerContainer.parentElement.removeChild(pickerContainer);
+      }
+      if (nullPickerContainer.parentElement) {
+        nullPickerContainer.parentElement.removeChild(nullPickerContainer);
+      }
+    };
+
+    // Function to recreate color squares
+    const colorSquares = [];
+    const recreateColorSquares = () => {
+      colorSquaresContainer.innerHTML = '';
+      colorSquares.length = 0;
+
+      this.state.colorPalette.forEach((color, i) => {
+        const squareContainer = createColorSquareWithTick(colorSquaresContainer, color, i, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const square = e.currentTarget;
+          const colorIndex = parseInt(square.getAttribute('data-color-index'));
+
+          // Close null color picker if open
+          closeNullPicker();
+
+          // Update current parent
+          currentPickerParent = square;
+
+          // Get the position of the square for positioning the picker
+          const rect = square.getBoundingClientRect();
+
+          // Update picker color
+          sharedPicker.setColor(this.state.colorPalette[colorIndex], true);
+
+          // Position and show the picker
+          pickerContainer.style.left = `${rect.left}px`;
+          pickerContainer.style.top = `${rect.bottom + 5}px`;
+          pickerContainer.style.display = 'block';
+        });
+        squareContainer.style.left = `${this.state.colorPositions[i] * 100}%`;
+        colorSquares.push(squareContainer);
+      });
+    };
+
+    // Initial creation of color squares
+    recreateColorSquares();
+
+    // Create range slider below gradient
+    const rangeSliderContainer = document.createElement('div');
+    rangeSliderContainer.className = 'ht-range-slider-container';
+
+    // Create min handle
+    const minHandle = document.createElement('div');
+    minHandle.className = 'ht-range-handle';
+    minHandle.style.left = `${this.state.transformMin * 100}%`;
+    minHandle.title = 'Drag to adjust minimum';
+
+    // Set handle color based on gradient
+    let minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
+    minHandle.style.backgroundColor = minColor;
+
+    // Create upward triangle indicator for min handle
+    const minIndicator = document.createElement('div');
+    minIndicator.className = 'ht-range-handle-indicator';
+    minHandle.appendChild(minIndicator);
+
+    // Create max handle
+    const maxHandle = document.createElement('div');
+    maxHandle.className = 'ht-range-handle';
+    maxHandle.style.left = `${this.state.transformMax * 100}%`;
+    maxHandle.title = 'Drag to adjust maximum';
+
+    // Set handle color based on gradient
+    let maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
+    maxHandle.style.backgroundColor = maxColor;
+
+    // Create upward triangle indicator for max handle
+    const maxIndicator = document.createElement('div');
+    maxIndicator.className = 'ht-range-handle-indicator';
+    maxHandle.appendChild(maxIndicator);
+
+    // Add drag functionality for min handle
+    let isDraggingMin = false;
+    minHandle.addEventListener('mousedown', (e) => {
+      isDraggingMin = true;
+      e.preventDefault();
+    });
+
+    // Add drag functionality for max handle
+    let isDraggingMax = false;
+    maxHandle.addEventListener('mousedown', (e) => {
+      isDraggingMax = true;
+      e.preventDefault();
+    });
+
+    // Handle mouse move for dragging
+    const handleMouseMove = (e) => {
+      if (!isDraggingMin && !isDraggingMax) return;
+
+      const rect = rangeSliderContainer.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const width = rect.width;
+      let newValue = Math.max(0, Math.min(1, x / width));
+
+      if (isDraggingMin) {
+        // Ensure min doesn't go past max
+        newValue = Math.min(newValue, this.state.transformMax - 0.01);
+        this.state.transformMin = newValue;
+        minHandle.style.left = `${newValue * 100}%`;
+        minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, newValue);
+        minHandle.style.backgroundColor = minColor;
+
+        // Apply changes
+        this.updateScale();
+      } else if (isDraggingMax) {
+        // Ensure max doesn't go before min
+        newValue = Math.max(newValue, this.state.transformMin + 0.01);
+        this.state.transformMax = newValue;
+        maxHandle.style.left = `${newValue * 100}%`;
+        maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, newValue);
+        maxHandle.style.backgroundColor = maxColor;
+
+        // Apply changes
+        this.updateScale();
+      }
+    };
+
+    const handleMouseUp = () => {
+      isDraggingMin = false;
+      isDraggingMax = false;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    rangeSliderContainer.appendChild(minHandle);
+    rangeSliderContainer.appendChild(maxHandle);
+
+    // Assemble gradient column
+    gradientColumn.appendChild(colorSquaresContainer);
+    gradientColumn.appendChild(gradientBox);
+    gradientColumn.appendChild(rangeSliderContainer);
+
+    // Add click handler to null square to position picker
+    nullSquare.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Close gradient picker if open
+      closeGradientPicker();
+
+      const rect = nullSquare.getBoundingClientRect();
+
+      // Update picker color
+      nullColorPicker.setColor(this.state.nullValue, true);
+
+      // Position and show the picker
+      nullPickerContainer.style.left = `${rect.left}px`;
+      nullPickerContainer.style.top = `${rect.bottom + 5}px`;
+      nullPickerContainer.style.display = 'block';
+    });
+
+    // Create null color container (aligned with range slider)
+    const missingDataXContainer = document.createElement('div');
+    missingDataXContainer.className = 'missing-data-x-container';
+
+    // Create upward triangle indicator
+    const resetIndicator = document.createElement('div');
+    resetIndicator.className = 'missing-data-x-container-triangle';
+
+    const missingDataX = document.createElement('div');
+    missingDataX.className = 'missing-data-x';
+    missingDataX.textContent = '✕';
+
+    missingDataXContainer.appendChild(resetIndicator);
+    missingDataXContainer.appendChild(missingDataX);
+
+    // Assemble null color column
+    nullColorColumn.appendChild(nullColorSquareContainer);
+    nullColorColumn.appendChild(nullColorBox);
+    nullColorColumn.appendChild(missingDataXContainer);
+
+    // Assemble gradient container with both columns
+    gradientContainer.appendChild(gradientColumn);
+    gradientContainer.appendChild(nullColorColumn);
+
+    // Create left buttons (plus and minus)
+    const leftButtonsContainer = document.createElement('div');
+    leftButtonsContainer.className = 'ht-palette-buttons-container';
+
+    const leftPlusBtn = createPaletteButton('+', 'Add color to left');
+    leftPlusBtn.addEventListener('click', () => {
+      // Add a new color at the beginning
+      const newColor = this.state.colorPalette[0]; // Duplicate the first color
+      this.state.colorPalette.unshift(newColor);
+
+      // Recalculate positions to evenly space colors
+      this.state.colorPositions = this.state.colorPalette.map((_, i) => i / (this.state.colorPalette.length - 1));
+
+      // Update display
+      updateGradientDisplay();
+
+      // Recreate color squares
+      recreateColorSquares();
+
+      // Update handle colors
+      minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
+      minHandle.style.backgroundColor = minColor;
+      maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
+      maxHandle.style.backgroundColor = maxColor;
+
+      // Apply changes
+      this.updateScale();
+    });
+
+    const leftMinusBtn = createPaletteButton('-', 'Remove color from left');
+    leftMinusBtn.addEventListener('click', () => {
+      if (this.state.colorPalette.length <= 2) {
+        console.warn('Cannot remove color: minimum 2 colors required');
+        return;
+      }
+
+      // Remove the first color
+      this.state.colorPalette.shift();
+
+      // Recalculate positions
+      this.state.colorPositions = this.state.colorPalette.map((_, i) => i / (this.state.colorPalette.length - 1));
+
+      // Update display
+      updateGradientDisplay();
+
+      // Recreate color squares
+      recreateColorSquares();
+
+      // Update handle colors
+      minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
+      minHandle.style.backgroundColor = minColor;
+      maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
+      maxHandle.style.backgroundColor = maxColor;
+
+      // Apply changes
+      this.updateScale();
+    });
+
+    leftButtonsContainer.appendChild(leftPlusBtn);
+    leftButtonsContainer.appendChild(leftMinusBtn);
+
+    // Create right buttons (plus and minus)
+    const rightButtonsContainer = document.createElement('div');
+    rightButtonsContainer.className = 'ht-palette-buttons-container';
+
+    const rightPlusBtn = createPaletteButton('+', 'Add color to right');
+    rightPlusBtn.addEventListener('click', () => {
+      // Add a new color at the end
+      const newColor = this.state.colorPalette[this.state.colorPalette.length - 1]; // Duplicate the last color
+      this.state.colorPalette.push(newColor);
+
+      // Recalculate positions
+      this.state.colorPositions = this.state.colorPalette.map((_, i) => i / (this.state.colorPalette.length - 1));
+
+      // Update display
+      updateGradientDisplay();
+
+      // Recreate color squares
+      recreateColorSquares();
+
+      // Update handle colors
+      minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
+      minHandle.style.backgroundColor = minColor;
+      maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
+      maxHandle.style.backgroundColor = maxColor;
+
+      // Apply changes
+      this.updateScale();
+    });
+
+    const rightMinusBtn = createPaletteButton('-', 'Remove color from right');
+    rightMinusBtn.addEventListener('click', () => {
+      if (this.state.colorPalette.length <= 2) {
+        console.warn('Cannot remove color: minimum 2 colors required');
+        return;
+      }
+
+      // Remove the last color
+      this.state.colorPalette.pop();
+
+      // Recalculate positions
+      this.state.colorPositions = this.state.colorPalette.map((_, i) => i / (this.state.colorPalette.length - 1));
+
+      // Update display
+      updateGradientDisplay();
+
+      // Recreate color squares
+      recreateColorSquares();
+
+      // Update handle colors
+      minColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMin);
+      minHandle.style.backgroundColor = minColor;
+      maxColor = interpolateGradient(this.state.colorPalette, this.state.colorPositions, this.state.transformMax);
+      maxHandle.style.backgroundColor = maxColor;
+
+      // Apply changes
+      this.updateScale();
+    });
+
+    rightButtonsContainer.appendChild(rightPlusBtn);
+    rightButtonsContainer.appendChild(rightMinusBtn);
+
+    // Assemble the editor
+    container.appendChild(leftButtonsContainer);
+    container.appendChild(gradientContainer);
+    container.appendChild(rightButtonsContainer);
+
+    return container;
+  }
+}
+
+/**
+ * Helper functions for color palette editor
+ */
+
+/**
+ * Create a small button for palette controls
+ */
+function createPaletteButton(text, title) {
+  const button = document.createElement('button');
+  button.className = 'ht-palette-button';
+  button.textContent = text;
+  button.title = title;
+  return button;
+}
+
+/**
+ * Interpolate color from gradient at position t (0-1)
+ */
+function interpolateGradient(colors, positions, t) {
+  // Clamp t to [0, 1]
+  t = Math.max(0, Math.min(1, t));
+
+  // Handle single color case
+  if (colors.length === 1) {
+    return colors[0];
+  }
+
+  // Find the two colors to interpolate between
+  let i = 0;
+  while (i < positions.length - 1 && t > positions[i + 1]) {
+    i++;
+  }
+
+  // If t is exactly at a position, return that color
+  if (t === positions[i]) {
+    return colors[i];
+  }
+
+  // If we're at the last position, return the last color
+  if (i === positions.length - 1) {
+    return colors[i];
+  }
+
+  // Interpolate between colors[i] and colors[i+1]
+  const t1 = positions[i];
+  const t2 = positions[i + 1];
+  const localT = (t - t1) / (t2 - t1);
+
+  const color1 = hexToRgb(colors[i]);
+  const color2 = hexToRgb(colors[i + 1]);
+
+  const r = Math.round(color1.r + (color2.r - color1.r) * localT);
+  const g = Math.round(color1.g + (color2.g - color1.g) * localT);
+  const b = Math.round(color1.b + (color2.b - color1.b) * localT);
+
+  return rgbToHex(r, g, b);
+}
+
+/**
+ * Convert hex color to RGB object
+ */
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 0, b: 0 };
+}
+
+/**
+ * Convert RGB values to hex color
+ */
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(x => {
+    const hex = x.toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }).join('');
+}
+
+/**
+ * Create a color square with tick mark
+ */
+function createColorSquareWithTick(parent, color, colorIndex, clickHandler) {
+  const squareContainer = document.createElement('div');
+  squareContainer.className = 'ht-color-square-wrapper';
+
+  // Color square
+  const square = document.createElement('div');
+  square.className = 'ht-color-square';
+  square.style.backgroundColor = color;
+  square.title = 'Click to edit color';
+  square.setAttribute('data-color-index', colorIndex);
+
+  // Add click handler for color picker
+  square.addEventListener('click', clickHandler);
+
+  // Tick mark
+  const tick = document.createElement('div');
+  tick.className = 'ht-color-square-tick';
+
+  squareContainer.appendChild(square);
+  squareContainer.appendChild(tick);
+  parent.appendChild(squareContainer);
+  return squareContainer;
 }

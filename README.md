@@ -83,7 +83,8 @@ heatTree(
 );
 ```
 
-Metadata tables should be tab-separated or comma-separated text with a `node_id` column that corresponds to node IDs in the newick string.
+Metadata tables should be tab-separated or comma-separated text with a column that corresponds to node IDs in the newick string.
+The column that contains node IDs is automaticly selected.
 
 ### Default Aesthetic Mappings
 
@@ -212,7 +213,8 @@ Use the toolbar's "Data" tab to switch between loaded trees.
 
 ## Dependencies
 
-- [D3.js](https://d3js.org/) v7.9.0
+- [D3.js](https://d3js.org/)
+- [vanilla-picker](https://www.npmjs.com/package/vanilla-picker)
 
 ## License
 
