@@ -1,6 +1,8 @@
 # heat-tree
 
 A self-contained widget for phylogenetic and taxonomic tree visualization with categorical and continuous variables associated with nodes and tips.
+For the R package that wraps this library, see [https://github.com/grunwaldlab/heattree](https://github.com/grunwaldlab/heattree).
+For a live example of the widget in use see the example in the R package documentation at [https://grunwaldlab.github.io/heattree/articles/Getting-started.html](https://grunwaldlab.github.io/heattree/articles/Getting-started.html).
 
 ![](docs/images/example_screenshot.png)
 
