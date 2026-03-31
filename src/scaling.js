@@ -185,7 +185,8 @@ export function calculateCircularScalingFactors(root, options) {
 
   const minLabelScale = Math.min(...leafData.map(a => a.labelScale));
   const maxBranchX = Math.max(...leafData.map(a => a.radius));
-  const minBranchX = Math.min(...leafData.map(a => a.radius));
+  // const minBranchX = Math.min(...leafData.map(a => a.radius));
+  const meanBranchX = leafData.reduce((sum, x) => sum + x.radius, 0) / leafData.length;
   const nonZeroBranches = root.descendants().filter(a => a.data.length > 0 && a.children);
   const minBranchLength = nonZeroBranches.length > 0 ? Math.min(...nonZeroBranches.map(a => a.data.length)) : Infinity;
 
@@ -199,6 +200,17 @@ export function calculateCircularScalingFactors(root, options) {
         (a.width * labelSizeToPxFactor_min) / ((maxBranchX / options.minBranchLenProp) - a.radius)
       ))
     );
+  }
+
+  // Leaf annotations should not overlap when used in a circular layout
+  const totalAnnotationHeight = leafData.reduce((sum, a) => sum + a.height, 0);
+  if (totalAnnotationHeight > 0 && meanBranchX > 0) {
+    if (branchLenToPxFactor_min !== branchLenToPxFactor_max) {
+      applyBranchMin((totalAnnotationHeight * labelSizeToPxFactor_min) / (meanBranchX * 2 * Math.PI));
+    }
+    if (labelSizeToPxFactor_min !== labelSizeToPxFactor_max) {
+      applyLabelMax((maxBranchX * branchLenToPxFactor_max * 2 * Math.PI) / totalAnnotationHeight);
+    }
   }
 
   // Tree should fit into viewing window
@@ -224,22 +236,6 @@ export function calculateCircularScalingFactors(root, options) {
   }
   applyBranchViewConstraint();
   applyLabelViewConstraint();
-
-  // Leaf annotations should not overlap when used in a circular layout
-  const totalAnnotationHeight = leafData.reduce((sum, a) => sum + a.height, 0);
-  if (totalAnnotationHeight > 0 && minBranchX > 0) {
-    if (branchLenToPxFactor_min !== branchLenToPxFactor_max) {
-      applyBranchMin((totalAnnotationHeight * labelSizeToPxFactor_min) / (minBranchX * 2 * Math.PI));
-    }
-    if (labelSizeToPxFactor_min !== labelSizeToPxFactor_max) {
-      applyLabelMax((maxBranchX * branchLenToPxFactor_max * 2 * Math.PI) / totalAnnotationHeight);
-    }
-  }
-
-  // Tree should fit into viewing window (recalculate since branch limits might have changed)
-  if (labelSizeToPxFactor_min !== labelSizeToPxFactor_max) {
-    applyLabelViewConstraint();
-  }
 
   // Text should be large and easy to read
   if (labelSizeToPxFactor_min !== labelSizeToPxFactor_max) {
