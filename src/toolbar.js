@@ -160,7 +160,7 @@ export function createToolbar(
   toggleButton.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     controlPanelVisible = !controlPanelVisible;
 
     if (controlPanelVisible) {
@@ -506,7 +506,7 @@ function populateDataControls(
 
   // Select tree control group
   const treeGroup = createControlGroup();
-  const treeLabel = createLabel('Select tree:', controlHeight);
+  const treeLabel = createLabel('Tree:', controlHeight);
   treeGroup.appendChild(treeLabel);
 
   const treeSelect = document.createElement('select');
@@ -601,7 +601,7 @@ function populateDataControls(
 
   // Select metadata control group
   const metadataGroup = createControlGroup();
-  const metadataLabel = createLabel('Available metadata:', controlHeight);
+  const metadataLabel = createLabel('Metadata:', controlHeight);
   metadataGroup.appendChild(metadataLabel);
 
   const metadataSelect = document.createElement('select');
@@ -722,7 +722,7 @@ function populateDataControls(
       const currentIdColumn = treeData.getNodeIdColumn(selectedTableId);
 
       const nodeIdGroup = createControlGroup();
-      const nodeIdLabel = createLabel('Node/Tip ID Column:', controlHeight);
+      const nodeIdLabel = createLabel('ID Column:', controlHeight);
       nodeIdGroup.appendChild(nodeIdLabel);
 
       const nodeIdSelect = document.createElement('select');
