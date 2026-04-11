@@ -1,6 +1,21 @@
-/* Heat Tree Widget Styles */
+/* Heat Tree Widget Styles - Light Mode Only */
 
+/* Force light mode and prevent parent styles from affecting the widget */
 .ht-widget {
+  /* Reset any inherited color schemes */
+  color-scheme: light !important;
+  
+  /* Prevent inheritance of CSS variables from parent */
+  --color-background: #ffffff;
+  --color-text: #333333;
+  --color-border: #dddddd;
+  --color-muted: #666666;
+  --color-accent: #007bff;
+  
+  /* Apply light mode colors explicitly */
+  background-color: var(--color-background);
+  color: var(--color-text);
+  
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -60,7 +75,7 @@
   max-height: 0;
 }
 
-.ht-tabs {
+.ht-widget .ht-tabs {
   display: flex;
   gap: 20px;
   padding: 4px 8px;
@@ -69,7 +84,7 @@
   user-select: none;
 }
 
-.ht-tab {
+.ht-widget .ht-tab {
   cursor: pointer;
   padding: 2px 4px;
   font-family: sans-serif;
@@ -79,31 +94,31 @@
   transition: all 0.2s;
 }
 
-.ht-tab:hover {
+.ht-widget .ht-tab:hover {
   color: #666;
 }
 
-.ht-tab.active {
+.ht-widget .ht-tab.active {
   color: #000;
   font-weight: bold;
   border-bottom-color: #007bff;
 }
 
-.ht-tab.active:hover {
+.ht-widget .ht-tab.active:hover {
   color: #000;
 }
 
-.ht-tab.disabled {
+.ht-widget .ht-tab.disabled {
   color: #999;
   cursor: not-allowed;
   opacity: 0.5;
 }
 
-.ht-tab.disabled:hover {
+.ht-widget .ht-tab.disabled:hover {
   color: #999;
 }
 
-.ht-controls {
+.ht-widget .ht-controls {
   padding: 2px 8px;
   background-color: #fafafa;
   border-bottom: 1px solid #ddd;
@@ -133,7 +148,7 @@
   border-bottom-color: #007bff;
 }
 
-.ht-control-label {
+.ht-widget .ht-control-label {
   font-family: sans-serif;
   font-size: 14px;
   color: #333;
@@ -250,7 +265,7 @@
   width: 100px
 }
 
-.ht-aesthetic-settings-content {
+.ht-widget .ht-aesthetic-settings-content {
   padding: 2px 8px;
   background-color: #f0f0f0;
   border-bottom: 1px solid #ddd;
@@ -347,7 +362,7 @@
   position: relative;
 }
 
-.ht-range-slider-container {
+.ht-widget .ht-range-slider-container {
   width: 200px;
   height: 12px;
   position: relative;
