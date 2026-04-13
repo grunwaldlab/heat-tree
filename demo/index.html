@@ -57,6 +57,11 @@
         Each example includes interactive visualization with associated metadata.
     </p>
 
+    <h2>Simple</h2>
+    <div class="tree-container">
+        <div id="simple" class="tree-output"></div>
+    </div>
+
     <!-- Weisberg et al. 2020 - MLSA -->
     <h2>Weisberg et al. 2020 - MLSA</h2>
     <p>
@@ -107,10 +112,22 @@
         // Initialize examples
         async function initExamples() {
             try {
+
+                // Simple tree
+                heatTree(
+                  '#simple',
+                  {
+                    name: 'Simple Tree',
+                    tree: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);'
+                  },
+                  { manualZoomAndPanEnabled: false }
+                );
+
+
                 // Load Weisberg data
-                const weisbergMetadata = await loadData('data/weisberg_2020_metadata.tsv');
-                const weisbergMlsa = await loadData('data/weisberg_2020_mlsa.tre');
-                const weisbergBeast = await loadData('data/weisberg_2020_beast.tre');
+                const weisbergMetadata = await loadData('../docs/public/data/weisberg_2020_metadata.tsv');
+                const weisbergMlsa = await loadData('../docs/public/data/weisberg_2020_mlsa.tre');
+                const weisbergBeast = await loadData('../docs/public/data/weisberg_2020_beast.tre');
 
                 // Render Weisberg MLSA
                 heatTree(
@@ -118,7 +135,7 @@
                     [
                         {
                             name: 'MLSA',
-                            newick: weisbergMlsa,
+                            tree: weisbergMlsa,
                             metadata: [
                                 {
                                     name: 'Strain Metadata',
@@ -143,7 +160,7 @@
                     [
                         {
                             name: 'BEAST',
-                            newick: weisbergBeast,
+                            tree: weisbergBeast,
                             metadata: [
                                 {
                                     name: 'Strain Metadata',
@@ -163,15 +180,15 @@
                 );
 
                 // Load and render Bansal data
-                const bansalMetadata = await loadData('data/bansal_2021_metadata.tsv');
-                const bansalTree = await loadData('data/bansal_2021_tree.nwk');
+                const bansalMetadata = await loadData('../docs/public/data/bansal_2021_metadata.tsv');
+                const bansalTree = await loadData('../docs/public/data/bansal_2021_tree.nwk');
 
                 heatTree(
                     "#bansal-tree",
                     [
                         {
                             name: 'Xylella Tree',
-                            newick: bansalTree,
+                            tree: bansalTree,
                             metadata: [
                                 {
                                     name: 'Strain Metadata',

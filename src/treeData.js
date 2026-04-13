@@ -1,5 +1,6 @@
 import { hierarchy, ascending } from "d3";
 import { parseNewick, parseTable } from "./parsers.js";
+import { parseNexus, isNexusFormat } from "./nexusParser.js";
 import { Subscribable, columnToHeader } from "./utils.js";
 import { Aesthetic } from "./aesthetic.js";
 
@@ -20,10 +21,16 @@ export class TreeData extends Subscribable {
   validIdColumns = new Map(); // Map of table ID to array of column names that contain valid node IDs
   #nextTableId = 0;
 
-  constructor(newickStr, metadataTables = [], metadataTableNames = []) {
+  /**
+   * Create TreeData from a parsed tree object
+   * @param {Object} treeDataObj - Parsed tree object from parseNewick or parseNexus
+   * @param {Array} metadataTables - Optional array of metadata table strings
+   * @param {Array} metadataTableNames - Optional array of metadata table names
+   */
+  constructor(treeDataObj, metadataTables = [], metadataTableNames = []) {
     super();
 
-    this.tree = this.parseTree(newickStr);
+    this.tree = this.createHierarchy(treeDataObj);
 
     if (Array.isArray(metadataTables)) {
       metadataTables.forEach((tableStr, index) => {
@@ -33,14 +40,69 @@ export class TreeData extends Subscribable {
   }
 
   /**
-   * Parse a Newick string and create a hierarchy
-   * @param {string} newickStr - Newick formatted string
+   * Static factory method to create TreeData from tree string (Newick or NEXUS)
+   * @param {string} treeString - Newick or NEXUS formatted string
+   * @param {Array} metadataTables - Optional array of metadata table strings
+   * @param {Array} metadataTableNames - Optional array of metadata table names
+   * @returns {TreeData} New TreeData instance
+   */
+  static fromTreeString(treeString, metadataTables = [], metadataTableNames = []) {
+    const trees = TreeData.parseTrees(treeString, "Tree");
+    if (trees.length !== 1) {
+      throw new Error(`Expected exactly one tree, but found ${trees.length}. Use TreeData.parseTrees() for multiple trees.`);
+    }
+    return new TreeData(trees[0].treeData, metadataTables, metadataTableNames);
+  }
+
+  /**
+   * Parse tree input (Newick or NEXUS) and return array of trees with naming
+   * @param {string} input - Tree input string
+   * @param {string} sourceName - Base name for the tree(s) (e.g., filename or user-provided)
+   * @returns {Array<{name: string, treeData: Object}>} Array of parsed trees with names
+   */
+  static parseTrees(input, sourceName = "Tree") {
+    let trees;
+    
+    if (isNexusFormat(input)) {
+      // Returns array of { treeName, treeData }
+      trees = parseNexus(input);
+    } else {
+      // Newick - single tree
+      const treeData = parseNewick(input);
+      trees = [{ treeName: null, treeData }];
+    }
+    
+    // Apply naming convention
+    const multiple = trees.length > 1;
+    
+    return trees.map((tree, index) => {
+      let name;
+      
+      if (tree.treeName) {
+        // NEXUS has a tree name - combine with source name
+        name = multiple 
+          ? `${sourceName} ${tree.treeName}`
+          : `${sourceName} - ${tree.treeName}`;
+      } else {
+        // No tree name - use source name with number if multiple
+        name = multiple 
+          ? `${sourceName} ${index + 1}`
+          : sourceName;
+      }
+      
+      return {
+        name,
+        treeData: tree.treeData
+      };
+    });
+  }
+
+  /**
+   * Create a D3 hierarchy from parsed tree data
+   * @param {Object} treeData - Parsed tree object from parseNewick
    * @returns {object} D3 hierarchy object
    */
-  parseTree(newickStr) {
-    const treeData = parseNewick(newickStr);
-
-    // Create a D3 hierarchy from the tree data and sort by size of subtree and branch length
+  createHierarchy(treeData) {
     const root = hierarchy(treeData, d => d.children)
       .sum(d => d.children ? 0 : 1)
       .each(function(d) {
@@ -59,10 +121,10 @@ export class TreeData extends Subscribable {
 
   /**
    * Parse and set the tree data
-   * @param {string} newickStr - Newick formatted string or path
+   * @param {Object} treeDataObj - Parsed tree object
    */
-  setTree(newickStr) {
-    this.tree = this.parseTree(newickStr);
+  setTree(treeDataObj) {
+    this.tree = this.createHierarchy(treeDataObj);
     this.metadata.keys().forEach(tableId => this.#attachTable(tableId));
     this.notify('treeUpdated', this);
   }
@@ -377,8 +439,17 @@ export class TreeData extends Subscribable {
     // Get display name for titles
     const displayName = this.columnDisplayName.get(columnId) || columnId;
 
+    // Determine default scaleType based on aesthetic if not provided
+    let scaleType = state.scaleType;
+    if (!scaleType) {
+      // Default to 'color' scale type
+      scaleType = 'color';
+    }
+
     // Create aesthetic with provided state, filling in defaults
     const aesthetic = new Aesthetic(values, {
+      scaleType: scaleType,
+      default: state.default !== undefined ? state.default : (isCategorical ? null : 0),
       isCategorical: isCategorical,
       inputUnits: displayName,
       ...state

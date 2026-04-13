@@ -15,17 +15,17 @@ Create a heat tree visualization
 | Param | Type | Description |
 | --- | --- | --- |
 | containerSelector | <code>string</code> | CSS selector for container element (required if first arg is config object) |
-| treesInput | <code>Array</code> \| <code>Object</code> | Array of tree objects, each with newick, name, and metadata (optional) |
+| treesInput | <code>Array</code> \| <code>Object</code> | Array of tree objects, each with tree, name, and metadata (optional) |
 | options | <code>Object</code> | Configuration options |
 
 
 * [heatTree(containerSelector, treesInput, options)](#heatTree) ⇒ <code>Object</code>
-    * [~addNewTree(treeName, newickStr, metadataTables, metadataNames)](#heatTree..addNewTree)
+    * [~addNewTree(treeName, treeString, metadataTables, metadataNames)](#heatTree..addNewTree)
     * [~switchToTree(treeName)](#heatTree..switchToTree)
 
 <a name="heatTree..addNewTree"></a>
 
-### heatTree~addNewTree(treeName, newickStr, metadataTables, metadataNames)
+### heatTree~addNewTree(treeName, treeString, metadataTables, metadataNames)
 Add a new tree to the visualization
 
 **Kind**: inner method of [<code>heatTree</code>](#heatTree)  
@@ -33,7 +33,7 @@ Add a new tree to the visualization
 | Param | Type | Description |
 | --- | --- | --- |
 | treeName | <code>string</code> | Name for the new tree |
-| newickStr | <code>string</code> | Newick string for the tree |
+| treeString | <code>string</code> | Newick or NEXUS string for the tree(s) |
 | metadataTables | <code>Array</code> | Optional array of metadata table strings |
 | metadataNames | <code>Array</code> | Optional array of metadata table names |
 

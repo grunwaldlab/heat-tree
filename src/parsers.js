@@ -3,6 +3,8 @@ import {
 } from "d3";
 import { interpolateViridisSubset } from "./utils.js"
 
+export { isNexusFormat } from "./nexusParser.js";
+
 /**
  * Parse a Newick formatted string.
  * @param {string} newickStr - The Newick formatted string.

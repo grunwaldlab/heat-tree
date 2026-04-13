@@ -547,7 +547,6 @@ function populateDataControls(
   // Create hidden file input for tree upload
   const treeFileInput = document.createElement('input');
   treeFileInput.type = 'file';
-  treeFileInput.accept = '.nwk,.newick,.tree,.tre,.treefile';
   treeFileInput.style.display = 'none';
 
   // Handle file selection
@@ -556,30 +555,24 @@ function populateDataControls(
     if (!file) return;
 
     try {
-      const newickStr = await file.text();
+      const treeString = await file.text();
 
       // Derive tree name from filename (remove extension)
-      let treeName = file.name.replace(/\.(nwk|newick|tree|tre)$/i, '');
+      let treeName = file.name.replace(/\.[^/.]+$/, '');
 
-      // Ensure unique name
-      let uniqueName = treeName;
-      let counter = 1;
-      while (treeDataInstances.has(uniqueName)) {
-        uniqueName = `${treeName} (${counter})`;
-        counter++;
-      }
-
-      // Add the new tree
-      addNewTree(uniqueName, newickStr);
+      // Add the new tree(s) - returns array of added tree names
+      const addedNames = addNewTree(treeName, treeString);
 
       // Reset the file input so the same file can be selected again
       treeFileInput.value = '';
 
-      // Refresh the controls to show the new tree
+      // Refresh the controls to show the new tree(s)
       refreshCurrentTab();
 
-      // Switch to the newly added tree
-      switchToTree(uniqueName);
+      // Switch to the first newly added tree
+      if (addedNames.length > 0) {
+        switchToTree(addedNames[0]);
+      }
     } catch (error) {
       console.error('Error loading tree file:', error);
       alert(`Error loading tree file: ${error.message}`);

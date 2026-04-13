@@ -8,7 +8,7 @@ async function runWeisbergMlsa(id, heatTree) {
     '#' + id,
     {
       name: 'MLSA',
-      newick: await treeRes.text(),
+      tree: await treeRes.text(),
       metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
       aesthetics: {
         tipLabelText: 'strain',
@@ -29,7 +29,7 @@ async function runWeisbergBeast(id, heatTree) {
     '#' + id,
     {
       name: 'BEAST',
-      newick: await treeRes.text(),
+      tree: await treeRes.text(),
       metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
       aesthetics: {
         tipLabelText: 'strain',
@@ -50,7 +50,7 @@ async function runBansal(id, heatTree) {
     '#' + id,
     {
       name: 'Xylella Tree',
-      newick: await treeRes.text(),
+      tree: await treeRes.text(),
       metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
       aesthetics: {
         tipLabelColor: 'Lifestyle'
@@ -70,7 +70,7 @@ async function runRectangular(id, heatTree) {
     '#' + id,
     {
       name: 'My Tree',
-      newick: await treeRes.text(),
+      tree: await treeRes.text(),
       metadata: [{ name: 'Data', data: await metaRes.text() }],
       aesthetics: {
         tipLabelText: 'strain',
@@ -91,7 +91,7 @@ async function runCircular(id, heatTree) {
     '#' + id,
     {
       name: 'My Tree',
-      newick: await treeRes.text(),
+      tree: await treeRes.text(),
       metadata: [{ name: 'Data', data: await metaRes.text() }],
       aesthetics: {
         tipLabelText: 'strain',
@@ -128,7 +128,7 @@ heatTree(
   '#container',
   {
     name: 'MLSA',
-    newick: await treeRes.text(),
+    tree: await treeRes.text(),
     metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
     aesthetics: {
       tipLabelText: 'strain',
@@ -158,7 +158,7 @@ heatTree(
   '#container',
   {
     name: 'BEAST',
-    newick: await treeRes.text(),
+    tree: await treeRes.text(),
     metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
     aesthetics: {
       tipLabelText: 'strain',
@@ -190,7 +190,7 @@ heatTree(
   '#container',
   {
     name: 'Xylella Tree',
-    newick: await treeRes.text(),
+    tree: await treeRes.text(),
     metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
     aesthetics: {
       tipLabelColor: 'Lifestyle'
@@ -219,7 +219,7 @@ heatTree(
   '#container',
   {
     name: 'My Tree',
-    newick: await treeRes.text(),
+    tree: await treeRes.text(),
     metadata: [{ name: 'Data', data: await metaRes.text() }],
     aesthetics: {
       tipLabelText: 'strain',
@@ -247,7 +247,7 @@ heatTree(
   '#container',
   {
     name: 'My Tree',
-    newick: await treeRes.text(),
+    tree: await treeRes.text(),
     metadata: [{ name: 'Data', data: await metaRes.text() }],
     aesthetics: {
       tipLabelText: 'strain',

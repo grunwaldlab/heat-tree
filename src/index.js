@@ -8,7 +8,7 @@ import { injectStyles, ContainerResizeHandler } from './utils.js';
 /**
  * Create a heat tree visualization
  * @param {string} containerSelector - CSS selector for container element (required if first arg is config object)
- * @param {Array|Object} treesInput - Array of tree objects, each with newick, name, and metadata (optional)
+ * @param {Array|Object} treesInput - Array of tree objects, each with tree, name, and metadata (optional)
  * @param {Object} options - Configuration options
  * @returns {Object} Object containing references to tree components
  */
@@ -41,11 +41,11 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
   const treeConfigAesthetics = new Map();
 
   treesInput.forEach((treeConfig, index) => {
-    if (!treeConfig.newick) {
-      throw new Error(`Tree at index ${index} is missing newick string`);
+    if (!treeConfig.tree) {
+      throw new Error(`Tree at index ${index} is missing tree string`);
     }
 
-    const treeName = treeConfig.name || `Tree ${index + 1}`;
+    const sourceName = treeConfig.name || `Tree ${index + 1}`;
 
     // Process metadata tables - can be array of objects with name and data, or just data objects
     let metadataTables = [];
@@ -67,24 +67,41 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
       });
     }
 
-    const treeData = new TreeData(treeConfig.newick, metadataTables, metadataNames);
-    let treeAesthetics;
-    if (treeConfig.aesthetics) {
-      treeAesthetics = Object.fromEntries(
-        Object.entries(treeConfig.aesthetics).map(([aes, col]) => {
-          for (const [assignedColId, originalName] of treeData.columnName.entries()) {
-            if (originalName === col) {
-              return [aes, assignedColId];
+    // Parse trees - may return multiple from NEXUS
+    const parsedTrees = TreeData.parseTrees(treeConfig.tree, sourceName);
+
+    parsedTrees.forEach(({ name: parsedName, treeData: parsedTreeData }, treeIndex) => {
+      // Ensure unique name
+      let uniqueName = parsedName;
+      let counter = 1;
+      while (treeDataInstances.has(uniqueName)) {
+        uniqueName = `${parsedName} (${counter})`;
+        counter++;
+      }
+
+      // Create TreeData with the parsed tree object
+      const treeData = new TreeData(parsedTreeData, metadataTables, metadataNames);
+
+      // Process aesthetics if provided
+      let treeAesthetics;
+      if (treeConfig.aesthetics) {
+        treeAesthetics = Object.fromEntries(
+          Object.entries(treeConfig.aesthetics).map(([aes, col]) => {
+            for (const [assignedColId, originalName] of treeData.columnName.entries()) {
+              if (originalName === col) {
+                return [aes, assignedColId];
+              }
             }
-          }
-          return undefined;
-        })
-      )
-    } else {
-      treeAesthetics = undefined;
-    }
-    treeDataInstances.set(treeName, treeData);
-    treeConfigAesthetics.set(treeName, treeAesthetics);
+            return undefined;
+          }).filter(entry => entry !== undefined)
+        );
+      } else {
+        treeAesthetics = undefined;
+      }
+
+      treeDataInstances.set(uniqueName, treeData);
+      treeConfigAesthetics.set(uniqueName, treeAesthetics);
+    });
   });
 
   // Cache for TreeState and TreeView instances
@@ -125,8 +142,6 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
   const resizeHandler = new ContainerResizeHandler(
     treeDiv,
     (details) => {
-      // console.log('Container resized:', details);
-      // console.log(`New size: ${details.width}px × ${details.height}px`);
       if (currentTreeView) {
         currentTreeView.fitToView();
       }
@@ -140,24 +155,32 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
   /**
    * Add a new tree to the visualization
    * @param {string} treeName - Name for the new tree
-   * @param {string} newickStr - Newick string for the tree
+   * @param {string} treeString - Newick or NEXUS string for the tree(s)
    * @param {Array} metadataTables - Optional array of metadata table strings
    * @param {Array} metadataNames - Optional array of metadata table names
+   * @returns {Array<string>} Array of unique names of trees added
    */
-  function addNewTree(treeName, newickStr, metadataTables = [], metadataNames = []) {
-    // Ensure unique name
-    let uniqueName = treeName;
-    let counter = 1;
-    while (treeDataInstances.has(uniqueName)) {
-      uniqueName = `${treeName} (${counter})`;
-      counter++;
-    }
+  function addNewTree(treeName, treeString, metadataTables = [], metadataNames = []) {
+    // Parse trees - may return multiple from NEXUS
+    const parsedTrees = TreeData.parseTrees(treeString, treeName);
+    const addedNames = [];
 
-    // Create new TreeData instance
-    const treeData = new TreeData(newickStr, metadataTables, metadataNames);
-    treeDataInstances.set(uniqueName, treeData);
+    parsedTrees.forEach(({ name: parsedName, treeData: parsedTreeData }) => {
+      // Ensure unique name
+      let uniqueName = parsedName;
+      let counter = 1;
+      while (treeDataInstances.has(uniqueName)) {
+        uniqueName = `${parsedName} (${counter})`;
+        counter++;
+      }
 
-    return uniqueName;
+      // Create TreeData with the parsed tree object
+      const treeData = new TreeData(parsedTreeData, metadataTables, metadataNames);
+      treeDataInstances.set(uniqueName, treeData);
+      addedNames.push(uniqueName);
+    });
+
+    return addedNames;
   }
 
   /**

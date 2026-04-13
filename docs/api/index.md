@@ -38,7 +38,7 @@ Each tree in the `treesInput` array can have:
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `name` | string | No | Display name for the tree |
-| `newick` | string | Yes | Newick format tree string |
+| `tree` | string | Yes | Newick or NEXUS format tree string |
 | `metadata` | Array | No | Array of metadata tables |
 | `aesthetics` | Object | No | Initial aesthetic mappings |
 
@@ -88,7 +88,7 @@ The `heatTree` function returns an object with:
 ```typescript
 interface TreeConfig {
   name?: string;
-  newick: string;
+  tree: string;
   metadata?: Array<{
     name?: string;
     data: string;
