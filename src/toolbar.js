@@ -475,9 +475,6 @@ export function createToolbar(
   // Update tab states initially
   updateTabStates();
 
-  // Open the first tab by default
-  openTab(tabs[0].id);
-
   // Initialize selected metadata (will be set properly after first tree loads)
   resetSelectedMetadata();
 

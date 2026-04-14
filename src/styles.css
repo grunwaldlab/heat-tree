@@ -251,14 +251,14 @@
 }
 
 .ht-number-input {
-  font-size: 14px;
+  font-size: 12px;
   border: 1px solid #ccc;
   border-radius: 4px;
   width: 80px;
 }
 
 .ht-text-input {
-  font-size: 14px;
+  font-size: 12px;
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 2px 4px;
@@ -301,7 +301,7 @@
 .ht-palette-button {
   width: 20px;
   height: 20px;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: bold;
   background-color: #e0e0e0;
   border: 1px solid #ccc;
