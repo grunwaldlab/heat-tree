@@ -182,7 +182,7 @@ export class Aesthetic extends Subscribable {
    */
   createSettingsWidget(options = {}) {
     const {
-      controlHeight = 24,
+      controlHeight = 20,
       columnId = null
     } = options;
 

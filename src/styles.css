@@ -42,7 +42,7 @@
   background-color: transparent;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  padding: 0px 4px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -86,9 +86,9 @@
 
 .ht-widget .ht-tab {
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 0px 4px;
   font-family: sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   color: #333;
   border-bottom: 2px solid transparent;
   transition: all 0.2s;
@@ -127,7 +127,7 @@
   column-gap: 8px;
   row-gap: 2px;
   align-items: center;
-  min-height: 26px;
+  min-height: 22px;
 }
 
 .ht-controls.hidden {
@@ -150,7 +150,7 @@
 
 .ht-widget .ht-control-label {
   font-family: sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   color: #333;
   white-space: nowrap;
   display: flex;
@@ -158,7 +158,7 @@
 }
 
 .ht-button {
-  font-size: 14px;
+  font-size: 12px;
   font-family: sans-serif;
   background-color: #e0e0e0;
   border: 1px solid #ccc;
@@ -189,7 +189,7 @@
 }
 
 .ht-icon-button {
-  font-size: 14px;
+  font-size: 12px;
   font-family: sans-serif;
   background-color: #e0e0e0;
   border: 1px solid #ccc;
@@ -212,7 +212,7 @@
 
 .ht-select {
   padding: 1px 2px;
-  font-size: 14px;
+  font-size: 12px;
   border: 1px solid #ccc;
   border-radius: 4px;
 }
@@ -299,8 +299,8 @@
 }
 
 .ht-palette-button {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   font-size: 14px;
   font-weight: bold;
   background-color: #e0e0e0;
@@ -356,7 +356,7 @@
 
 .ht-gradient-box {
   width: 200px;
-  height: 24px;
+  height: 20px;
   border: 1px solid #ccc;
   border-radius: 4px;
   position: relative;
@@ -430,7 +430,7 @@
 
 .ht-null-color-box {
   width: 16px;
-  height: 24px;
+  height: 20px;
   border: 1px solid #ccc;
   border-radius: 4px;
   position: relative;

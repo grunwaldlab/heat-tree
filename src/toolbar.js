@@ -29,7 +29,7 @@ export function createToolbar(
   addNewTree,
   options
 ) {
-  const CONTROL_HEIGHT = 24; // Standard height for all controls
+  const CONTROL_HEIGHT = 20; // Standard height for all controls
   let currentTab = null;
   let selectedMetadata = null; // Track which metadata table is "selected" for future controls
   let currentAestheticSettings = null; // Track which aesthetic settings are open
