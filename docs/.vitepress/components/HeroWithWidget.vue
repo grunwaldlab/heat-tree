@@ -18,27 +18,26 @@
         height="400px"
         frameborder="0"
         class="hero-iframe"
-        sandbox="allow-scripts allow-same-origin"
       />
     </div>
   </div>
 </template>
 
 <script setup>
-const BASE = 'https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data'
+const BASE = 'https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data'
 
 // Split script tag to avoid Vue parsing issues
 const scriptEnd = '<' + '/script>'
 
 const demoCode = `<!DOCTYPE html>
-<div id="c" style="width:100%;height:400px;border:1px solid #ddd"></div>
+<div id="c" style="width:100%;height:95vh;"></div>
 <script type="module">
 import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
 const tree = await (await fetch('${BASE}/weisberg_2020_mlsa.tre')).text();
 const meta = await (await fetch('${BASE}/weisberg_2020_metadata.tsv')).text();
 heatTree('#c', {
   name: 'Weisberg 2020 MLSA',
-  tree: tree,
+  newick: tree,
   metadata: [{ name: 'Strain Metadata', data: meta }],
   aesthetics: { tipLabelText: 'strain', tipLabelColor: 'host_type' }
 }, { layout: 'circular', manualZoomAndPanEnabled: true });

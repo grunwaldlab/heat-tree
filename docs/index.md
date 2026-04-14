@@ -15,15 +15,17 @@ layout: home
 
 ## Quick Start
 
+Install `heat-tree`
+
 ```bash
 npm install heat-tree
 ```
 
+Embed a `heat-tree` widget in a `div` with an ID of `container`:
+
 ```javascript
 import { heatTree } from 'heat-tree';
-
-const treeString = "(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);";
-heatTree('#container', {name: 'My Tree', tree: treeString});
+heatTree('#container', {name: 'My Tree', newick: "(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);"});
 ```
 
 ## Learn More
@@ -33,8 +35,10 @@ heatTree('#container', {name: 'My Tree', tree: treeString});
 - [Examples](/guide/examples) - See heat-tree in action with real datasets
 - [API Reference](/api/) - Complete API documentation
 
-## For R Users
+## For use with Python / Jupyter Notebooks
+
+For the python package that wraps this library for use with Jupyter notebooks, see [https://github.com/grunwaldlab/heattree_py](https://github.com/grunwaldlab/heattree_py).
+
+## For use with R / R Markdown / Quarto
 
 For the R package that wraps this library, see [https://github.com/grunwaldlab/heattree](https://github.com/grunwaldlab/heattree).
-
-For a live example of the widget in use see the example in the R package documentation at [https://grunwaldlab.github.io/heattree/articles/Getting-started.html](https://grunwaldlab.github.io/heattree/articles/Getting-started.html).

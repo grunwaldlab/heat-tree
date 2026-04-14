@@ -2,10 +2,6 @@ import { defineConfig } from 'vitepress'
 import path from 'path'
 import fs from 'fs'
 
-// Version configuration
-const currentVersion = '0.2'
-const versions = ['0.2']
-
 // Copy dist files to public directory for docs
 const distSource = path.resolve(__dirname, '../../dist')
 const distDest = path.resolve(__dirname, '../public/dist')
@@ -20,28 +16,13 @@ export default defineConfig({
   title: 'heat-tree',
   description: 'A self-contained widget for phylogenetic and taxonomic tree visualization',
   base: '/heat-tree/',
-  
-  // Version-specific configuration
-  locales: {
-    root: {
-      label: `v${currentVersion}`,
-      lang: 'en'
-    }
-  },
 
   themeConfig: {
-    // Navigation with version dropdown
+    // Navigation
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'API', link: '/api/' },
-      {
-        text: `v${currentVersion}`,
-        items: versions.map(v => ({
-          text: `v${v}`,
-          link: `/${v === currentVersion ? '' : v + '/'}`
-        }))
-      }
+      // { text: 'API', link: '/api/' }
     ],
 
     // Sidebar configuration
@@ -53,18 +34,6 @@ export default defineConfig({
             { text: 'Getting Started', link: '/guide/getting-started' },
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Examples', link: '/guide/examples' }
-          ]
-        }
-      ],
-      '/api/': [
-        {
-          text: 'API Reference',
-          items: [
-            { text: 'Overview', link: '/api/' },
-            { text: 'heatTree', link: '/api/heat-tree' },
-            { text: 'TreeData', link: '/api/tree-data' },
-            { text: 'TreeState', link: '/api/tree-state' },
-            { text: 'TreeView', link: '/api/tree-view' }
           ]
         }
       ]

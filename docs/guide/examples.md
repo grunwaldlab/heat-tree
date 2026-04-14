@@ -1,111 +1,3 @@
-<script setup>
-const BASE = 'https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data'
-
-async function runWeisbergMlsa(id, heatTree) {
-  const treeRes = await fetch(BASE + '/weisberg_2020_mlsa.tre')
-  const metaRes = await fetch(BASE + '/weisberg_2020_metadata.tsv')
-  heatTree(
-    '#' + id,
-    {
-      name: 'MLSA',
-      tree: await treeRes.text(),
-      metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
-      aesthetics: {
-        tipLabelText: 'strain',
-        tipLabelColor: 'host_type'
-      }
-    },
-    {
-      layout: 'circular',
-      manualZoomAndPanEnabled: true
-    }
-  )
-}
-
-async function runWeisbergBeast(id, heatTree) {
-  const treeRes = await fetch(BASE + '/weisberg_2020_beast.tre')
-  const metaRes = await fetch(BASE + '/weisberg_2020_metadata.tsv')
-  heatTree(
-    '#' + id,
-    {
-      name: 'BEAST',
-      tree: await treeRes.text(),
-      metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
-      aesthetics: {
-        tipLabelText: 'strain',
-        tipLabelColor: 'year_isolated'
-      }
-    },
-    {
-      layout: 'circular',
-      manualZoomAndPanEnabled: true
-    }
-  )
-}
-
-async function runBansal(id, heatTree) {
-  const treeRes = await fetch(BASE + '/bansal_2021_tree.nwk')
-  const metaRes = await fetch(BASE + '/bansal_2021_metadata.tsv')
-  heatTree(
-    '#' + id,
-    {
-      name: 'Xylella Tree',
-      tree: await treeRes.text(),
-      metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
-      aesthetics: {
-        tipLabelColor: 'Lifestyle'
-      }
-    },
-    {
-      layout: 'circular',
-      manualZoomAndPanEnabled: true
-    }
-  )
-}
-
-async function runRectangular(id, heatTree) {
-  const treeRes = await fetch(BASE + '/weisberg_2020_mlsa.tre')
-  const metaRes = await fetch(BASE + '/weisberg_2020_metadata.tsv')
-  heatTree(
-    '#' + id,
-    {
-      name: 'My Tree',
-      tree: await treeRes.text(),
-      metadata: [{ name: 'Data', data: await metaRes.text() }],
-      aesthetics: {
-        tipLabelText: 'strain',
-        tipLabelColor: 'host_type'
-      }
-    },
-    {
-      layout: 'rectangular',
-      manualZoomAndPanEnabled: true
-    }
-  )
-}
-
-async function runCircular(id, heatTree) {
-  const treeRes = await fetch(BASE + '/weisberg_2020_mlsa.tre')
-  const metaRes = await fetch(BASE + '/weisberg_2020_metadata.tsv')
-  heatTree(
-    '#' + id,
-    {
-      name: 'My Tree',
-      tree: await treeRes.text(),
-      metadata: [{ name: 'Data', data: await metaRes.text() }],
-      aesthetics: {
-        tipLabelText: 'strain',
-        tipLabelColor: 'host_type'
-      }
-    },
-    {
-      layout: 'circular',
-      manualZoomAndPanEnabled: true
-    }
-  )
-}
-</script>
-
 # Examples
 
 This page showcases real-world examples using published phylogenetic datasets.
@@ -116,63 +8,49 @@ Below are two phylogenetic trees of agrobacteria isolates, one a multilocus sequ
 
 > Alexandra J. Weisberg et al., Unexpected conservation and global transmission of agrobacterial virulence plasmids. Science 368, eaba5256 (2020)
 
-### MLSA Tree
+```html
+<!DOCTYPE html>
 
-```javascript
-import { heatTree } from 'heat-tree';
+<div id="container" style="width:100%;height:95vh;"></div>
 
-const treeRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/weisberg_2020_mlsa.tre');
-const metaRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/weisberg_2020_metadata.tsv');
-
-heatTree(
-  '#container',
-  {
-    name: 'MLSA',
-    tree: await treeRes.text(),
-    metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
-    aesthetics: {
-      tipLabelText: 'strain',
-      tipLabelColor: 'host_type'
+<script type="module">
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+const mlsaTree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_mlsa.tre');
+const beastTree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_beast.tre');
+const metadata = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_metadata.tsv');
+const metaText = await metadata.text();
+heatTree('#container',
+  [
+    {
+      name: 'MLSA',
+      newick: await mlsaTree.text(),
+      metadata: [{ name: 'Strain Metadata', data: metaText }],
+      aesthetics: {
+        tipLabelText: 'strain',
+        tipLabelColor: 'host_type'
+      }
+    },
+    {
+      name: 'BEAST',
+      newick: await beastTree.text(),
+      metadata: [{ name: 'Strain Metadata', data: metaText }],
+      aesthetics: {
+        tipLabelText: 'strain',
+        tipLabelColor: 'year_isolated'
+      }
     }
-  },
+  ],
   {
     layout: 'circular',
-    manualZoomAndPanEnabled: true
+    manualZoomAndPanEnabled: false
   }
 );
+</script>
 ```
 
-<HeatTreeWidget :run="runWeisbergMlsa" height="500px" />
+<HeatTreeDemo />
 
-### BEAST Tree
-
-The same dataset can be visualized with the BEAST tree and colored by isolation year:
-
-```javascript
-import { heatTree } from 'heat-tree';
-
-const treeRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/weisberg_2020_beast.tre');
-const metaRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/weisberg_2020_metadata.tsv');
-
-heatTree(
-  '#container',
-  {
-    name: 'BEAST',
-    tree: await treeRes.text(),
-    metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
-    aesthetics: {
-      tipLabelText: 'strain',
-      tipLabelColor: 'year_isolated'
-    }
-  },
-  {
-    layout: 'circular',
-    manualZoomAndPanEnabled: true
-  }
-);
-```
-
-<HeatTreeWidget :run="runWeisbergBeast" height="500px" />
+Use the "Select tree" dropdown in the toolbar's "Data" tab to switch between the MLSA and BEAST trees.
 
 ## Bansal et al. 2021
 
@@ -180,97 +58,30 @@ This example uses phylogenetic trees from a comparative genomics study of Xylell
 
 > Bansal, K., Kumar, S., Kaur, A., Singh, A., & Patil, P. B. (2021). Deep phylo-taxono genomics reveals Xylella as a variant lineage of plant associated Xanthomonas and supports their taxonomic reunification along with Stenotrophomonas and Pseudoxanthomonas. Genomics, 113(6), 3989-4003.
 
-```javascript
-import { heatTree } from 'heat-tree';
+```html
+<!DOCTYPE html>
 
-const treeRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/bansal_2021_tree.nwk');
-const metaRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/bansal_2021_metadata.tsv');
+<div id="container" style="width:100%;height:95vh;"></div>
 
-heatTree(
-  '#container',
+<script type="module">
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+const tree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/bansal_2021_tree.nwk');
+const metadata = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/bansal_2021_metadata.tsv');
+heatTree('#container',
   {
     name: 'Xylella Tree',
-    tree: await treeRes.text(),
-    metadata: [{ name: 'Strain Metadata', data: await metaRes.text() }],
+    newick: await tree.text(),
+    metadata: [{ name: 'Strain Metadata', data: await metadata.text() }],
     aesthetics: {
+      tipLabelText: 'Strain',
       tipLabelColor: 'Lifestyle'
     }
   },
   {
-    layout: 'circular',
-    manualZoomAndPanEnabled: true
+    manualZoomAndPanEnabled: false
   }
 );
+</script>
 ```
 
-<HeatTreeWidget :run="runBansal" height="500px" />
-
-## Layout Comparison
-
-### Rectangular Layout
-
-```javascript
-import { heatTree } from 'heat-tree';
-
-const treeRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/weisberg_2020_mlsa.tre');
-const metaRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/weisberg_2020_metadata.tsv');
-
-heatTree(
-  '#container',
-  {
-    name: 'My Tree',
-    tree: await treeRes.text(),
-    metadata: [{ name: 'Data', data: await metaRes.text() }],
-    aesthetics: {
-      tipLabelText: 'strain',
-      tipLabelColor: 'host_type'
-    }
-  },
-  {
-    layout: 'rectangular',
-    manualZoomAndPanEnabled: true
-  }
-);
-```
-
-<HeatTreeWidget :run="runRectangular" height="500px" />
-
-### Circular Layout
-
-```javascript
-import { heatTree } from 'heat-tree';
-
-const treeRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/weisberg_2020_mlsa.tre');
-const metaRes = await fetch('https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data/weisberg_2020_metadata.tsv');
-
-heatTree(
-  '#container',
-  {
-    name: 'My Tree',
-    tree: await treeRes.text(),
-    metadata: [{ name: 'Data', data: await metaRes.text() }],
-    aesthetics: {
-      tipLabelText: 'strain',
-      tipLabelColor: 'host_type'
-    }
-  },
-  {
-    layout: 'circular',
-    manualZoomAndPanEnabled: true
-  }
-);
-```
-
-<HeatTreeWidget :run="runCircular" height="500px" />
-
-## Data Files
-
-The example data files are available in the repository:
-
-| File | Description |
-|------|-------------|
-| `data/bansal_2021_tree.nwk` | Bansal et al. 2021 phylogenetic tree |
-| `data/bansal_2021_metadata.tsv` | Associated metadata |
-| `data/weisberg_2020_mlsa.tre` | Weisberg et al. 2020 MLSA tree |
-| `data/weisberg_2020_beast.tre` | Weisberg et al. 2020 BEAST tree |
-| `data/weisberg_2020_metadata.tsv` | Associated metadata |
+<HeatTreeDemo />

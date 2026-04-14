@@ -59,11 +59,11 @@ heatTree(
 <HeatTreeDemo />
 
 ::: tip `manualZoomAndPanEnabled: false` in these examples
-For most of the examples here `manualZoomAndPanEnabled` is set to `false` so that users intending to scroll down the page do not zoom instead. You can enable zooming/panning in the "Controls" panel of the GUI
+For most of the examples here `manualZoomAndPanEnabled` is set to `false` so that users intending to scroll down this page do not zoom instead. You can enable zooming/panning in the "Controls" panel of the GUI
 :::
 
-Usually these trees are saved in files so the string will more commonly be derived from parsing data from a URL or uploaded by a user.
-The `heat-tree` library includes [example datasets](https://github.com/grunwaldlab/heat-tree/tree/dev/docs/public/data) that you can use for testing.
+Usually these trees are saved in files so the string will more commonly be derived from parsing data from a URL or database.
+The `heat-tree` source code includes [example datasets](https://github.com/grunwaldlab/heat-tree/tree/dev/docs/public/data) that you can use for testing.
 Here is an example using real phylogenetic data adapted from [Weisberg et al. 2020](https://www.science.org/doi/10.1126/science.aba5256):
 
 ```html
@@ -89,7 +89,7 @@ Here is an example using real phylogenetic data adapted from [Weisberg et al. 20
 ## Adding Metadata
 
 Metadata associated with tree nodes can be plotted using the size or color of tree components such as tip labels.
-Metadata tables should be tab-separated or comma-separated text with a column that corresponds to node IDs in the tree input.
+Metadata tables should be TSV/CSV formatted text with a column that corresponds to node IDs in the tree input.
 The column names of metadata can be associated with different properties of the tree referred to as "aesthetics".
 
 ```html
@@ -189,7 +189,7 @@ heatTree('#container',
 
 <HeatTreeDemo />
 
-Use the toolbar's "Data" tab to switch between loaded trees.
+Use the "Select tree" dropdown in the toolbar's "Data" tab to switch between loaded trees.
 
 ## Next Steps
 
