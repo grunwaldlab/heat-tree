@@ -14,7 +14,7 @@ Below are two phylogenetic trees of agrobacteria isolates, one a multilocus sequ
 <div id="container" style="width:100%;height:95vh;"></div>
 
 <script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
 const mlsaTree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_mlsa.tre');
 const beastTree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_beast.tre');
 const metadata = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_metadata.tsv');
@@ -23,7 +23,7 @@ heatTree('#container',
   [
     {
       name: 'MLSA',
-      newick: await mlsaTree.text(),
+      tree: await mlsaTree.text(),
       metadata: [{ name: 'Strain Metadata', data: metaText }],
       aesthetics: {
         tipLabelText: 'strain',
@@ -32,7 +32,7 @@ heatTree('#container',
     },
     {
       name: 'BEAST',
-      newick: await beastTree.text(),
+      tree: await beastTree.text(),
       metadata: [{ name: 'Strain Metadata', data: metaText }],
       aesthetics: {
         tipLabelText: 'strain',
@@ -64,13 +64,13 @@ This example uses phylogenetic trees from a comparative genomics study of Xylell
 <div id="container" style="width:100%;height:95vh;"></div>
 
 <script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
 const tree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/bansal_2021_tree.nwk');
 const metadata = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/bansal_2021_metadata.tsv');
 heatTree('#container',
   {
     name: 'Xylella Tree',
-    newick: await tree.text(),
+    tree: await tree.text(),
     metadata: [{ name: 'Strain Metadata', data: await metadata.text() }],
     aesthetics: {
       tipLabelText: 'Strain',

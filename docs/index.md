@@ -25,7 +25,7 @@ Embed a `heat-tree` widget in a `div` with an ID of `container`:
 
 ```javascript
 import { heatTree } from 'heat-tree';
-heatTree('#container', {name: 'My Tree', newick: "(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);"});
+heatTree('#container', {name: 'My Tree', tree: "(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);"});
 ```
 
 ## Learn More

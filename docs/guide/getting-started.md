@@ -44,12 +44,12 @@ Here is an example of embedding a simple newick string directly in the `heatTree
 <div id="container" style="width:100%;height:95vh;"></div>
 
 <script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
 heatTree(
   '#container',
   {
     name: 'Simple Tree',
-    newick: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);'
+    tree: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);'
   },
   { manualZoomAndPanEnabled: false }
 );
@@ -72,12 +72,12 @@ Here is an example using real phylogenetic data adapted from [Weisberg et al. 20
 <div id="container" style="width:100%;height:95vh;"></div>
 
 <script type="module">
-  import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+  import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
   const newick = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_mlsa.tre');
   heatTree('#container',
     {
       name: 'Weisberg 2020 MLSA',
-      newick: await newick.text(),
+      tree: await newick.text(),
     },
     { manualZoomAndPanEnabled: false }
   );
@@ -98,7 +98,7 @@ The column names of metadata can be associated with different properties of the 
 <div id="container" style="width:100%;height:95vh;"></div>
 
 <script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
 const meta = `
 node_id\tabundance\tsource
 A\t145\tfarm
@@ -109,7 +109,7 @@ heatTree(
   '#container',
   {
     ame: 'My Tree',
-    newick: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);',
+    tree: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);',
     metadata: [{ name: 'Data', data: meta }],
     aesthetics: { tipLabelColor: 'source', tipLabelSize: 'abundance' }
   },
@@ -138,7 +138,7 @@ Here is the previously shown Weisberg 2020 tree with its associated metadata.
   heatTree('#container',
     {
       name: 'Weisberg 2020 MLSA',
-      newick: await newick.text(),
+      tree: await newick.text(),
       metadata: [{ name: 'Strain Metadata', data: await metadata.text() }],
       aesthetics: { tipLabelText: 'strain', tipLabelColor: 'host_type' }
     },
@@ -168,18 +168,18 @@ The widget can be initialized with multiple trees by providing an array of objec
 <div id="container" style="width:100%;height:95vh;"></div>
 
 <script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
 const weisberg_tree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_mlsa.tre');
 const bansal_tree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/bansal_2021_tree.nwk');
 heatTree('#container',
   [
     {
       name: 'Weisberg 2020',
-      newick: await weisberg_tree.text(),
+      tree: await weisberg_tree.text(),
     },
     {
       name: 'Bansal 2021',
-      newick: await bansal_tree.text(),
+      tree: await bansal_tree.text(),
     }
   ],
   { manualZoomAndPanEnabled: false }

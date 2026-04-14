@@ -37,7 +37,7 @@ const tree = await (await fetch('${BASE}/weisberg_2020_mlsa.tre')).text();
 const meta = await (await fetch('${BASE}/weisberg_2020_metadata.tsv')).text();
 heatTree('#c', {
   name: 'Weisberg 2020 MLSA',
-  newick: tree,
+  tree: tree,
   metadata: [{ name: 'Strain Metadata', data: meta }],
   aesthetics: { tipLabelText: 'strain', tipLabelColor: 'host_type' }
 }, { layout: 'circular', manualZoomAndPanEnabled: true });
