@@ -20,15 +20,16 @@ Create a heat tree visualization
 
 
 * [heatTree(containerSelector, treesInput, options)](#heatTree) ⇒ <code>Object</code>
-    * [~addNewTree(treeName, treeString, metadataTables, metadataNames)](#heatTree..addNewTree)
+    * [~addNewTree(treeName, treeString, metadataTables, metadataNames)](#heatTree..addNewTree) ⇒ <code>Array.&lt;string&gt;</code>
     * [~switchToTree(treeName)](#heatTree..switchToTree)
 
 <a name="heatTree..addNewTree"></a>
 
-### heatTree~addNewTree(treeName, treeString, metadataTables, metadataNames)
+### heatTree~addNewTree(treeName, treeString, metadataTables, metadataNames) ⇒ <code>Array.&lt;string&gt;</code>
 Add a new tree to the visualization
 
 **Kind**: inner method of [<code>heatTree</code>](#heatTree)  
+**Returns**: <code>Array.&lt;string&gt;</code> - Array of unique names of trees added  
 
 | Param | Type | Description |
 | --- | --- | --- |

@@ -44,12 +44,12 @@ Here is an example of embedding a simple newick string directly in the `heatTree
 <div id="container" style="width:100%;height:95vh;"></div>
 
 <script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
 heatTree(
   '#container',
   {
     name: 'Simple Tree',
-    tree: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);'
+    newick: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);'
   },
   { manualZoomAndPanEnabled: false }
 );
@@ -72,12 +72,12 @@ Here is an example using real phylogenetic data adapted from [Weisberg et al. 20
 <div id="container" style="width:100%;height:95vh;"></div>
 
 <script type="module">
-  import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
+  import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
   const newick = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_mlsa.tre');
   heatTree('#container',
     {
       name: 'Weisberg 2020 MLSA',
-      tree: await newick.text(),
+      newick: await newick.text(),
     },
     { manualZoomAndPanEnabled: false }
   );
@@ -86,32 +86,45 @@ Here is an example using real phylogenetic data adapted from [Weisberg et al. 20
 
 <HeatTreeDemo />
 
-::: tip
-Try interacting with the widget above! You can:
-- **Zoom**: Use mouse wheel or pinch gesture
-- **Pan**: Click and drag
-- **Collapse/Expand**: Click on nodes
-- **Change aesthetics**: Use the toolbar controls
-:::
-
 ## Adding Metadata
 
-Metadata can be associated with tree nodes to control visual properties. Metadata tables should be tab-separated or comma-separated text with a column that corresponds to node IDs in the Newick string. The column that contains node IDs is automatically selected.
+Metadata associated with tree nodes can be plotted using the size or color of tree components such as tip labels.
+Metadata tables should be tab-separated or comma-separated text with a column that corresponds to node IDs in the tree input.
+The column names of metadata can be associated with different properties of the tree referred to as "aesthetics".
 
 ```html
 <!DOCTYPE html>
-<div id="container" style="width:100%;height:100%;"></div>
+
+<div id="container" style="width:100%;height:95vh;"></div>
+
 <script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
-const meta = `node_id\tabundance\tsource
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+const meta = `
+node_id\tabundance\tsource
 A\t145\tfarm
 B\t892\tnursery
-C\t234\tcity`;
-heatTree('#container', { name: 'My Tree', tree: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);', metadata: [{ name: 'Sample Data', data: meta }] });
+C\t234\tcity
+`;
+heatTree(
+  '#container',
+  {
+    ame: 'My Tree',
+    newick: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);',
+    metadata: [{ name: 'Data', data: meta }],
+    aesthetics: { tipLabelColor: 'source', tipLabelSize: 'abundance' }
+  },
+  { manualZoomAndPanEnabled: false }
+);
 </script>
 ```
 
 <HeatTreeDemo  />
+
+::: tip Automatic ID column detection
+The column that contains node IDs is automatically selected based on its content, so it can have any name and be positioned anywhere in the table.
+:::
+
+Here is the previously shown Weisberg 2020 tree with its associated metadata.
 
 ```html
 <!DOCTYPE html>
@@ -125,35 +138,18 @@ heatTree('#container', { name: 'My Tree', tree: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5)
   heatTree('#container',
     {
       name: 'Weisberg 2020 MLSA',
-      tree: await newick.text(),
+      newick: await newick.text(),
       metadata: [{ name: 'Strain Metadata', data: await metadata.text() }],
       aesthetics: { tipLabelText: 'strain', tipLabelColor: 'host_type' }
     },
-    { layout: 'circular', manualZoomAndPanEnabled: false }
+    { manualZoomAndPanEnabled: false }
   );
-</script>
-```
-
-## Aesthetic Mappings
-
-Although the metadata columns used to color/size tree parts can be set interactively, they can also be defined when the widget first loads:
-
-```html
-<!DOCTYPE html>
-<div id="container" style="width:100%;height:100%;"></div>
-<script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
-const meta = `node_id\tsource\tabundance\tfont_style
-A\tfarm\t145\tnormal
-B\tnursery\t892\tbold
-C\tcity\t234\titalic`;
-heatTree('#container', { name: 'My Tree', tree: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);', metadata: [{ name: 'Data', data: meta }], aesthetics: { tipLabelColor: 'source', tipLabelSize: 'abundance', tipLabelStyle: 'font_style' } });
 </script>
 ```
 
 <HeatTreeDemo  />
 
-**Available Aesthetics:**
+**Currently available Aesthetics:**
 
 - `tipLabelText`: Text content for tip labels
 - `tipLabelColor`: Color of tip labels (supports categorical and continuous data)
@@ -161,58 +157,39 @@ heatTree('#container', { name: 'My Tree', tree: '(A:0.1,B:0.2,(C:0.3,D:0.4):0.5)
 - `tipLabelFont`: Font family for tip labels
 - `tipLabelStyle`: Font style for tip labels (normal, bold, italic, bold italic)
 
-## Initial Settings
-
-Although the widget is primarily designed for interactive use, the initial settings can be set programmatically:
-
-```html
-<!DOCTYPE html>
-<div id="container" style="width:100%;height:100%;"></div>
-<script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
-const BASE = 'https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data';
-heatTree('#container', {
-  name: 'Xylella Tree',
-  tree: await (await fetch(BASE + '/bansal_2021_tree.nwk')).text(),
-  metadata: [{ name: 'Data', data: await (await fetch(BASE + '/bansal_2021_metadata.tsv')).text() }],
-  aesthetics: { tipLabelColor: 'Lifestyle' }
-}, { layout: 'circular', branchLengthScale: 1.5, treeHeightScale: 2, autoZoom: 'Both', autoPan: 'Both', manualZoomAndPanEnabled: true, transitionDuration: 750 });
-</script>
-```
-
-<HeatTreeDemo  />
 
 ## Multiple Trees
 
-The widget can be initialized with multiple trees:
+The widget can be initialized with multiple trees by providing an array of objects instead of a single object:
 
 ```html
 <!DOCTYPE html>
-<div id="container" style="width:100%;height:100%;"></div>
+
+<div id="container" style="width:100%;height:95vh;"></div>
+
 <script type="module">
-import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
-const BASE = 'https://raw.githubusercontent.com/grunwaldlab/heattree/main/demo/data';
-const meta = await (await fetch(BASE + '/weisberg_2020_metadata.tsv')).text();
-heatTree('#container', [
-  { name: 'MLSA', tree: await (await fetch(BASE + '/weisberg_2020_mlsa.tre')).text(), metadata: [{ name: 'Metadata', data: meta }], aesthetics: { tipLabelText: 'strain', tipLabelColor: 'host_type' } },
-  { name: 'BEAST', tree: await (await fetch(BASE + '/weisberg_2020_beast.tre')).text(), metadata: [{ name: 'Metadata', data: meta }], aesthetics: { tipLabelText: 'strain', tipLabelColor: 'year_isolated' } }
-]);
+import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree@0.2';
+const weisberg_tree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/weisberg_2020_mlsa.tre');
+const bansal_tree = await fetch('https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/public/data/bansal_2021_tree.nwk');
+heatTree('#container',
+  [
+    {
+      name: 'Weisberg 2020',
+      newick: await weisberg_tree.text(),
+    },
+    {
+      name: 'Bansal 2021',
+      newick: await bansal_tree.text(),
+    }
+  ],
+  { manualZoomAndPanEnabled: false }
+);
 </script>
 ```
 
 <HeatTreeDemo />
 
 Use the toolbar's "Data" tab to switch between loaded trees.
-
-## Interactive Features
-
-Once the widget is created, you can:
-
-- **Switch trees**: Use the Data tab to select different loaded trees
-- **Apply aesthetics**: Map metadata columns to visual properties
-- **Manipulate the tree**: Collapse/expand clades, hide/reveal nodes
-- **Zoom and pan**: Navigate large trees (if enabled)
-- **Export**: Save the visualization as SVG or PNG
 
 ## Next Steps
 
