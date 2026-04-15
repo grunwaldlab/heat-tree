@@ -7,21 +7,19 @@ import { injectStyles, ContainerResizeHandler } from './utils.js';
 
 /**
  * Create a heat tree visualization
- * @param {string} containerSelector - CSS selector for container element (required if first arg is config object)
+ * @param {string|HTMLElement} containerOrSelector - CSS selector for container element or the element itself
  * @param {Array|Object} treesInput - Array of tree objects, each with tree, name, and metadata (optional)
  * @param {Object} options - Configuration options
+ * @param {string} options.isolation - CSS isolation mode: 'shadow' (default) or 'none'
  * @returns {Object} Object containing references to tree components
  */
-export function heatTree(containerSelector, treesInput = [], options = {}) {
+export function heatTree(containerOrSelector, treesInput = [], options = {}) {
   if (treesInput && !Array.isArray(treesInput)) {
     treesInput = [treesInput];
   }
   if (treesInput === undefined || treesInput === null) {
     treesInput = [];
   }
-
-  // Inject static CSS
-  injectStyles();
 
   // Set default options
   options = {
@@ -30,10 +28,16 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
     manualZoomAndPanEnabled: true,
     autoZoom: 'Default',
     autoPan: 'Default',
+    isolation: 'shadow',
     ...options
   };
 
+  // Determine isolation mode and set up root
+  const isolation = options.isolation;
+  let root; // The root for style injection and DOM queries (document or shadowRoot)
+
   // Initialize text size estimator (shared across all trees)
+  // Always append to document.body since it needs to be in a rendered context for measurement
   const textSizeEstimator = new TextSizeEstimator();
 
   // Create TreeData instances for each tree
@@ -108,11 +112,30 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
   const treeStateCache = new Map();
   const treeViewCache = new Map();
 
-  // Get container element
-  const container = document.querySelector(containerSelector);
-  if (!container) {
-    throw new Error(`Container element not found: ${containerSelector}`);
+  // Get container element (accepts CSS selector string or HTMLElement)
+  let container;
+  if (typeof containerOrSelector === 'string') {
+    container = document.querySelector(containerOrSelector);
+    if (!container) {
+      throw new Error(`Container element not found: ${containerOrSelector}`);
+    }
+  } else if (containerOrSelector instanceof HTMLElement) {
+    container = containerOrSelector;
+  } else {
+    throw new Error('First argument must be a CSS selector string or an HTMLElement');
   }
+
+  // Set up Shadow DOM if isolation mode is 'shadow'
+  let shadowRoot = null;
+  if (isolation === 'shadow') {
+    shadowRoot = container.attachShadow({ mode: 'open' });
+    root = shadowRoot;
+  } else {
+    root = document;
+  }
+
+  // Inject styles into the appropriate root
+  injectStyles(root);
 
   // Create main widget structure
   const widgetDiv = document.createElement('div');
@@ -122,14 +145,18 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
   const treeDiv = document.createElement('div');
   treeDiv.className = 'ht-tree';
   const treeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  treeSvg.setAttribute('width', '100%');
-  treeSvg.setAttribute('height', '100%');
 
   // Assemble widget structure
   treeDiv.appendChild(treeSvg);
   widgetDiv.appendChild(toolbarDiv);
   widgetDiv.appendChild(treeDiv);
-  container.appendChild(widgetDiv);
+
+  // Append widget to shadow root or container directly
+  if (shadowRoot) {
+    shadowRoot.appendChild(widgetDiv);
+  } else {
+    container.appendChild(widgetDiv);
+  }
 
   // Track current tree
   let currentTreeName = null;
@@ -243,7 +270,8 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
     () => currentTreeView,
     switchToTree,
     addNewTree,
-    options
+    options,
+    root
   );
 
   // Display the first tree initially (if any trees exist)
@@ -262,6 +290,7 @@ export function heatTree(containerSelector, treesInput = [], options = {}) {
     getCurrentTreeName: () => currentTreeName,
     switchToTree,
     addNewTree,
-    container: widgetDiv
+    container: widgetDiv,
+    shadowRoot
   };
 }

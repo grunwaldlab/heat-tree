@@ -27,7 +27,8 @@ export function createToolbar(
   getCurrentTreeView,
   switchToTree,
   addNewTree,
-  options
+  options,
+  root = document
 ) {
   const CONTROL_HEIGHT = 20; // Standard height for all controls
   let currentTab = null;
@@ -320,7 +321,8 @@ export function createToolbar(
     // Use the aesthetic's createSettingsWidget method
     const settingsWidget = aesthetic.createSettingsWidget({
       controlHeight: CONTROL_HEIGHT,
-      columnId: columnId
+      columnId: columnId,
+      root: root
     });
 
     if (settingsWidget) {
@@ -429,7 +431,7 @@ export function createToolbar(
         );
         break;
       case 'export':
-        populateExportControls(controlsContainer, getCurrentTreeState, getCurrentTreeView, getCurrentTreeName, options, CONTROL_HEIGHT);
+        populateExportControls(controlsContainer, getCurrentTreeState, getCurrentTreeView, getCurrentTreeName, options, CONTROL_HEIGHT, root);
         break;
     }
   }
@@ -1307,7 +1309,7 @@ function createMetadataColumnSelect(treeState, aesthetic, defaultLabel, controlH
 /**
  * Populate Export tab controls
  */
-function populateExportControls(container, getCurrentTreeState, getCurrentTreeView, getCurrentTreeName, options, controlHeight) {
+function populateExportControls(container, getCurrentTreeState, getCurrentTreeView, getCurrentTreeName, options, controlHeight, root = document) {
   container.innerHTML = '';
 
   const treeState = getCurrentTreeState();
@@ -1397,7 +1399,7 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
     const extension = exportState.format === 'svg' ? 'svg' : 'png';
     const filename = `${sanitizedName}.${extension}`;
 
-    exportTree(treeView, exportState, filename);
+    exportTree(treeView, exportState, filename, root);
   });
   container.appendChild(exportBtn);
 

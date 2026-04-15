@@ -183,7 +183,8 @@ export class Aesthetic extends Subscribable {
   createSettingsWidget(options = {}) {
     const {
       controlHeight = 20,
-      columnId = null
+      columnId = null,
+      root = document
     } = options;
 
     // Check if aesthetic is mapped to a metadata column
@@ -200,7 +201,7 @@ export class Aesthetic extends Subscribable {
 
     // For color scales, create color palette editor
     if (this.state.scaleType === 'color') {
-      const paletteEditor = this.createColorPaletteEditor(controlHeight);
+      const paletteEditor = this.createColorPaletteEditor(controlHeight, root);
       if (paletteEditor) {
         container.appendChild(paletteEditor);
       }
@@ -313,7 +314,7 @@ export class Aesthetic extends Subscribable {
    * @param {number} controlHeight - Height of controls
    * @returns {HTMLElement} The palette editor container
    */
-  createColorPaletteEditor(controlHeight) {
+  createColorPaletteEditor(controlHeight, root = document) {
     if (!this.scale) {
       return null;
     }
@@ -352,19 +353,23 @@ export class Aesthetic extends Subscribable {
     // Track current parent for the shared picker
     let currentPickerParent = null;
 
-    // Create a container div that will be appended to body for the gradient picker
+    // Determine where to append picker containers
+    // For Shadow DOM, append inside shadow root; otherwise use document.body
+    const pickerParent = (root !== document && root.appendChild) ? root : document.body;
+
+    // Create a container div for the gradient picker
     const pickerContainer = document.createElement('div');
     pickerContainer.style.position = 'fixed';
     pickerContainer.style.zIndex = '999999';
     pickerContainer.style.pointerEvents = 'auto';
-    document.body.appendChild(pickerContainer);
+    pickerParent.appendChild(pickerContainer);
 
     // Create a separate container for the null color picker
     const nullPickerContainer = document.createElement('div');
     nullPickerContainer.style.position = 'fixed';
     nullPickerContainer.style.zIndex = '999999';
     nullPickerContainer.style.pointerEvents = 'auto';
-    document.body.appendChild(nullPickerContainer);
+    pickerParent.appendChild(nullPickerContainer);
 
     // Function to close the gradient picker
     const closeGradientPicker = () => {
@@ -448,12 +453,14 @@ export class Aesthetic extends Subscribable {
     pickerContainer.style.display = 'none';
 
     // Add event listener to close picker when clicking outside
+    // Use the root for event listening so it works inside Shadow DOM
+    const clickTarget = (root !== document && root.addEventListener) ? root : document;
     const closePickerOnClickOutside = (e) => {
       if (!pickerContainer.contains(e.target) && !e.target.closest('.ht-color-square')) {
         closeGradientPicker();
       }
     };
-    document.addEventListener('click', closePickerOnClickOutside);
+    clickTarget.addEventListener('click', closePickerOnClickOutside);
 
     // Create separate picker for null color
     const nullColorPicker = new Picker({
@@ -485,13 +492,13 @@ export class Aesthetic extends Subscribable {
         closeNullPicker();
       }
     };
-    document.addEventListener('click', closeNullPickerOnClickOutside);
+    clickTarget.addEventListener('click', closeNullPickerOnClickOutside);
 
     // Store cleanup function on container
     container.dataset.pickerCleanup = 'cleanup';
     container.cleanupFunction = () => {
-      document.removeEventListener('click', closePickerOnClickOutside);
-      document.removeEventListener('click', closeNullPickerOnClickOutside);
+      clickTarget.removeEventListener('click', closePickerOnClickOutside);
+      clickTarget.removeEventListener('click', closeNullPickerOnClickOutside);
       if (pickerContainer.parentElement) {
         pickerContainer.parentElement.removeChild(pickerContainer);
       }
