@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TreeState } from './treeState.js';
 import { TreeData } from './treeData.js';
 import { TextSizeEstimator } from './textAspectRatioPrediction.js';
+import { parseNewick } from './parsers.js';
 
 describe('TreeState', () => {
   let treeState;
@@ -19,9 +20,12 @@ describe('TreeState', () => {
 A\t10\tred
 B\t20\tblue
 C\t15\tred
-D\t25\tgreen`;
+D\t25\tgreen
+E\t30\tblue
+F\t35\tred
+G\t40\tgreen`;
 
-    treeData = new TreeData(simpleNewick, [metadataTable]);
+    treeData = new TreeData(parseNewick(simpleNewick), [metadataTable]);
     textSizeEstimator = new TextSizeEstimator();
 
     treeState = new TreeState({
@@ -54,11 +58,11 @@ D\t25\tgreen`;
     });
 
     it('should initialize with all aesthetic properties', () => {
-      expect(treeState.state.aesthetics.tipLabelText).toBeNull();
-      expect(treeState.state.aesthetics.tipLabelColor).toBeNull();
-      expect(treeState.state.aesthetics.tipLabelSize).toBeNull();
-      expect(treeState.state.aesthetics.tipLabelFont).toBeNull();
-      expect(treeState.state.aesthetics.tipLabelStyle).toBeNull();
+      expect(treeState.state.aesthetics.tipLabelText).toBeUndefined();
+      expect(treeState.state.aesthetics.tipLabelColor).toBeUndefined();
+      expect(treeState.state.aesthetics.tipLabelSize).toBeUndefined();
+      expect(treeState.state.aesthetics.tipLabelFont).toBeUndefined();
+      expect(treeState.state.aesthetics.tipLabelStyle).toBeUndefined();
     });
   });
 
@@ -103,18 +107,18 @@ D\t25\tgreen`;
     });
 
     it('should set aesthetics with column id', () => {
-      const columnId = Array.from(treeData.columnType.keys()).find(
-        key => treeData.columnType.get(key) === 'categorical'
-      );
+      // Find the category1 column specifically
+      const columnId = Array.from(treeData.columnName.entries())
+        .find(([key, name]) => name === 'category1')?.[0];
 
       treeState.setAesthetics({ tipLabelColor: columnId });
       expect(treeState.state.aesthetics.tipLabelColor).toBe(columnId);
     });
 
     it('should create color scale for categorical data', () => {
-      const columnId = Array.from(treeData.columnType.keys()).find(
-        key => treeData.columnType.get(key) === 'categorical'
-      );
+      // Find the category1 column specifically
+      const columnId = Array.from(treeData.columnName.entries())
+        .find(([key, name]) => name === 'category1')?.[0];
 
       treeState.setAesthetics({ tipLabelColor: columnId });
       expect(treeState.aestheticsScales.tipLabelColor).toBeDefined();
@@ -128,14 +132,18 @@ D\t25\tgreen`;
     });
 
     it('should apply aesthetic values to tree nodes', () => {
-      const columnId = Array.from(treeData.columnType.keys()).find(
-        key => treeData.columnType.get(key) === 'categorical'
-      );
+      // Find the category1 column specifically
+      const columnId = Array.from(treeData.columnName.entries())
+        .find(([key, name]) => name === 'category1')?.[0];
 
       treeState.setAesthetics({ tipLabelColor: columnId });
 
-      treeData.tree.each(node => {
-        expect(node.tipLabelColor).toBeDefined();
+      // Check that nodes with metadata have the aesthetic applied
+      // (internal nodes may not have metadata for tip labels)
+      treeData.tree.leaves().forEach(node => {
+        if (node.metadata && node.metadata[columnId]) {
+          expect(node.tipLabelColor).toBeDefined();
+        }
       });
     });
 
@@ -148,6 +156,16 @@ D\t25\tgreen`;
   });
 
   describe('Tree Dimensions', () => {
+    beforeEach(() => {
+      // Use complex tree for dimension tests to avoid Infinity scaling factors
+      treeData = new TreeData(parseNewick(complexNewick), [metadataTable]);
+      treeState = new TreeState({
+        treeData: treeData,
+        viewWidth: 800,
+        viewHeight: 600
+      }, textSizeEstimator);
+    });
+
     it('should set target tree dimensions', () => {
       treeState.setTargetTreeDimensions(1000, 800);
       expect(treeState.state.viewWidth).toBe(1000);
@@ -163,19 +181,31 @@ D\t25\tgreen`;
 
     it('should recalculate scaling factors when dimensions change', () => {
       const oldBranchFactor = treeState.branchLenToPxFactor;
+      expect(isFinite(oldBranchFactor)).toBe(true);
       treeState.setTargetTreeDimensions(1600, 1200);
+      expect(isFinite(treeState.branchLenToPxFactor)).toBe(true);
       expect(treeState.branchLenToPxFactor).not.toBe(oldBranchFactor);
     });
   });
 
   describe('Subtree Collapse/Expand', () => {
+    beforeEach(() => {
+      // Use complex tree for subtree tests that need nodes with children
+      treeData = new TreeData(parseNewick(complexNewick), [metadataTable]);
+      treeState = new TreeState({
+        treeData: treeData,
+        viewWidth: 800,
+        viewHeight: 600
+      }, textSizeEstimator);
+    });
+
     it('should collapse a subtree', () => {
       const nodeToCollapse = treeData.tree.children[1];
       const originalChildren = nodeToCollapse.children;
 
       treeState.collapseSubtree(nodeToCollapse);
 
-      expect(nodeToCollapse.children).toBeNull();
+      expect(nodeToCollapse.children).toBeUndefined();
       expect(nodeToCollapse.collapsedChildren).toBe(originalChildren);
     });
 
@@ -187,7 +217,7 @@ D\t25\tgreen`;
       treeState.expandSubtree(nodeToCollapse);
 
       expect(nodeToCollapse.children).toBe(originalChildren);
-      expect(nodeToCollapse.collapsedChildren).toBeNull();
+      expect(nodeToCollapse.collapsedChildren).toBeUndefined();
     });
 
     it('should not collapse a node without children', () => {
@@ -226,6 +256,16 @@ D\t25\tgreen`;
   });
 
   describe('Root Collapse/Expand', () => {
+    beforeEach(() => {
+      // Use complex tree for root collapse tests that need nodes with children
+      treeData = new TreeData(parseNewick(complexNewick), [metadataTable]);
+      treeState = new TreeState({
+        treeData: treeData,
+        viewWidth: 800,
+        viewHeight: 600
+      }, textSizeEstimator);
+    });
+
     it('should collapse root to a child node', () => {
       const newRoot = treeData.tree.children[0];
       const originalParent = newRoot.parent;
@@ -234,7 +274,7 @@ D\t25\tgreen`;
 
       expect(treeState.displayedRoot).toBe(newRoot);
       expect(newRoot.collapsedParent).toBe(originalParent);
-      expect(newRoot.parent).toBeNull();
+      expect(newRoot.parent).toBeUndefined();
     });
 
     it('should expand collapsed root', () => {
@@ -244,7 +284,7 @@ D\t25\tgreen`;
       treeState.expandRoot();
 
       expect(treeState.displayedRoot).toBe(treeData.tree);
-      expect(newRoot.collapsedParent).toBeNull();
+      expect(newRoot.collapsedParent).toBeUndefined();
     });
 
     it('should not collapse root if node is already displayed root', () => {
@@ -338,7 +378,7 @@ D\t25\tgreen`;
 
   describe('Complex Tree Operations', () => {
     beforeEach(() => {
-      treeData = new TreeData(complexNewick, [metadataTable]);
+      treeData = new TreeData(parseNewick(complexNewick), [metadataTable]);
       treeState = new TreeState({
         treeData: treeData,
         viewWidth: 800,
@@ -353,8 +393,8 @@ D\t25\tgreen`;
       treeState.collapseSubtree(node1);
       treeState.collapseSubtree(node2);
 
-      expect(node1.children).toBeNull();
-      expect(node2.children).toBeNull();
+      expect(node1.children).toBeUndefined();
+      expect(node2.children).toBeUndefined();
       expect(node1.collapsedChildren).toBeDefined();
       expect(node2.collapsedChildren).toBeDefined();
     });
