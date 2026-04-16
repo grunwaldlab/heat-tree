@@ -2,15 +2,23 @@ import { interpolateViridis } from "d3";
 import styles from './styles.css?inline';
 
 /**
- * Inject styles into the document if not already present
+ * Inject styles into the given root if not already present.
+ * @param {Document|ShadowRoot} root - Where to inject styles (defaults to document)
  */
-export function injectStyles() {
+export function injectStyles(root = document) {
   const styleId = 'heat-tree-styles';
-  if (!document.getElementById(styleId)) {
+  // ShadowRoot has querySelector but not getElementById
+  const existing = root.querySelector ? root.querySelector(`#${styleId}`) : document.getElementById(styleId);
+  if (!existing) {
     const styleElement = document.createElement('style');
     styleElement.id = styleId;
     styleElement.textContent = styles;
-    document.head.appendChild(styleElement);
+    if (root === document) {
+      document.head.appendChild(styleElement);
+    } else {
+      // ShadowRoot: prepend so styles are available before content
+      root.prepend(styleElement);
+    }
   }
 }
 

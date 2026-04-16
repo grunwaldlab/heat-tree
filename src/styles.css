@@ -46,7 +46,7 @@
   background-color: transparent;
   border: none;
   cursor: pointer;
-  padding: 0px 4px;
+  padding: 4px 4px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -478,6 +478,8 @@
 
 .ht-tree svg {
   display: block;
+  height: 100%;
+  width: 100%;
 }
 
 /* Ensure vanilla-picker appears above all other elements */

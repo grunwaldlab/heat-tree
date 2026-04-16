@@ -1,7 +1,11 @@
 /**
  * Export tree to file
+ * @param {Object} treeView - TreeView instance
+ * @param {Object} exportState - Export configuration
+ * @param {string} filename - Output filename
+ * @param {Document|ShadowRoot} root - Root for DOM operations (unused for export, kept for API consistency)
  */
-export function exportTree(treeView, exportState, filename) {
+export function exportTree(treeView, exportState, filename, root = document) {
   const bounds = treeView.getCurrentBoundsWithLegends();
 
   // Calculate dimensions
