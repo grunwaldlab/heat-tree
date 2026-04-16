@@ -993,7 +993,7 @@ function populateTreeManipulationControls(
 
   // Scale branch length group
   const branchLengthGroup = createControlGroup();
-  const branchLengthLabel = createLabel('Branch length:', controlHeight);
+  const branchLengthLabel = createLabel('Width', controlHeight);
   branchLengthGroup.appendChild(branchLengthLabel);
 
   // Convert actual scale value to slider position (logarithmic)
@@ -1025,7 +1025,7 @@ function populateTreeManipulationControls(
 
   // Scale tree height group
   const treeHeightGroup = createControlGroup();
-  const treeHeightLabel = createLabel('Tree height:', controlHeight);
+  const treeHeightLabel = createLabel('Height', controlHeight);
   treeHeightGroup.appendChild(treeHeightLabel);
 
   const treeHeightSlider = createSlider(0, 100, scaleToSlider(treeState.state.treeHeightScale), 0.1, controlHeight);
@@ -1041,7 +1041,7 @@ function populateTreeManipulationControls(
 
   // Radial layout toggle group
   const radialLayoutGroup = createControlGroup();
-  const radialLayoutLabel = createLabel('Radial layout:', controlHeight);
+  const radialLayoutLabel = createLabel('Radial:', controlHeight);
   radialLayoutGroup.appendChild(radialLayoutLabel);
 
   const isCircular = treeState.state.layout === 'circular';
@@ -1405,7 +1405,7 @@ function populateExportControls(container, getCurrentTreeState, getCurrentTreeVi
 
   // Output format group
   const formatGroup = createControlGroup();
-  const formatLabel = createLabel('Output format:', controlHeight);
+  const formatLabel = createLabel('Format:', controlHeight);
   formatGroup.appendChild(formatLabel);
 
   const formatSelect = document.createElement('select');

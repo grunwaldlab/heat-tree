@@ -46,7 +46,6 @@
   background-color: transparent;
   border: none;
   cursor: pointer;
-  padding: 4px 4px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -223,11 +222,11 @@
 
 .ht-slider {
   cursor: pointer;
-  width: 150px;
+  width: 100px;
 }
 
 .ht-toggle {
-  width: 50px;
+  width: 30px;
   background-color: #ccc;
   border-radius: 12px;
   position: relative;
@@ -258,7 +257,7 @@
   font-size: 12px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  width: 80px;
+  width: 60px;
 }
 
 .ht-text-input {
