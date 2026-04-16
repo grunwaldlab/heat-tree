@@ -7,7 +7,7 @@ import {
   CategoricalColorScale
 } from "./scales.js";
 import { Subscribable } from "./utils.js";
-import Picker from 'vanilla-picker';
+import Picker from 'vanilla-picker/csp';
 import {
   createControlGroup,
   createLabel,

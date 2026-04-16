@@ -1,5 +1,6 @@
 import { interpolateViridis } from "d3";
 import styles from './styles.css?inline';
+import pickerStyles from 'vanilla-picker/dist/vanilla-picker.csp.css?inline';
 
 /**
  * Inject styles into the given root if not already present.
@@ -12,7 +13,8 @@ export function injectStyles(root = document) {
   if (!existing) {
     const styleElement = document.createElement('style');
     styleElement.id = styleId;
-    styleElement.textContent = styles;
+    // Combine heat-tree styles with vanilla-picker styles
+    styleElement.textContent = styles + '\n' + pickerStyles;
     if (root === document) {
       document.head.appendChild(styleElement);
     } else {
