@@ -30,7 +30,15 @@ const BASE = 'https://raw.githubusercontent.com/grunwaldlab/heat-tree/dev/docs/p
 const scriptEnd = '<' + '/script>'
 
 const demoCode = `<!DOCTYPE html>
-<div id="c" style="width:100%;height:95vh;"></div>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { margin: 0; }
+  </style>
+</head>
+<body>
+<div id="c" style="width:100%;height:100vh;"></div>
 <script type="module">
 import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
 const tree = await (await fetch('${BASE}/weisberg_2020_mlsa.tre')).text();
@@ -41,7 +49,9 @@ heatTree('#c', {
   metadata: [{ name: 'Strain Metadata', data: meta }],
   aesthetics: { tipLabelText: 'strain', tipLabelColor: 'host_type' }
 }, { layout: 'circular', manualZoomAndPanEnabled: true });
-${scriptEnd}`
+${scriptEnd}
+</body>
+</html>`
 </script>
 
 <style scoped>
@@ -130,9 +140,10 @@ ${scriptEnd}`
 
 .hero-iframe {
   width: 100%;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
   background: white;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  outline: 2px solid #ddd;
 }
 
 /* Mobile: stack vertically */

@@ -35,10 +35,10 @@ heatTree('#container', {name: 'My Tree', tree: "(A:0.1,B:0.2,(C:0.3,D:0.4):0.5);
 - [Examples](/guide/examples) - See heat-tree in action with real datasets
 - [API Reference](/api/) - Complete API documentation
 
-## For use with Python / Jupyter Notebooks
+## For use with Python / Jupyter Notebooks / Quarto
 
-For the python package that wraps this library for use with Jupyter notebooks, see [https://github.com/grunwaldlab/heattree_py](https://github.com/grunwaldlab/heattree_py).
+For the python package that wraps this library for use with Python and Jupyter notebooks, see [this documentation](https://grunwaldlab.github.io/heattree_py/).
 
 ## For use with R / R Markdown / Quarto
 
-For the R package that wraps this library, see [https://github.com/grunwaldlab/heattree](https://github.com/grunwaldlab/heattree).
+For the R package that wraps this library, see [this documentation](https://grunwaldlab.github.io/heattree/).

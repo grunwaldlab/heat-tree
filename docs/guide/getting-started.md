@@ -17,7 +17,7 @@ All examples below are complete, minimal HTML documents that you can copy, save 
 ```html
 <!DOCTYPE html>
 
-<div id="container" style="width:100%;height:100%;"></div>
+<div id="container" style="width:100%;height:100vh;"></div>
 
 <script type="module">
   import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
@@ -41,7 +41,7 @@ Here is an example of embedding a simple newick string directly in the `heatTree
 ```html
 <!DOCTYPE html>
 
-<div id="container" style="width:100%;height:95vh;"></div>
+<div id="container" style="width:100%;height:100vh;"></div>
 
 <script type="module">
 import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
@@ -69,7 +69,7 @@ Here is an example using real phylogenetic data adapted from [Weisberg et al. 20
 ```html
 <!DOCTYPE html>
 
-<div id="container" style="width:100%;height:95vh;"></div>
+<div id="container" style="width:100%;height:100vh;"></div>
 
 <script type="module">
   import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
@@ -95,7 +95,7 @@ The column names of metadata can be associated with different properties of the 
 ```html
 <!DOCTYPE html>
 
-<div id="container" style="width:100%;height:95vh;"></div>
+<div id="container" style="width:100%;height:100vh;"></div>
 
 <script type="module">
 import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
@@ -129,7 +129,7 @@ Here is the previously shown Weisberg 2020 tree with its associated metadata.
 ```html
 <!DOCTYPE html>
 
-<div id="container" style="width:100%;height:95vh;"></div>
+<div id="container" style="width:100%;height:100vh;"></div>
 
 <script type="module">
   import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
@@ -165,7 +165,7 @@ The widget can be initialized with multiple trees by providing an array of objec
 ```html
 <!DOCTYPE html>
 
-<div id="container" style="width:100%;height:95vh;"></div>
+<div id="container" style="width:100%;height:100vh;"></div>
 
 <script type="module">
 import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';

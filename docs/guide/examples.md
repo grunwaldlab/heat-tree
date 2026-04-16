@@ -11,7 +11,7 @@ Below are two phylogenetic trees of agrobacteria isolates, one a multilocus sequ
 ```html
 <!DOCTYPE html>
 
-<div id="container" style="width:100%;height:95vh;"></div>
+<div id="container" style="width:100%;height:100vh;"></div>
 
 <script type="module">
 import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';
@@ -61,7 +61,7 @@ This example uses phylogenetic trees from a comparative genomics study of Xylell
 ```html
 <!DOCTYPE html>
 
-<div id="container" style="width:100%;height:95vh;"></div>
+<div id="container" style="width:100%;height:100vh;"></div>
 
 <script type="module">
 import { heatTree } from 'https://esm.sh/@grunwaldlab/heat-tree';

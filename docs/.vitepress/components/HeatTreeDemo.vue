@@ -32,20 +32,33 @@ const isMounted = ref(false)
 
 onMounted(() => {
   isMounted.value = true
-  
+
   // Find the previous code block
   if (!container.value) return
-  
+
   // Get the parent element
   const parent = container.value.parentElement
   if (!parent) return
-  
+
   // Find the previous sibling that contains a code block
   let prev = container.value.previousElementSibling
   while (prev) {
     const codeBlock = prev.querySelector('pre code')
     if (codeBlock) {
-      code.value = codeBlock.textContent || ''
+      const rawCode = codeBlock.textContent || ''
+      // Wrap the code in a complete HTML document with body margin reset
+      code.value = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { margin: 0; }
+  </style>
+</head>
+<body>
+${rawCode}
+</body>
+</html>`
       break
     }
     prev = prev.previousElementSibling
@@ -56,9 +69,10 @@ onMounted(() => {
 <style scoped>
 .heat-tree-demo {
   margin: 0 0 16px 0;
-  border: 3px solid var(--vp-c-divider);
   border-radius: 8px;
   overflow: hidden;
+  outline: 2px solid #ddd;
+  outline-offset: -2px;
 }
 
 .demo-placeholder {
@@ -77,7 +91,6 @@ onMounted(() => {
 .demo-iframe {
   width: 100%;
   border-top: none;
-  background: white;
 }
 
 </style>
