@@ -216,6 +216,12 @@ Use the toolbar's "Data" tab to switch between loaded trees.
 - [D3.js](https://d3js.org/)
 - [vanilla-picker](https://www.npmjs.com/package/vanilla-picker)
 
+## Citation
+
+Please consider citing:
+
+> Foster, Zachary SL, Jeff H. Chang, and Niklaus J. Grünwald. 2026. "Heat-tree: Cross-platform software for interactive and embeddable phylogenetic tree visualization and editing." arXiv preprint arXiv:2605.01109.
+
 ## License
 
 MIT
